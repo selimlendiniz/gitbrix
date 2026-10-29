@@ -138,6 +138,8 @@ export const useStore = create<State>((set, get) => ({
     try {
       const info = await api.openRepo(path);
       addRecent(info.path, info.name);
+      // Without a watcher the app still refreshes on window focus.
+      api.watchRepo(info.path).catch((e) => console.warn("watch failed:", errorText(e)));
       set({
         repo: info,
         graph: null,
@@ -160,6 +162,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   closeRepo() {
+    api.unwatchRepo().catch(() => {});
     set({ repo: null, graph: null, status: null, stashes: [], selectedId: null, details: null, diffSource: null, diff: null });
   },
 

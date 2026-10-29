@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 
 import "./App.css";
@@ -28,9 +29,16 @@ function useGlobalKeys() {
     const onFocus = () => void useStore.getState().refresh();
     window.addEventListener("keydown", onKey);
     window.addEventListener("focus", onFocus);
+    // The backend watcher reports changes made outside the app. An
+    // operation in progress refreshes when it finishes anyway.
+    const unlisten = listen<string>("repo-changed", (e) => {
+      const s = useStore.getState();
+      if (s.repo?.path === e.payload && !s.busy) void s.refresh();
+    });
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("focus", onFocus);
+      void unlisten.then((f) => f()).catch(() => {});
     };
   }, []);
 }

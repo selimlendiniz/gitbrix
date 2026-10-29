@@ -154,6 +154,18 @@ try {
     await shot("04-branch");
   });
 
+  await step("picks up changes made outside the app", async () => {
+    writeFileSync(join(repo, "external.txt"), "written by another program\n");
+    await waitFor("external.txt listed", () =>
+      js("return [...document.querySelectorAll('.wip-panel .file-row')].some(r => r.textContent.includes('external.txt'))"),
+    );
+    git("commit", "-q", "--allow-empty", "-m", "Commit from terminal");
+    await waitFor("terminal commit in graph", () =>
+      js("return [...document.querySelectorAll('.graph-row')].some(r => r.textContent.includes('Commit from terminal'))"),
+    );
+    await shot("05-external-change");
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

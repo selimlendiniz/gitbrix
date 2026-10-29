@@ -10,6 +10,7 @@ use git2::Oid;
 
 use crate::error::{Error, Result};
 use crate::git::{diff, log, ops, refs, repo, status};
+use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
     repo::open(Path::new(path))
@@ -34,6 +35,16 @@ pub fn initial_repo() -> Option<String> {
 #[tauri::command(async)]
 pub fn open_repo(path: String) -> Result<repo::RepoInfo> {
     repo::info(&open(&path)?)
+}
+
+#[tauri::command]
+pub fn watch_repo(app: tauri::AppHandle, state: tauri::State<WatchState>, repo: String) -> Result<()> {
+    watch::watch(app, &state, &repo)
+}
+
+#[tauri::command]
+pub fn unwatch_repo(state: tauri::State<WatchState>) {
+    watch::unwatch(&state);
 }
 
 #[tauri::command(async)]
