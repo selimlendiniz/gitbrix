@@ -15,7 +15,9 @@ declare global {
   }
 }
 
+// `?open` in the URL plays the role of a path on the command line.
 const READS: Record<string, (a: Args) => unknown> = {
+  initial_repo: () => (new URLSearchParams(location.search).has("open") ? fixture.info.path : null),
   open_repo: () => fixture.info,
   repo_info: () => fixture.info,
   get_graph: () => fixture.graph,
@@ -46,10 +48,4 @@ export async function installMocks() {
     // Mutations: pretend they worked.
     return null;
   });
-
-  // `?open` opens the fixture repo straight away (handy for screenshots).
-  if (new URLSearchParams(location.search).has("open")) {
-    const { useStore } = await import("../store");
-    queueMicrotask(() => void useStore.getState().openRepo(fixture.info.path));
-  }
 }

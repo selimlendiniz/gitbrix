@@ -140,6 +140,7 @@ export type ResetMode = "soft" | "mixed" | "hard";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
 
 export const api = {
+  initialRepo: () => invoke<string | null>("initial_repo"),
   openRepo: (path: string) => invoke<RepoInfo>("open_repo", { path }),
   repoInfo: (repo: string) => invoke<RepoInfo>("repo_info", { repo }),
   graph: (repo: string, limit: number) => invoke<Graph>("get_graph", { repo, limit }),

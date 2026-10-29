@@ -23,6 +23,14 @@ fn oid(s: &str) -> Result<Oid> {
     Oid::from_str(s).map_err(|_| Error::msg(format!("Not a commit id: {s}")))
 }
 
+/// Repository given on the command line (`gitbrix ~/code/project`), if any.
+#[tauri::command]
+pub fn initial_repo() -> Option<String> {
+    let arg = std::env::args_os().skip(1).find(|a| !a.to_string_lossy().starts_with('-'))?;
+    let path = std::fs::canonicalize(arg).ok()?;
+    Some(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command(async)]
 pub fn open_repo(path: String) -> Result<repo::RepoInfo> {
     repo::info(&open(&path)?)

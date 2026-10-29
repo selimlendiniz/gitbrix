@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
+import { api } from "./api";
+import { useStore } from "./store";
 
 async function start() {
   // Outside Tauri (plain browser, UI tests) there is no Rust backend:
@@ -15,6 +17,8 @@ async function start() {
       <App />
     </React.StrictMode>,
   );
+  const initial = await api.initialRepo().catch(() => null);
+  if (initial) void useStore.getState().openRepo(initial);
 }
 
 void start();
