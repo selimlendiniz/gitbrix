@@ -1,0 +1,155 @@
+import { ReactNode, useMemo, useState } from "react";
+
+import { RefInfo } from "../api";
+import { checkoutRef, createBranch, refMenu, remoteOf, stashMenu } from "../actions";
+import { useStore } from "../store";
+import { IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
+
+function Section({
+  title,
+  icon,
+  count,
+  children,
+  action,
+}: {
+  title: string;
+  icon: ReactNode;
+  count: number;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="side-section">
+      <div className="side-title" onClick={() => setOpen(!open)}>
+        <IconChevron size={12} open={open} />
+        {icon}
+        <span className="side-title-text">{title}</span>
+        <span className="side-count">{count}</span>
+        {action && (
+          <span className="side-action" onClick={(e) => e.stopPropagation()}>
+            {action}
+          </span>
+        )}
+      </div>
+      {open && <div className="side-items">{children}</div>}
+    </div>
+  );
+}
+
+function RefItem({ r, label, indent = 0 }: { r: RefInfo; label: string; indent?: number }) {
+  const select = useStore((s) => s.select);
+  const showMenu = useStore((s) => s.showMenu);
+  return (
+    <div
+      className={`side-item${r.isHead ? " head" : ""}`}
+      style={{ paddingLeft: 24 + indent * 12 }}
+      title={r.upstream ? `${r.name} → ${r.upstream}` : r.name}
+      onClick={() => select(r.target, true)}
+      onDoubleClick={() => checkoutRef(r)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        showMenu(e.clientX, e.clientY, refMenu(r));
+      }}
+    >
+      {r.isHead && <span className="side-head-dot" />}
+      <span className="side-item-label">{label}</span>
+      {(r.ahead > 0 || r.behind > 0) && (
+        <span className="ahead-behind">
+          {r.behind > 0 && <span title={`${r.behind} behind ${r.upstream}`}>↓{r.behind}</span>}
+          {r.ahead > 0 && <span title={`${r.ahead} ahead of ${r.upstream}`}>↑{r.ahead}</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function Sidebar() {
+  const graph = useStore((s) => s.graph);
+  const stashes = useStore((s) => s.stashes);
+  const select = useStore((s) => s.select);
+  const showMenu = useStore((s) => s.showMenu);
+  const [filter, setFilter] = useState("");
+
+  const { locals, remotes, tags } = useMemo(() => {
+    const f = filter.trim().toLowerCase();
+    const refs = (graph?.refs ?? []).filter((r) => !f || r.name.toLowerCase().includes(f));
+    const remotes = new Map<string, RefInfo[]>();
+    for (const r of refs.filter((r) => r.kind === "remote")) {
+      const { remote } = remoteOf(r);
+      remotes.set(remote, [...(remotes.get(remote) ?? []), r]);
+    }
+    return {
+      locals: refs.filter((r) => r.kind === "local"),
+      remotes,
+      tags: refs.filter((r) => r.kind === "tag").sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true })),
+    };
+  }, [graph, filter]);
+
+  const remoteCount = [...remotes.values()].reduce((n, l) => n + l.length, 0);
+
+  return (
+    <aside className="sidebar">
+      <div className="side-filter">
+        <input placeholder="Filter branches & tags" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      </div>
+      <div className="side-scroll">
+        <Section
+          title="Local"
+          icon={<IconLaptop size={13} />}
+          count={locals.length}
+          action={
+            <button className="icon-btn" title="New branch at HEAD" onClick={() => createBranch(null)}>
+              <IconPlus size={12} />
+            </button>
+          }
+        >
+          {locals.map((r) => (
+            <RefItem key={r.fullName} r={r} label={r.name} />
+          ))}
+        </Section>
+        <Section title="Remote" icon={<IconCloud size={13} />} count={remoteCount}>
+          {[...remotes.entries()].map(([remote, list]) => (
+            <RemoteGroup key={remote} remote={remote} list={list} />
+          ))}
+        </Section>
+        <Section title="Tags" icon={<IconTag size={13} />} count={tags.length}>
+          {tags.map((r) => (
+            <RefItem key={r.fullName} r={r} label={r.name} />
+          ))}
+        </Section>
+        <Section title="Stashes" icon={<IconStash size={13} />} count={stashes.length}>
+          {stashes.map((st) => (
+            <div
+              key={st.id}
+              className="side-item"
+              style={{ paddingLeft: 24 }}
+              title={st.message}
+              onClick={() => st.base && select(st.base, true)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                showMenu(e.clientX, e.clientY, stashMenu(st));
+              }}
+            >
+              <span className="side-item-label">{st.message}</span>
+            </div>
+          ))}
+        </Section>
+      </div>
+    </aside>
+  );
+}
+
+function RemoteGroup({ remote, list }: { remote: string; list: RefInfo[] }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <div className="side-item group" style={{ paddingLeft: 18 }} onClick={() => setOpen(!open)}>
+        <IconChevron size={11} open={open} />
+        <IconBranch size={12} />
+        <span className="side-item-label">{remote}</span>
+      </div>
+      {open && list.map((r) => <RefItem key={r.fullName} r={r} label={remoteOf(r).branch} indent={1} />)}
+    </>
+  );
+}

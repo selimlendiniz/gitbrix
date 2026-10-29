@@ -1,0 +1,140 @@
+import { ReactNode } from "react";
+
+import { createBranch, fetchAll, pull, push, stashPop, stashSave } from "../actions";
+import { PullMode } from "../api";
+import { useStore } from "../store";
+import { openRepoDialog } from "./Welcome";
+import {
+  IconBranch,
+  IconChevron,
+  IconFetch,
+  IconFolder,
+  IconPull,
+  IconPush,
+  IconRefresh,
+  IconStash,
+  IconUndo,
+} from "./Icons";
+
+function ToolButton({
+  icon,
+  label,
+  onClick,
+  disabled,
+  badge,
+  title,
+  onMenu,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  badge?: ReactNode;
+  title?: string;
+  onMenu?: (x: number, y: number) => void;
+}) {
+  return (
+    <div className="tool">
+      <button className="tool-btn" disabled={disabled} onClick={onClick} title={title ?? label}>
+        <span className="tool-icon">
+          {icon}
+          {badge}
+        </span>
+        <span className="tool-label">{label}</span>
+      </button>
+      {onMenu && (
+        <button
+          className="tool-more"
+          disabled={disabled}
+          title={`${label} options`}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            onMenu(r.left - 60, r.bottom + 4);
+          }}
+        >
+          <IconChevron size={10} style={{ transform: "rotate(90deg)" }} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+const PULL_MODES: { mode: PullMode; label: string }[] = [
+  { mode: "ff-only", label: "Fast-forward only" },
+  { mode: "merge", label: "Pull (merge)" },
+  { mode: "rebase", label: "Pull (rebase)" },
+];
+
+export function Toolbar() {
+  const repo = useStore((s) => s.repo);
+  const busy = useStore((s) => s.busy);
+  const stashes = useStore((s) => s.stashes);
+  const status = useStore((s) => s.status);
+  const refresh = useStore((s) => s.refresh);
+  const showMenu = useStore((s) => s.showMenu);
+  const closeRepo = useStore((s) => s.closeRepo);
+  if (!repo) return null;
+
+  const dirty = !!status && (status.staged.length > 0 || status.unstaged.length > 0);
+  const disabled = !!busy;
+
+  return (
+    <header className="toolbar">
+      <div className="toolbar-left">
+        <button
+          className="repo-btn"
+          title={repo.path}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            showMenu(r.left, r.bottom + 4, [
+              { label: "Open repository…", onSelect: () => openRepoDialog() },
+              { label: "Close repository", onSelect: () => closeRepo() },
+            ]);
+          }}
+        >
+          <IconFolder size={14} />
+          <span className="repo-name">{repo.name}</span>
+        </button>
+        <span className="toolbar-sep">/</span>
+        <span className="branch-name" title={repo.upstream ? `tracking ${repo.upstream}` : "no upstream"}>
+          <IconBranch size={13} />
+          {repo.detached ? `detached at ${repo.headOid?.slice(0, 7)}` : repo.headBranch ?? "—"}
+        </span>
+        {repo.state !== "clean" && <span className="state-badge">{repo.state} in progress</span>}
+      </div>
+
+      <div className="toolbar-center">
+        <ToolButton icon={<IconRefresh />} label="Refresh" title="Refresh (F5)" onClick={() => refresh()} disabled={disabled} />
+        <span className="tool-gap" />
+        <ToolButton
+          icon={<IconPull />}
+          label="Pull"
+          disabled={disabled}
+          onClick={() => pull("ff-only")}
+          badge={repo.behind > 0 ? <span className="tool-badge">{repo.behind}</span> : undefined}
+          onMenu={(x, y) => showMenu(x, y, PULL_MODES.map((m) => ({ label: m.label, onSelect: () => pull(m.mode) })))}
+        />
+        <ToolButton
+          icon={<IconPush />}
+          label="Push"
+          disabled={disabled}
+          onClick={() => push(false)}
+          badge={repo.ahead > 0 ? <span className="tool-badge">{repo.ahead}</span> : undefined}
+          onMenu={(x, y) =>
+            showMenu(x, y, [
+              { label: "Push", onSelect: () => push(false) },
+              { label: "Force push (with lease)…", danger: true, onSelect: () => push(true) },
+            ])
+          }
+        />
+        <ToolButton icon={<IconFetch />} label="Fetch" disabled={disabled} onClick={() => fetchAll()} />
+        <span className="tool-gap" />
+        <ToolButton icon={<IconBranch />} label="Branch" disabled={disabled} onClick={() => createBranch(null)} />
+        <ToolButton icon={<IconStash />} label="Stash" disabled={disabled || !dirty} onClick={() => stashSave()} />
+        <ToolButton icon={<IconUndo />} label="Pop" disabled={disabled || stashes.length === 0} onClick={() => stashPop(0)} />
+      </div>
+
+      <div className="toolbar-right">{busy && <span className="busy"><span className="spinner" />{busy}…</span>}</div>
+    </header>
+  );
+}

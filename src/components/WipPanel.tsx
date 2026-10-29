@@ -1,0 +1,208 @@
+import { useState } from "react";
+import { create } from "zustand";
+
+import { api, SequencerOp } from "../api";
+import { discardFiles, stashSave } from "../actions";
+import { useStore } from "../store";
+import { FileList, FileRow } from "./FileList";
+import { IconMinus, IconPlus, IconTrash } from "./Icons";
+
+// The commit message survives switching to another commit and back.
+const useDraft = create<{ summary: string; body: string; amend: boolean }>(() => ({
+  summary: "",
+  body: "",
+  amend: false,
+}));
+
+const SUMMARY_SOFT_LIMIT = 72;
+
+export function WipPanel() {
+  const repo = useStore((s) => s.repo)!;
+  const status = useStore((s) => s.status);
+  const diffSource = useStore((s) => s.diffSource);
+  const openDiff = useStore((s) => s.openDiff);
+  const run = useStore((s) => s.run);
+  const showMenu = useStore((s) => s.showMenu);
+  const busy = useStore((s) => s.busy);
+  const toast = useStore((s) => s.toast);
+  const { summary, body, amend } = useDraft();
+  const [committing, setCommitting] = useState(false);
+
+  if (!status) return <div className="panel-loading">Loading changes…</div>;
+
+  const unstaged: FileRow[] = [...status.conflicted, ...status.unstaged];
+  const staged: FileRow[] = status.staged;
+  const active = diffSource?.kind === "wip" ? diffSource : null;
+
+  const stage = (paths: string[]) => run("Staging", (r) => api.stage(r, paths));
+  const unstage = (paths: string[]) => run("Unstaging", (r) => api.unstage(r, paths));
+
+  async function toggleAmend(on: boolean) {
+    useDraft.setState({ amend: on });
+    if (on && !summary.trim() && !body.trim()) {
+      try {
+        const msg = await api.headMessage(repo.path);
+        const [s, ...rest] = msg.split("\n");
+        useDraft.setState({ summary: s, body: rest.join("\n").trim() });
+      } catch {
+        // No HEAD commit to amend; the checkbox stays but commit will fail with a clear error.
+      }
+    }
+  }
+
+  async function commit() {
+    const message = body.trim() ? `${summary.trim()}\n\n${body.trim()}\n` : `${summary.trim()}\n`;
+    setCommitting(true);
+    const ok = await run(amend ? "Amending" : "Committing", (r) => api.commit(r, message, amend), amend ? "Commit amended" : "Committed");
+    setCommitting(false);
+    if (ok) useDraft.setState({ summary: "", body: "", amend: false });
+  }
+
+  const canCommit = !!summary.trim() && (staged.length > 0 || amend) && !busy && status.conflicted.length === 0;
+
+  return (
+    <div className="wip-panel">
+      {repo.state !== "clean" && <OperationBanner op={repo.state} conflicts={status.conflicted.length} />}
+
+      <div className="wip-section">
+        <div className="panel-subhead">
+          <span>Unstaged files ({unstaged.length})</span>
+          <span className="subhead-actions">
+            {unstaged.length > 0 && (
+              <>
+                <button className="link-btn" onClick={() => stashSave()}>
+                  Stash
+                </button>
+                <button className="small-btn" onClick={() => run("Staging", (r) => api.stageAll(r))}>
+                  Stage all
+                </button>
+              </>
+            )}
+          </span>
+        </div>
+        <FileList
+          files={unstaged}
+          empty="No unstaged changes"
+          activePath={active && !active.staged ? active.path : null}
+          onOpen={(f) => openDiff({ kind: "wip", path: f.path, staged: false })}
+          onMenu={(f, x, y) =>
+            showMenu(x, y, [
+              { label: "Stage file", onSelect: () => stage([f.path]) },
+              { label: "Discard changes…", danger: true, disabled: f.status === "conflicted", onSelect: () => discardFiles([f.path]) },
+              { separator: true, label: "" },
+              { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(f.path).then(() => toast("info", "Copied path")) },
+            ])
+          }
+          actions={(f) => (
+            <>
+              {f.status !== "conflicted" && (
+                <button className="icon-btn danger" title="Discard changes" onClick={() => discardFiles([f.path])}>
+                  <IconTrash size={12} />
+                </button>
+              )}
+              <button className="icon-btn stage" title={f.status === "conflicted" ? "Mark resolved" : "Stage file"} onClick={() => stage([f.path])}>
+                <IconPlus size={12} />
+              </button>
+            </>
+          )}
+        />
+      </div>
+
+      <div className="wip-section">
+        <div className="panel-subhead">
+          <span>Staged files ({staged.length})</span>
+          {staged.length > 0 && (
+            <button className="small-btn" onClick={() => run("Unstaging", (r) => api.unstageAll(r))}>
+              Unstage all
+            </button>
+          )}
+        </div>
+        <FileList
+          files={staged}
+          empty="Nothing staged yet"
+          activePath={active?.staged ? active.path : null}
+          onOpen={(f) => openDiff({ kind: "wip", path: f.path, staged: true })}
+          onMenu={(f, x, y) => showMenu(x, y, [{ label: "Unstage file", onSelect: () => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path]) }])}
+          actions={(f) => (
+            <button className="icon-btn unstage" title="Unstage file" onClick={() => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path])}>
+              <IconMinus size={12} />
+            </button>
+          )}
+        />
+      </div>
+
+      <div className="commit-form">
+        <div className="commit-form-head">
+          <span>Commit</span>
+          <label className="checkbox">
+            <input type="checkbox" checked={amend} onChange={(e) => toggleAmend(e.target.checked)} disabled={repo.unborn} />
+            Amend previous commit
+          </label>
+        </div>
+        <div className="summary-wrap">
+          <input
+            className="commit-summary-input"
+            placeholder="Summary (required)"
+            value={summary}
+            onChange={(e) => useDraft.setState({ summary: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canCommit) commit();
+            }}
+          />
+          <span className={`summary-count${summary.length > SUMMARY_SOFT_LIMIT ? " over" : ""}`}>
+            {SUMMARY_SOFT_LIMIT - summary.length}
+          </span>
+        </div>
+        <textarea
+          className="commit-body-input"
+          placeholder="Description"
+          value={body}
+          rows={4}
+          onChange={(e) => useDraft.setState({ body: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canCommit) commit();
+          }}
+        />
+        <button className="primary-btn" disabled={!canCommit || committing} onClick={commit} title="Ctrl+Enter">
+          {amend
+            ? "Amend previous commit"
+            : staged.length > 0
+              ? `Commit changes to ${staged.length} file${staged.length === 1 ? "" : "s"}`
+              : "Stage files to commit"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function OperationBanner({ op, conflicts }: { op: string; conflicts: number }) {
+  const run = useStore((s) => s.run);
+  const seqOp = (op === "am" || op === "bisect" ? null : op) as SequencerOp | null;
+  return (
+    <div className={`op-banner${conflicts ? " conflict" : ""}`}>
+      <div>
+        <strong>{op}</strong> in progress
+        {conflicts > 0 ? ` — ${conflicts} conflicted file${conflicts === 1 ? "" : "s"}. Resolve, then stage them.` : " — ready to continue."}
+      </div>
+      {seqOp && (
+        <div className="op-actions">
+          <button className="small-btn" onClick={() => run(`Aborting ${op}`, (r) => api.sequencer(r, seqOp, "abort"))}>
+            Abort
+          </button>
+          {seqOp === "rebase" && (
+            <button className="small-btn" onClick={() => run("Skipping commit", (r) => api.sequencer(r, seqOp, "skip"))}>
+              Skip
+            </button>
+          )}
+          <button
+            className="small-btn primary"
+            disabled={conflicts > 0}
+            onClick={() => run(`Continuing ${op}`, (r) => api.sequencer(r, seqOp, "continue"))}
+          >
+            Continue
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

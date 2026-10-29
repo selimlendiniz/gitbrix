@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-ssr/
+target/
+*.log
+*.local
+.idea/
+.vscode/*
+!.vscode/extensions.json
+test-results/
+playwright-report/

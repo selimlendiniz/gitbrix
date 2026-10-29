@@ -1,0 +1,149 @@
+// Small stroke icons, 16px grid, drawn with currentColor.
+
+import { SVGProps } from "react";
+
+type P = SVGProps<SVGSVGElement> & { size?: number };
+
+function Svg({ size = 14, children, ...rest }: P) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...rest}
+    >
+      {children}
+    </svg>
+  );
+}
+
+export const IconBranch = (p: P) => (
+  <Svg {...p}>
+    <circle cx="4.5" cy="3.5" r="1.5" />
+    <circle cx="4.5" cy="12.5" r="1.5" />
+    <circle cx="11.5" cy="5.5" r="1.5" />
+    <path d="M4.5 5v6M11.5 7c0 3-7 2-7 4" />
+  </Svg>
+);
+
+export const IconCloud = (p: P) => (
+  <Svg {...p}>
+    <path d="M4.5 12.5h7a3 3 0 0 0 .4-6A4 4 0 0 0 4.2 7.2a2.7 2.7 0 0 0 .3 5.3z" />
+  </Svg>
+);
+
+export const IconLaptop = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="3.5" width="10" height="7" rx="1" />
+    <path d="M1.5 12.5h13" />
+  </Svg>
+);
+
+export const IconTag = (p: P) => (
+  <Svg {...p}>
+    <path d="M2.5 2.5h5l6 6-5 5-6-6z" />
+    <circle cx="5.5" cy="5.5" r="1" />
+  </Svg>
+);
+
+export const IconStash = (p: P) => (
+  <Svg {...p}>
+    <rect x="2.5" y="3" width="11" height="3" rx="0.8" />
+    <path d="M3.5 6v6.5h9V6M6.5 9h3" />
+  </Svg>
+);
+
+export const IconCheck = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 8.5l3 3 7-7" />
+  </Svg>
+);
+
+export const IconPull = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 2.5v9M4.5 8l3.5 3.5L11.5 8M3 13.5h10" />
+  </Svg>
+);
+
+export const IconPush = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 13.5v-9M4.5 8L8 4.5 11.5 8M3 2.5h10" />
+  </Svg>
+);
+
+export const IconFetch = (p: P) => (
+  <Svg {...p}>
+    <path d="M13 8a5 5 0 1 1-1.5-3.5M13 2.5v3h-3" />
+  </Svg>
+);
+
+export const IconPlus = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 3v10M3 8h10" />
+  </Svg>
+);
+
+export const IconMinus = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 8h10" />
+  </Svg>
+);
+
+export const IconChevron = (p: P & { open?: boolean }) => {
+  const { open, ...rest } = p;
+  return (
+    <Svg {...rest} style={{ transform: open ? "rotate(90deg)" : undefined, transition: "transform 120ms" }}>
+      <path d="M6 3.5l4.5 4.5L6 12.5" />
+    </Svg>
+  );
+};
+
+export const IconClose = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 4l8 8M12 4l-8 8" />
+  </Svg>
+);
+
+export const IconFolder = (p: P) => (
+  <Svg {...p}>
+    <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
+  </Svg>
+);
+
+export const IconUndo = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 4.5L2.5 7 5 9.5M2.5 7H10a3.5 3.5 0 0 1 0 7H8" />
+  </Svg>
+);
+
+export const IconTrash = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5" />
+  </Svg>
+);
+
+export const IconRefresh = (p: P) => (
+  <Svg {...p}>
+    <path d="M13 3v3.5H9.5M3 13V9.5h3.5" />
+    <path d="M12.6 6.5A5 5 0 0 0 3.6 5M3.4 9.5a5 5 0 0 0 9 1.5" />
+  </Svg>
+);
+
+export const IconSearch = (p: P) => (
+  <Svg {...p}>
+    <circle cx="7" cy="7" r="4.5" />
+    <path d="M10.5 10.5l3 3" />
+  </Svg>
+);
+
+export const IconFile = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 1.5h5l3 3v10H4z M9 1.5v3h3" />
+  </Svg>
+);
