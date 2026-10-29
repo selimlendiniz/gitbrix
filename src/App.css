@@ -775,6 +775,7 @@ textarea {
   color: var(--accent);
   font-size: 12px;
   padding: 0 4px;
+  white-space: nowrap;
 }
 
 .link-btn.danger {
@@ -1213,6 +1214,10 @@ textarea {
 
 .sha:hover {
   border-color: var(--border-strong);
+}
+
+.panel-subhead > span:first-child {
+  white-space: nowrap;
 }
 
 .panel-subhead {

@@ -88,9 +88,18 @@ export function CommitGraph() {
         : ([...matches].reverse().find((i) => i < selectedIndex) ?? matches[matches.length - 1]);
     select(commits[next].id, true);
   }
-  const room = viewW - REFS_W - AUTHOR_W - DATE_W - MIN_MESSAGE_W;
+  // Narrow windows drop the author, then the date column, and squeeze the
+  // ref column, before the message column gets too small to read.
+  const authorW = viewW >= 820 ? AUTHOR_W : 0;
+  const dateW = viewW >= 600 ? DATE_W : 0;
+  const refsW = Math.round(Math.max(110, Math.min(REFS_W, viewW * 0.24)));
+  const room = viewW - refsW - authorW - dateW - MIN_MESSAGE_W;
   const gw = Math.max(64, Math.min(MAX_GRAPH_W, graphWidth(graph?.maxLanes ?? 1), room));
-  const columns = `${REFS_W}px ${gw}px minmax(0, 1fr) ${AUTHOR_W}px ${DATE_W}px`;
+  const columns = [`${refsW}px`, `${gw}px`, "minmax(0, 1fr)", authorW && `${authorW}px`, dateW && `${dateW}px`]
+    .filter(Boolean)
+    .join(" ");
+  // Stable object, so memoised rows don't all re-render on every scroll.
+  const show = useMemo(() => ({ author: authorW > 0, date: dateW > 0 }), [authorW, dateW]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -184,6 +193,7 @@ export function CommitGraph() {
         commit={c}
         index={i}
         columns={columns}
+        show={show}
         pills={pills.get(c.id)}
         selected={c.id === selectedId}
         compared={c.id === compareId}
@@ -212,8 +222,8 @@ export function CommitGraph() {
             </button>
           )}
         </span>
-        <span>Author</span>
-        <span>Date</span>
+        {show.author && <span>Author</span>}
+        {show.date && <span>Date</span>}
       </div>
       <FilterBanner />
       {searchOpen && (
@@ -266,7 +276,7 @@ export function CommitGraph() {
         onKeyDown={onKeyDown}
       >
         <div className="graph-canvas-holder">
-          <canvas ref={canvasRef} style={{ left: REFS_W }} />
+          <canvas ref={canvasRef} style={{ left: refsW }} />
         </div>
         <div className="graph-rows" style={{ height: commits.length * ROW_H }}>
           {rows}
@@ -288,6 +298,7 @@ interface RowProps {
   commit: CommitRow;
   index: number;
   columns: string;
+  show: { author: boolean; date: boolean };
   pills: RefPill[] | undefined;
   selected: boolean;
   compared: boolean;
@@ -298,7 +309,7 @@ interface RowProps {
   onMenu: (x: number, y: number) => void;
 }
 
-const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, selected, compared, dim, wip, onSelect, onMenu }: RowProps) {
+const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills, selected, compared, dim, wip, onSelect, onMenu }: RowProps) {
   const color = laneColor(c.color);
   const dateFormat = useSettings((s) => s.dateFormat);
   return (
@@ -336,12 +347,16 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, sele
           <span title={`${c.summary}\n${c.id.slice(0, 10)} · ${c.authorName}`}>{c.summary}</span>
         )}
       </div>
-      <div className="cell author" title={c.authorEmail}>
-        {c.authorName}
-      </div>
-      <div className="cell date" title={c.time ? fullTime(c.time) : undefined}>
-        {c.time ? (dateFormat === "relative" ? relativeTime(c.time) : shortTime(c.time)) : ""}
-      </div>
+      {show.author && (
+        <div className="cell author" title={c.authorEmail}>
+          {c.authorName}
+        </div>
+      )}
+      {show.date && (
+        <div className="cell date" title={c.time ? fullTime(c.time) : undefined}>
+          {c.time ? (dateFormat === "relative" ? relativeTime(c.time) : shortTime(c.time)) : ""}
+        </div>
+      )}
     </div>
   );
 });

@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 import "./App.css";
 import { WIP_ID } from "./api";
@@ -79,6 +79,16 @@ function useGlobalKeys() {
   }, []);
 }
 
+function useWindowWidth(): number {
+  const [w, setW] = useState(window.innerWidth);
+  useEffect(() => {
+    const on = () => setW(window.innerWidth);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  return w;
+}
+
 function useAutoFetch() {
   const minutes = useSettings((s) => s.autoFetch);
   const repoPath = useStore((s) => s.repo?.path);
@@ -105,8 +115,10 @@ function useTheme() {
 
 export default function App() {
   const repo = useStore((s) => s.repo);
-  const sidebarWidth = useSettings((s) => s.sidebarWidth);
-  const detailsWidth = useSettings((s) => s.detailsWidth);
+  const winW = useWindowWidth();
+  // In narrow windows the side panels give way so the graph keeps room.
+  const sidebarWidth = Math.min(useSettings((s) => s.sidebarWidth), Math.round(winW * 0.22));
+  const detailsWidth = Math.min(useSettings((s) => s.detailsWidth), Math.round(winW * 0.34));
   useTheme();
   useAutoFetch();
   const selectedId = useStore((s) => s.selectedId);
