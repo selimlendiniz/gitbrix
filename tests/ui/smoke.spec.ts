@@ -529,9 +529,11 @@ test("pull requests window: every account's requests, by involvement", async ({ 
     window.__gitbrixInbox = { items: list, problems: [], accounts: ["gitlab|https://gitlab.com|me"] };
   }, items);
   await page.goto("/?open");
-  // The toolbar badge counts what waits for the user's approval.
+  // The toolbar button counts what waits for the user's approval, and stands out.
   const button = page.locator(".pr-button");
   await expect(button.locator(".pr-button-count")).toHaveText("1");
+  await expect(button).toHaveClass(/waiting/);
+  await page.locator(".toolbar-right").screenshot({ path: "test-results/shots/pr-button.png" });
   await button.click();
   const dialog = page.getByRole("dialog", { name: "Pull requests" });
   await expect(dialog.locator(".pr-row")).toHaveCount(2);
@@ -549,8 +551,21 @@ test("pull requests window: every account's requests, by involvement", async ({ 
   expect(errors).toEqual([]);
 });
 
+test("pull requests button: shows the open count without anything to approve", async ({ page }) => {
+  await page.addInitScript((list) => {
+    window.__gitbrixInbox = { items: list, problems: [], accounts: ["a"] };
+  }, [mr(21, { mine: true, canApprove: false }), mr(22, { mine: true, canApprove: false })]);
+  await page.goto("/?open");
+  const button = page.locator(".pr-button");
+  await expect(button.locator(".pr-button-count")).toHaveText("2");
+  await expect(button).toHaveClass(/has/);
+  await expect(button).not.toHaveClass(/waiting/);
+  await expect(button).toHaveAttribute("title", "Pull requests: 2 open");
+});
+
 test("pull requests window: points to Settings without accounts", async ({ page }) => {
   await page.goto("/?open");
+  await expect(page.locator(".pr-button .pr-button-count")).toHaveCount(0);
   await page.locator(".pr-button").click();
   await page.getByRole("dialog", { name: "Pull requests" }).getByRole("button", { name: "Open Settings" }).click();
   await expect(page.getByTestId("accounts")).toBeVisible();

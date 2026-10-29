@@ -700,22 +700,57 @@ textarea {
 }
 
 .pr-button {
-  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.pr-button:hover {
+  color: var(--text);
+  background: var(--row-hover);
+}
+
+.pr-button.has {
+  padding: 0 9px 0 8px;
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pr-button.waiting {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  animation: pr-pulse 2s ease-in-out infinite;
 }
 
 .pr-button-count {
-  position: absolute;
-  top: -3px;
-  right: -4px;
-  min-width: 14px;
-  padding: 0 3px;
-  border-radius: 7px;
-  background: var(--warn);
-  color: var(--node-text);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
-  line-height: 14px;
-  text-align: center;
+  line-height: 1;
+}
+
+@keyframes pr-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-button.waiting {
+    animation: none;
+  }
 }
 
 .modal.pr-dialog {

@@ -36,17 +36,22 @@ function matches(pr: PullRequest, filter: Filter): boolean {
   }
 }
 
-/** Toolbar button; the badge counts requests waiting for the user's approval. */
+/** Toolbar button with the number of open requests involving the user;
+ * it stands out more while some wait for the user's approval. */
 export function PullRequestsButton() {
+  const total = usePrs((s) => s.inbox?.items.length ?? 0);
   const waiting = usePrs((s) => s.inbox?.items.filter(wantsReview).length ?? 0);
+  const title = total
+    ? `Pull requests: ${total} open${waiting ? `, ${waiting} waiting for your approval` : ""}`
+    : "Pull requests";
   return (
     <button
-      className="icon-btn pr-button"
-      title={waiting ? `Pull requests: ${waiting} waiting for your approval` : "Pull requests"}
+      className={`pr-button${total ? " has" : ""}${waiting ? " waiting" : ""}`}
+      title={title}
       onClick={() => usePrDialog.setState({ open: true })}
     >
       <IconPullRequest size={15} />
-      {waiting > 0 && <span className="pr-button-count">{waiting}</span>}
+      {total > 0 && <span className="pr-button-count">{waiting || total}</span>}
     </button>
   );
 }
