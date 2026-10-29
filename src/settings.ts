@@ -8,6 +8,7 @@ export interface Settings {
   theme: "dark" | "light" | "system";
   pullMode: PullMode;
   dateFormat: "relative" | "absolute";
+  fileView: "list" | "tree";
   /** Minutes between background fetches; 0 = off. */
   autoFetch: number;
   sidebarWidth: number;
@@ -20,6 +21,7 @@ export const DEFAULTS: Settings = {
   theme: "dark",
   pullMode: "ff-only",
   dateFormat: "relative",
+  fileView: "list",
   // Off by default: with a passphrase-protected ssh key not in an agent,
   // a background fetch would pop up a password prompt every time.
   autoFetch: 0,

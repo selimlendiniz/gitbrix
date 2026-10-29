@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DiffLine, RefInfo } from "../../src/api";
 import { fuzzyScore } from "../../src/components/CommandPalette";
 import { coAuthorsOf } from "../../src/components/CommitPanel";
+import { fileTree } from "../../src/components/FileList";
 import { planProblems, Row } from "../../src/components/RebaseView";
 import { buildTree, countLeaves } from "../../src/components/RefTree";
 import { nameFromUrl } from "../../src/components/RepoDialogs";
@@ -151,5 +152,18 @@ describe("coAuthorsOf", () => {
       { name: "Ada", email: "ada@y" },
     ]);
     expect(coAuthorsOf("nothing here")).toEqual([]);
+  });
+});
+
+describe("fileTree", () => {
+  const f = (path: string) => ({ path, oldPath: null, status: "modified" as const });
+  it("groups by directory and merges single-child chains", () => {
+    const t = fileTree([f("README.md"), f("src/components/A.tsx"), f("src/components/B.tsx"), f("src/main.ts"), f("docs/deep/x/y.md")]);
+    expect(t.files.map((x) => x.path)).toEqual(["README.md"]);
+    expect(t.dirs.map((d) => d.name)).toEqual(["src", "docs/deep/x"]);
+    const src = t.dirs[0];
+    expect(src.count).toBe(3);
+    expect(src.dirs.map((d) => d.name)).toEqual(["components"]);
+    expect(src.files.map((x) => x.path)).toEqual(["src/main.ts"]);
   });
 });

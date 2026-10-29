@@ -5,6 +5,7 @@ import { api } from "../api";
 import { discardAll, discardFiles, fileItems, ignoreItems, stashSave } from "../actions";
 import { useStore } from "../store";
 import { describe, trackHead } from "../undo";
+import { FileViewToggle } from "./CommitPanel";
 import { FileList, FileRow } from "./FileList";
 import { IconMinus, IconPlus, IconTrash } from "./Icons";
 
@@ -69,6 +70,7 @@ export function WipPanel() {
         <div className="panel-subhead">
           <span>Unstaged files ({unstaged.length})</span>
           <span className="subhead-actions">
+            <FileViewToggle />
             {unstaged.length > 0 && (
               <>
                 {status.unstaged.length > 0 && (

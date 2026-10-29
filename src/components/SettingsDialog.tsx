@@ -72,6 +72,15 @@ export function SettingsDialog() {
               { value: "absolute", label: "Oct 26, 14:05" },
             ]}
           />
+          <span>File lists</span>
+          <Choice
+            value={settings.fileView}
+            onChange={(fileView) => set({ fileView })}
+            options={[
+              { value: "list", label: "Paths" },
+              { value: "tree", label: "Tree" },
+            ]}
+          />
           <span>Auto-fetch</span>
           <Choice
             value={String(settings.autoFetch)}

@@ -265,3 +265,12 @@ test("branch name in the toolbar opens a branch switcher", async ({ page }) => {
   const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "checkout_branch")?.args);
   expect(call).toMatchObject({ name: "feature/ui" });
 });
+
+test("file lists switch to a tree", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".wip-panel").getByTitle("Show as tree").click();
+  await expect(page.locator(".wip-panel .dir-row", { hasText: "src" })).toBeVisible();
+  await page.locator(".wip-panel .dir-row", { hasText: "src" }).click();
+  await expect(page.locator(".wip-panel .file-row", { hasText: "main.rs" })).toBeHidden();
+  await page.screenshot({ path: "test-results/shots/file-tree.png" });
+});

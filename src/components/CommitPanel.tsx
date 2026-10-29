@@ -5,7 +5,8 @@ import { laneColor } from "../colors";
 import { fullTime, initials, shortId } from "../format";
 import { useStore } from "../store";
 import { FileList } from "./FileList";
-import { IconBranch, IconCloud, IconTag } from "./Icons";
+import { updateSettings, useSettings } from "../settings";
+import { IconBranch, IconCloud, IconFile, IconFolder, IconTag } from "./Icons";
 
 export function CommitPanel() {
   const details = useStore((s) => s.details);
@@ -105,8 +106,11 @@ export function CommitPanel() {
         <span>
           {details.files.length} file{details.files.length === 1 ? "" : "s"} changed
         </span>
-        <span className="file-stat">
-          <span className="add">+{adds}</span> <span className="del">−{dels}</span>
+        <span className="subhead-actions">
+          <span className="file-stat">
+            <span className="add">+{adds}</span> <span className="del">−{dels}</span>
+          </span>
+          <FileViewToggle />
         </span>
       </div>
       <FileList
@@ -167,4 +171,17 @@ export function coAuthorsOf(message: string): { name: string; email: string }[] 
     out.push({ name: m[1], email: m[2] });
   }
   return out;
+}
+
+export function FileViewToggle() {
+  const view = useSettings((s) => s.fileView);
+  return (
+    <button
+      className="icon-btn"
+      title={view === "list" ? "Show as tree" : "Show as paths"}
+      onClick={() => updateSettings({ fileView: view === "list" ? "tree" : "list" })}
+    >
+      {view === "list" ? <IconFolder size={12} /> : <IconFile size={12} />}
+    </button>
+  );
 }

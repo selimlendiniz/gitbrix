@@ -1290,6 +1290,11 @@ textarea {
   background: var(--bg-select);
 }
 
+.dir-row {
+  color: var(--text-dim);
+  gap: 6px;
+}
+
 .status-badge {
   flex: none;
   width: 16px;
