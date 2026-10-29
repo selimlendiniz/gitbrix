@@ -405,6 +405,11 @@ textarea {
 }
 
 .branch-name {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font: inherit;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -412,6 +417,11 @@ textarea {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.branch-name:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
 }
 
 .state-badge {

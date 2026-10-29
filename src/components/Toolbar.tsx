@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 
-import { createBranch, fetchAll, pull, push, stashPop, stashSave } from "../actions";
+import { branchSwitchMenu, createBranch, fetchAll, pull, push, stashPop, stashSave } from "../actions";
 import { PullMode } from "../api";
 import { useStore } from "../store";
 import { useRepoDialog } from "./RepoDialogs";
@@ -111,10 +111,18 @@ export function Toolbar() {
           <span className="repo-name">{repo.name}</span>
         </button>
         <span className="toolbar-sep">/</span>
-        <span className="branch-name" title={repo.upstream ? `tracking ${repo.upstream}` : "no upstream"}>
+        <button
+          className="branch-name"
+          title={`${repo.upstream ? `tracking ${repo.upstream}` : "no upstream"} — click to switch branch`}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            showMenu(r.left, r.bottom + 4, branchSwitchMenu());
+          }}
+        >
           <IconBranch size={13} />
           {repo.detached ? `detached at ${repo.headOid?.slice(0, 7)}` : repo.headBranch ?? "—"}
-        </span>
+          <IconChevron size={10} style={{ transform: "rotate(90deg)" }} />
+        </button>
         {repo.state !== "clean" && <span className="state-badge">{repo.state} in progress</span>}
       </div>
 

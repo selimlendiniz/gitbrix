@@ -72,6 +72,17 @@ export function SettingsDialog() {
               { value: "absolute", label: "Oct 26, 14:05" },
             ]}
           />
+          <span>Auto-fetch</span>
+          <Choice
+            value={String(settings.autoFetch)}
+            onChange={(v) => set({ autoFetch: Number(v) })}
+            options={[
+              { value: "0", label: "Off" },
+              { value: "5", label: "5 min" },
+              { value: "10", label: "10 min" },
+              { value: "30", label: "30 min" },
+            ]}
+          />
           <span>Panels</span>
           <span>
             <button

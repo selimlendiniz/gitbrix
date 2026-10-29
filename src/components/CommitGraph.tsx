@@ -333,7 +333,7 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, sele
             <IconStash size={12} /> {c.summary}
           </span>
         ) : (
-          <span title={c.summary}>{c.summary}</span>
+          <span title={`${c.summary}\n${c.id.slice(0, 10)} · ${c.authorName}`}>{c.summary}</span>
         )}
       </div>
       <div className="cell author" title={c.authorEmail}>

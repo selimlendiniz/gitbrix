@@ -8,6 +8,8 @@ export interface Settings {
   theme: "dark" | "light" | "system";
   pullMode: PullMode;
   dateFormat: "relative" | "absolute";
+  /** Minutes between background fetches; 0 = off. */
+  autoFetch: number;
   sidebarWidth: number;
   detailsWidth: number;
 }
@@ -18,6 +20,9 @@ export const DEFAULTS: Settings = {
   theme: "dark",
   pullMode: "ff-only",
   dateFormat: "relative",
+  // Off by default: with a passphrase-protected ssh key not in an agent,
+  // a background fetch would pop up a password prompt every time.
+  autoFetch: 0,
   sidebarWidth: 240,
   detailsWidth: 380,
 };

@@ -25,6 +25,7 @@ import { openRepoDialog, Welcome } from "./components/Welcome";
 import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
 import { undoLast } from "./undo";
+import { backgroundFetch } from "./actions";
 
 function isTyping(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
@@ -78,6 +79,16 @@ function useGlobalKeys() {
   }, []);
 }
 
+function useAutoFetch() {
+  const minutes = useSettings((s) => s.autoFetch);
+  const repoPath = useStore((s) => s.repo?.path);
+  useEffect(() => {
+    if (!minutes || !repoPath) return;
+    const id = setInterval(() => void backgroundFetch(), minutes * 60_000);
+    return () => clearInterval(id);
+  }, [minutes, repoPath]);
+}
+
 function useTheme() {
   const theme = useSettings((s) => s.theme);
   // Layout effect: the attribute must be set before children's effects
@@ -97,6 +108,7 @@ export default function App() {
   const sidebarWidth = useSettings((s) => s.sidebarWidth);
   const detailsWidth = useSettings((s) => s.detailsWidth);
   useTheme();
+  useAutoFetch();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);
   const diffSource = useStore((s) => s.diffSource);

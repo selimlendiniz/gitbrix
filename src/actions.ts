@@ -205,7 +205,44 @@ export async function fetchAll() {
 }
 
 export async function pull(mode: PullMode) {
-  await trackHead("pull", () => s().run("Pulling", (r) => api.pull(r, mode), "Pulled"));
+  const ok = await trackHead("pull", () => s().run("Pulling", (r) => api.pull(r, mode), "Pulled"));
+  const repo = s().repo;
+  // Fast-forward refused because both sides have commits: offer a rebase.
+  if (!ok && mode === "ff-only" && repo && repo.ahead > 0 && repo.behind > 0) {
+    const rebase = await s().confirm({
+      title: "Branch has diverged",
+      message: `${repo.headBranch} has ${repo.ahead} commit${repo.ahead === 1 ? "" : "s"} that ${repo.upstream} doesn't, and ${repo.behind} the other way. Rebase your commits on top of ${repo.upstream}? (Pull ▾ also offers a merge.)`,
+      confirmLabel: "Pull with rebase",
+    });
+    if (rebase) await pull("rebase");
+  }
+}
+
+/** Fetch in the background: no busy state, no success toast. */
+export async function backgroundFetch() {
+  const st = s();
+  const repo = st.repo;
+  if (!repo || st.busy || st.remotes.length === 0) return;
+  try {
+    await api.fetch(repo.path);
+    if (s().repo?.path === repo.path && !s().busy) await s().refresh();
+  } catch {
+    // Offline or no credentials: stay quiet; a manual fetch shows errors.
+  }
+}
+
+export function branchSwitchMenu(): MenuItem[] {
+  const locals = (s().graph?.refs ?? []).filter((r) => r.kind === "local");
+  return [
+    ...locals.map((r) => ({
+      label: `${r.isHead ? "✓ " : ""}${r.name}`,
+      disabled: r.isHead,
+      hint: r.ahead || r.behind ? `↑${r.ahead} ↓${r.behind}` : undefined,
+      onSelect: () => checkoutRef(r),
+    })),
+    { separator: true, label: "" },
+    { label: "New branch…", onSelect: () => createBranch(null) },
+  ];
 }
 
 export async function push(force = false) {

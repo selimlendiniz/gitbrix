@@ -257,3 +257,11 @@ test("hiding a branch sends a graph filter and shows a banner", async ({ page })
   await page.locator(".filter-banner").getByRole("button", { name: "Show all" }).click();
   await expect(page.locator(".filter-banner")).toBeHidden();
 });
+
+test("branch name in the toolbar opens a branch switcher", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".branch-name").click();
+  await page.getByRole("menuitem", { name: "feature/ui" }).click();
+  const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "checkout_branch")?.args);
+  expect(call).toMatchObject({ name: "feature/ui" });
+});
