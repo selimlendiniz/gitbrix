@@ -15,9 +15,14 @@ import {
   IconRefresh,
   IconStash,
   IconPop,
+  IconSearch,
+  IconSettings,
   IconUndo,
 } from "./Icons";
+import { usePalette } from "./CommandPalette";
+import { useSettings } from "../settings";
 import { nextUndo, undoLast, useUndo } from "../undo";
+import { useSettingsDialog } from "./SettingsDialog";
 
 function ToolButton({
   icon,
@@ -78,6 +83,7 @@ export function Toolbar() {
   const showMenu = useStore((s) => s.showMenu);
   const closeTab = useStore((s) => s.closeTab);
   const undoStack = useUndo((s) => s.stack);
+  const pullMode = useSettings((s) => s.pullMode);
   if (!repo) return null;
   const undoEntry = nextUndo(undoStack, repo.path);
 
@@ -126,7 +132,8 @@ export function Toolbar() {
           icon={<IconPull />}
           label="Pull"
           disabled={disabled}
-          onClick={() => pull("ff-only")}
+          onClick={() => pull(pullMode)}
+          title={`Pull (${PULL_MODES.find((m) => m.mode === pullMode)?.label.toLowerCase()})`}
           badge={repo.behind > 0 ? <span className="tool-badge">{repo.behind}</span> : undefined}
           onMenu={(x, y) => showMenu(x, y, PULL_MODES.map((m) => ({ label: m.label, onSelect: () => pull(m.mode) })))}
         />
@@ -157,6 +164,12 @@ export function Toolbar() {
             {busy}…{progress && <span className="busy-progress">{progress}</span>}
           </span>
         )}
+        <button className="icon-btn" title="Command palette (Ctrl+K)" onClick={() => usePalette.setState({ open: true })}>
+          <IconSearch size={15} />
+        </button>
+        <button className="icon-btn" title="Settings" onClick={() => useSettingsDialog.setState({ open: true })}>
+          <IconSettings size={15} />
+        </button>
       </div>
     </header>
   );

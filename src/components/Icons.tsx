@@ -154,3 +154,10 @@ export const IconPop = (p: P) => (
     <path d="M8 7.5V1.5M5.5 4L8 1.5 10.5 4" />
   </Svg>
 );
+
+export const IconSettings = (p: P) => (
+  <Svg {...p}>
+    <circle cx="8" cy="8" r="2.2" />
+    <path d="M8 1.8v1.7M8 12.5v1.7M14.2 8h-1.7M3.5 8H1.8M12.4 3.6l-1.2 1.2M4.8 11.2l-1.2 1.2M12.4 12.4l-1.2-1.2M4.8 4.8L3.6 3.6" />
+  </Svg>
+);

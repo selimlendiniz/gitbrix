@@ -23,6 +23,19 @@ export function relativeTime(seconds: number, now = Date.now()): string {
   });
 }
 
+/** "Oct 26, 14:05" (year added when not this year). */
+export function shortTime(seconds: number, now = Date.now()): string {
+  const d = new Date(seconds * 1000);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function fullTime(seconds: number): string {
   return new Date(seconds * 1000).toLocaleString(undefined, {
     dateStyle: "medium",

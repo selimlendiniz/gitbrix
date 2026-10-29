@@ -3,7 +3,8 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { CommitRow, WIP_ID } from "../api";
 import { checkoutRef, commitMenu, refMenu } from "../actions";
 import { laneColor } from "../colors";
-import { relativeTime, fullTime } from "../format";
+import { fullTime, relativeTime, shortTime } from "../format";
+import { useSettings } from "../settings";
 import { drawGraph, graphWidth, ROW_H } from "../graph/draw";
 import { primaryRef, RefPill, refsByCommit } from "../graph/refs";
 import { useStore } from "../store";
@@ -42,6 +43,8 @@ export function CommitGraph() {
   const scrollRequest = useStore((s) => s.scrollRequest);
   const select = useStore((s) => s.select);
   const showMenu = useStore((s) => s.showMenu);
+  // Redraw the canvas when the theme changes its colours.
+  const theme = useSettings((s) => s.theme);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,8 +129,9 @@ export function CommitGraph() {
       headId: repo?.headOid ?? null,
       background: cssVar("--bg-graph", "#16181e"),
       nodeText: cssVar("--node-text", "#0d0f14"),
+      ring: cssVar("--node-ring", "#ffffff"),
     });
-  }, [commits, first, last, scrollTop, viewH, gw, selectedId, repo?.headOid]);
+  }, [commits, first, last, scrollTop, viewH, gw, selectedId, repo?.headOid, theme]);
 
   // Bring the selection into view when something asks for it.
   useEffect(() => {
@@ -281,6 +285,7 @@ interface RowProps {
 
 const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, selected, dim, wip, onSelect, onMenu }: RowProps) {
   const color = laneColor(c.color);
+  const dateFormat = useSettings((s) => s.dateFormat);
   return (
     <div
       className={`graph-row${selected ? " selected" : ""}${wip ? " wip" : ""}${dim ? " dim" : ""}`}
@@ -311,7 +316,7 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, sele
         {c.authorName}
       </div>
       <div className="cell date" title={c.time ? fullTime(c.time) : undefined}>
-        {c.time ? relativeTime(c.time) : ""}
+        {c.time ? (dateFormat === "relative" ? relativeTime(c.time) : shortTime(c.time)) : ""}
       </div>
     </div>
   );

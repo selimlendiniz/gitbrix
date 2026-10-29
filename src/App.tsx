@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 
 import "./App.css";
 import { WIP_ID } from "./api";
@@ -13,11 +13,14 @@ import { OperationBanner } from "./components/OperationBanner";
 import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { RebaseView } from "./components/RebaseView";
 import { RepoDialogs } from "./components/RepoDialogs";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar } from "./components/Sidebar";
+import { Splitter } from "./components/Splitter";
 import { TabBar } from "./components/TabBar";
 import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
 import { openRepoDialog, Welcome } from "./components/Welcome";
+import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
 import { undoLast } from "./undo";
 
@@ -71,8 +74,25 @@ function useGlobalKeys() {
   }, []);
 }
 
+function useTheme() {
+  const theme = useSettings((s) => s.theme);
+  // Layout effect: the attribute must be set before children's effects
+  // draw the graph canvas with the theme's colours.
+  useLayoutEffect(() => {
+    const apply = () => (document.documentElement.dataset.theme = effectiveTheme(theme));
+    apply();
+    if (theme !== "system") return;
+    const mq = window.matchMedia?.("(prefers-color-scheme: light)");
+    mq?.addEventListener("change", apply);
+    return () => mq?.removeEventListener("change", apply);
+  }, [theme]);
+}
+
 export default function App() {
   const repo = useStore((s) => s.repo);
+  const sidebarWidth = useSettings((s) => s.sidebarWidth);
+  const detailsWidth = useSettings((s) => s.detailsWidth);
+  useTheme();
   const selectedId = useStore((s) => s.selectedId);
   const diffSource = useStore((s) => s.diffSource);
   useGlobalKeys();
@@ -83,8 +103,14 @@ export default function App() {
       {repo ? (
         <>
           <Toolbar />
-          <div className="main">
+          <div className="main" style={{ gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr) ${detailsWidth}px` }}>
             <Sidebar />
+            <div className="splitter-wrap" style={{ left: sidebarWidth }}>
+              <Splitter width={sidebarWidth} side="left" min={170} max={480} onChange={(w) => updateSettings({ sidebarWidth: w })} />
+            </div>
+            <div className="splitter-wrap" style={{ right: detailsWidth }}>
+              <Splitter width={detailsWidth} side="right" min={300} max={720} onChange={(w) => updateSettings({ detailsWidth: w })} />
+            </div>
             <section className="center">
               <OperationBanner />
               {diffSource?.kind === "conflict" ? (
@@ -111,6 +137,7 @@ export default function App() {
       )}
       <ContextMenu />
       <CommandPalette />
+      <SettingsDialog />
       <RepoDialogs />
       <Dialog />
       <Toasts />

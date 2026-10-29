@@ -172,3 +172,17 @@ test("command palette checks out a branch", async ({ page }) => {
   const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "checkout_branch")?.args);
   expect(call).toMatchObject({ name: "fix/typo" });
 });
+
+test("settings: light theme and absolute dates", async ({ page }) => {
+  await page.goto("/?open");
+  await page.getByTitle("Settings").click();
+  await page.getByRole("button", { name: "Light" }).click();
+  await page.getByRole("button", { name: /Oct 26, 14:05/ }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator(".graph-row .date").nth(1)).toContainText(":");
+  await page.screenshot({ path: "test-results/shots/light.png" });
+  // Persisted for the next start.
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+});

@@ -18,7 +18,9 @@ import { WIP_ID } from "../api";
 import { loadRecent } from "../recent";
 import { useStore } from "../store";
 import { undoLast } from "../undo";
+import { updateSettings } from "../settings";
 import { useRepoDialog } from "./RepoDialogs";
+import { useSettingsDialog } from "./SettingsDialog";
 import { openRepoDialog } from "./Welcome";
 
 export const usePalette = create<{ open: boolean }>(() => ({ open: false }));
@@ -84,6 +86,10 @@ function useCommands(): Command[] {
         add("Go to", r.name, () => st.select(r.target, true), r.kind);
       }
     }
+    add("Settings", "Settings…", () => useSettingsDialog.setState({ open: true }));
+    add("Settings", "Theme: dark", () => updateSettings({ theme: "dark" }));
+    add("Settings", "Theme: light", () => updateSettings({ theme: "light" }));
+    add("Settings", "Theme: follow system", () => updateSettings({ theme: "system" }));
     add("Repository", "Open repository…", () => void openRepoDialog(), "Ctrl+O");
     add("Repository", "Clone repository…", () => useRepoDialog.setState({ kind: "clone" }));
     add("Repository", "New repository…", () => useRepoDialog.setState({ kind: "init" }));

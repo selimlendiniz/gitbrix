@@ -30,6 +30,8 @@ export interface DrawOptions {
   headId: string | null;
   background: string;
   nodeText: string;
+  /** Ring around the selected commit. */
+  ring: string;
 }
 
 function segment(ctx: CanvasRenderingContext2D, [from, to, color]: Seg, y0: number, y1: number) {
@@ -87,7 +89,7 @@ export function drawGraph(ctx: CanvasRenderingContext2D, o: DrawOptions) {
       ctx.fill();
       ctx.globalAlpha = 1;
       if (selected) {
-        ctx.strokeStyle = "#ffffff";
+        ctx.strokeStyle = o.ring;
         ctx.stroke();
       }
       continue;
@@ -122,7 +124,7 @@ export function drawGraph(ctx: CanvasRenderingContext2D, o: DrawOptions) {
     ctx.strokeStyle = o.background;
     ctx.stroke();
     if (c.id === o.headId || selected) {
-      ctx.strokeStyle = selected ? "#ffffff" : color;
+      ctx.strokeStyle = selected ? o.ring : color;
       ctx.beginPath();
       ctx.arc(x, y, NODE_R + 2.5, 0, Math.PI * 2);
       ctx.stroke();
