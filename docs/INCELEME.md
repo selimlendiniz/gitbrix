@@ -52,6 +52,10 @@ Kurulabilir paket (release derlemesi):
 10. **Ayarlar** (sağ üstteki dişli): açık tema, tarih biçimi, dosya ağacı,
     otomatik fetch.
 11. Repo menüsü (sol üstte repo adı): Clone, New repository, Reflog.
+12. Bir resim dosyasını değiştirip commit'le → diff'te öncesi/sonrası yan
+    yana. Commit diff'lerinde "Ignore whitespace" kutusu.
+13. En üstteki commit'e sağ tık → "Edit commit message…".
+14. Bir branch etiketinin üzerine gel → o dalın commit'leri öne çıkar.
 
 ## Bilerek yapmadıklarım
 

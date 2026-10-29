@@ -17,6 +17,18 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — image diffs, whitespace, edit message, branch hover
+
+- Changed images show before/after side by side (commits, comparisons,
+  history, working tree).
+- "Ignore whitespace" for commit/comparison diffs; "Edit commit message…"
+  on the HEAD commit (`commit --amend --only`, undoable).
+- Hovering a branch label highlights its first-parent line; the author
+  column was accidentally hidden at the default window size — fixed.
+- Release RPM rebuilt; e2e passes on the release binary.
+
+Tests: 65 Rust, 44 unit, 30 Playwright UI, 16 e2e steps — all passing.
+
 ### 2026-10-29 — reflog, history search, file tree, first-commit fix, review 2
 
 - Reflog view (recover lost commits), whole-history search by file path or
