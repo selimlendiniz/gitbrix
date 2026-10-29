@@ -40,8 +40,16 @@ Kurulabilir paket (release derlemesi):
 5. **Sağ tık menüleri**: commit (cherry-pick, revert, reset, interactive
    rebase…), branch etiketi (merge, rebase, push to…, worktree…), dosya
    (ignore, history, blame, aç).
-6. **Sürükle-bırak**: bir branch etiketini HEAD etiketinin üstüne bırak →
-   merge/rebase menüsü.
+6. **Sürükle-bırak** (bırakınca menü açılır; Esc iptal eder):
+   - branch → başka branch: merge / rebase
+   - branch → commit satırı: branch'i oraya taşı (checkout'lu olanda
+     reset / rebase seçenekleri)
+   - branch ya da tag → soldaki remote (origin): push
+   - commit → checkout'lu branch: cherry-pick; başka branch: oraya taşı
+   - commit → başka commit: iki commit'i karşılaştır
+   - stash → en üstteki WIP satırı: apply / pop
+   - dosya: Unstaged ↔ Staged listeleri arasında (doğrudan stage/unstage)
+   - interactive rebase ekranında satırları sürükleyerek sırala
 7. **Interactive rebase**: eski bir commit'e sağ tık → "Interactive rebase
    from here…" → sırala, reword, squash, drop.
 8. **Conflict**: iki branch'te aynı satırı değiştirip merge et → conflict

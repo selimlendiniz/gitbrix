@@ -2,7 +2,8 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { create } from "zustand";
 
 import { api, CommitRow, errorText, WIP_ID } from "../api";
-import { checkoutRef, commitMenu, dropMenu, refMenu, stashMenu } from "../actions";
+import { checkoutRef, commitMenu, refMenu, stashMenu } from "../actions";
+import { beginDrag, dropTarget } from "../dnd";
 import { laneColor } from "../colors";
 import { fullTime, relativeTime, shortTime } from "../format";
 import { useSettings } from "../settings";
@@ -390,8 +391,16 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills
       className={`graph-row${selected ? " selected" : ""}${compared ? " compared" : ""}${wip ? " wip" : ""}${dim ? " dim" : ""}`}
       style={{ top: index * ROW_H, height: ROW_H, gridTemplateColumns: columns }}
       data-commit={c.id}
+      ref={dropTarget({ kind: "commit", commit: c })}
       onMouseDown={(e) => {
-        if (e.button === 0) onSelect(c.id, e.ctrlKey || e.metaKey || e.shiftKey);
+        if (e.button !== 0) return;
+        onSelect(c.id, e.ctrlKey || e.metaKey || e.shiftKey);
+        if (c.kind === "stash") {
+          const stash = useStore.getState().stashes.find((st) => st.id === c.id);
+          if (stash) beginDrag(e, { kind: "stash", stash }, stash.message);
+        } else if (!wip) {
+          beginDrag(e, { kind: "commit", commit: c }, `${c.id.slice(0, 7)} ${c.summary}`);
+        }
       }}
       onDoubleClick={() => {
         // Double-click a commit that has a local branch: check it out.
@@ -462,40 +471,21 @@ function Pills({ pills, color }: { pills: RefPill[]; color: string }) {
   );
 }
 
-const DRAG_TYPE = "application/x-gitbrix-ref";
-
 /** The branch tip under the mouse, for highlighting its history. */
 const useHover = create<{ tip: string | null }>(() => ({ tip: null }));
 
 function Pill({ pill, color }: { pill: RefPill; color: string }) {
   const showMenu = useStore((s) => s.showMenu);
-  const [dropping, setDropping] = useState(false);
   const ref = primaryRef(pill);
   return (
     <span
-      className={`pill${pill.isHead ? " head" : ""}${pill.kind === "tag" ? " tag" : ""}${dropping ? " drop-target" : ""}`}
+      className={`pill${pill.isHead ? " head" : ""}${pill.kind === "tag" ? " tag" : ""}`}
       style={{ ["--pill" as string]: color }}
-      draggable
+      ref={dropTarget({ kind: "ref", ref })}
+      data-ref={ref.fullName}
       onMouseEnter={() => useHover.setState({ tip: ref.target })}
       onMouseLeave={() => useHover.setState({ tip: null })}
-      onDragStart={(e) => {
-        e.dataTransfer.setData(DRAG_TYPE, ref.fullName);
-        e.dataTransfer.effectAllowed = "move";
-      }}
-      onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
-        e.preventDefault();
-        setDropping(true);
-      }}
-      onDragLeave={() => setDropping(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDropping(false);
-        const source = useStore.getState().graph?.refs.find((r) => r.fullName === e.dataTransfer.getData(DRAG_TYPE));
-        if (!source || source.fullName === ref.fullName) return;
-        const items = dropMenu(source, ref);
-        if (items.length) showMenu(e.clientX, e.clientY, items);
-      }}
+      onMouseDown={(e) => beginDrag(e, { kind: "ref", ref }, ref.name)}
       title={[pill.local?.name, ...pill.remotes.map((r) => r.name), pill.tag?.name].filter(Boolean).join(" · ")}
       onDoubleClick={() => checkoutRef(ref)}
       onContextMenu={(e) => {

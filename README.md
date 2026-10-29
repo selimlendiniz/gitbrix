@@ -24,8 +24,13 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
 - Stash save / apply / pop / drop, and inspect a stash's changes
 
 **Branches and remotes**
-- Check out, create, rename, delete branches and tags; drag a branch onto
-  another to merge, rebase or push
+- Check out, create, rename, delete branches and tags
+- Drag and drop: a branch onto a branch (merge, rebase), onto a commit
+  (move it there, or reset / rebase the checked-out one), onto a remote
+  (push); a commit onto a branch (cherry-pick, move the branch) or onto
+  another commit (compare); a stash onto the WIP row (apply, pop); files
+  between the unstaged and staged lists; commits in the interactive
+  rebase editor
 - Merge, rebase, cherry-pick, revert, reset (soft / mixed / hard)
 - Interactive rebase editor: reorder, reword, squash, fixup, drop
 - Fetch, pull (fast-forward / merge / rebase), push (force-with-lease),

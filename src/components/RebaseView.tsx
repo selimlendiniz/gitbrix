@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 
 import { api, errorText } from "../api";
+import { trackDrag } from "../dnd";
 import { relativeTime, shortId } from "../format";
 import { useStore } from "../store";
 import { trackHead } from "../undo";
@@ -140,20 +141,25 @@ export function RebaseView() {
                   key={r.id}
                   className={`rebase-row a-${r.action}${focus === i ? " focused" : ""}${dragging === i ? " dragging" : ""}`}
                   tabIndex={0}
-                  draggable
+                  data-index={i}
                   onFocus={() => setFocus(i)}
-                  onDragStart={(e) => {
-                    setDragging(i);
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", r.id);
-                  }}
-                  onDragEnd={() => setDragging(null)}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (dragging !== null && dragging !== i) {
-                      move(dragging, i);
-                      setDragging(i);
-                    }
+                  onMouseDown={(e) => {
+                    // Drag by the row, not by its buttons or message box.
+                    if ((e.target as HTMLElement).closest("button, textarea, input")) return;
+                    let at = i;
+                    trackDrag(e, {
+                      start: () => setDragging(at),
+                      move: (ev) => {
+                        const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>(".rebase-row");
+                        const to = over ? Number(over.dataset.index) : at;
+                        if (to !== at) {
+                          move(at, to);
+                          at = to;
+                          setDragging(to);
+                        }
+                      },
+                      end: () => setDragging(null),
+                    });
                   }}
                   onKeyDown={(e) => {
                     if ((e.target as HTMLElement).tagName === "TEXTAREA") return;

@@ -251,6 +251,11 @@ pub fn delete_branch(repo: String, name: String, force: bool) -> Result<()> {
 }
 
 #[tauri::command(async)]
+pub fn move_branch(repo: String, name: String, target: String) -> Result<()> {
+    ops::move_branch(&workdir(&repo)?, &name, &target)
+}
+
+#[tauri::command(async)]
 pub fn rename_branch(repo: String, old: String, new: String) -> Result<()> {
     ops::rename_branch(&workdir(&repo)?, &old, &new)
 }

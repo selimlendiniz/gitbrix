@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 
 import { FileStatus } from "../api";
+import { beginDrag } from "../dnd";
 import { splitPath, statusLetter } from "../format";
 import { useSettings } from "../settings";
 import { IconChevron, IconFolder } from "./Icons";
@@ -22,6 +23,7 @@ export function FileList({
   actions,
   onMenu,
   empty,
+  dragStaged,
 }: {
   files: FileRow[];
   activePath?: string | null;
@@ -30,6 +32,8 @@ export function FileList({
   actions?: (f: FileRow) => ReactNode;
   onMenu?: (f: FileRow, x: number, y: number) => void;
   empty?: string;
+  /** Rows can be dragged to the other WIP list; true for the staged one. */
+  dragStaged?: boolean;
 }) {
   const view = useSettings((st) => st.fileView);
   const [closed, setClosed] = useState<Set<string>>(new Set());
@@ -45,6 +49,7 @@ export function FileList({
       onActivate={onActivate}
       onMenu={onMenu}
       actions={actions}
+      dragStaged={dragStaged}
     />
   );
 
@@ -157,6 +162,7 @@ function FileRowView({
   onActivate,
   onMenu,
   actions,
+  dragStaged,
 }: {
   f: FileRow;
   /** Tree depth; null in list view (shows the directory instead). */
@@ -166,6 +172,7 @@ function FileRowView({
   onActivate?: (f: FileRow) => void;
   onMenu?: (f: FileRow, x: number, y: number) => void;
   actions?: (f: FileRow) => ReactNode;
+  dragStaged?: boolean;
 }) {
   const { dir, base } = splitPath(f.path);
   return (
@@ -173,6 +180,14 @@ function FileRowView({
       className={`file-row${active ? " active" : ""}`}
       style={depth !== null ? { paddingLeft: 14 + depth * 14 + 14 } : undefined}
       title={f.oldPath ? `${f.oldPath} → ${f.path}` : f.path}
+      onMouseDown={
+        dragStaged === undefined || f.status === "conflicted"
+          ? undefined
+          : (e) => {
+              const paths = dragStaged && f.oldPath ? [f.path, f.oldPath] : [f.path];
+              beginDrag(e, { kind: "files", paths, staged: dragStaged }, base);
+            }
+      }
       onClick={() => onOpen(f)}
       onDoubleClick={onActivate ? () => onActivate(f) : undefined}
       onContextMenu={

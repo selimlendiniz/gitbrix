@@ -17,6 +17,27 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — drag and drop everywhere
+
+- Drags are now tracked with mouse events (`src/dnd.ts`): HTML5 drag and
+  drop doesn't reach the page in Tauri's Linux webview while file drops
+  (used to open folders) are enabled, so the old branch-onto-branch drag
+  most likely never worked in the real app.
+- Sources: branch/tag labels (graph and sidebar), commit rows, stash rows
+  and sidebar stashes, WIP files. Targets: branch labels, commit rows, the
+  WIP row, remotes in the sidebar, the staged / unstaged lists. Actions come
+  from `dropActions` (actions.ts): one direct action runs at once (staging
+  a dragged file, comparing two commits), otherwise a menu opens. A ghost
+  label follows the pointer, targets light up, Escape cancels, a click is
+  still a click.
+- New backend op `move_branch` (point a branch that isn't checked out at
+  another commit; undoable).
+- The interactive rebase editor reorders by mouse drag too.
+- e2e drives a real pointer drag (WebDriver actions) in the app: a file
+  onto the staged list, a branch onto a commit.
+
+Tests: 90 Rust, 44 unit, 36 Playwright UI, 17 e2e steps — all passing.
+
 ### 2026-10-29 — no more git CLI: everything on libgit2; accounts
 
 Selim asked for the app to work without `git` installed and to log in to

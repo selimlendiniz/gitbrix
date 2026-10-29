@@ -16,6 +16,7 @@ import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { RebaseView } from "./components/RebaseView";
 import { ReflogView } from "./components/ReflogView";
 import { RepoDialogs } from "./components/RepoDialogs";
+import { DragGhost } from "./components/DragGhost";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ShortcutsDialog, useShortcuts } from "./components/ShortcutsDialog";
 import { Sidebar } from "./components/Sidebar";
@@ -195,6 +196,7 @@ export default function App() {
       <ContextMenu />
       <CommandPalette />
       <SettingsDialog />
+      <DragGhost />
       <ShortcutsDialog />
       <RepoDialogs />
       <Dialog />

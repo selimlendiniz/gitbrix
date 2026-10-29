@@ -6,6 +6,7 @@ import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 
 import { api, CommitRow, PullMode, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
+import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
 
@@ -619,6 +620,113 @@ export function dropMenu(source: RefInfo, target: RefInfo): MenuItem[] {
   }
   return items;
 }
+
+/** Point a branch that isn't checked out at another commit (undoable). */
+export async function moveBranch(ref: RefInfo, target: string, label = shortId(target)) {
+  const repo = s().repo?.path;
+  const from = ref.target;
+  const ok = await s().run(`Moving ${ref.name}`, (r) => api.moveBranch(r, ref.name, target), `Moved ${ref.name} to ${label}`);
+  if (ok && repo) pushUndo({ label: `move ${ref.name}`, repo, run: (r) => api.moveBranch(r, ref.name, from) });
+}
+
+function stashActions(st: StashInfo): DropAction[] {
+  return [
+    { label: `Apply stash “${st.message}”`, onSelect: () => stashApply(st.index) },
+    { label: `Pop stash “${st.message}”`, onSelect: () => stashPop(st.index) },
+  ];
+}
+
+/** What dropping `item` on `target` can do (see dnd.ts). */
+export function dropActions(item: DragItem, target: DropTarget): DropAction[] {
+  const head = currentBranch();
+  const isHeadRef = (r: RefInfo) => r.kind === "local" && r.name === head;
+
+  if (item.kind === "files") {
+    if (target.kind !== "files" || target.staged === item.staged) return [];
+    const what = item.paths.length === 1 ? item.paths[0] : `${item.paths.length} files`;
+    return target.staged
+      ? [{ label: `Stage ${what}`, direct: true, onSelect: () => void s().run("Staging", (r) => api.stage(r, item.paths), undefined, "status") }]
+      : [{ label: `Unstage ${what}`, direct: true, onSelect: () => void s().run("Unstaging", (r) => api.unstage(r, item.paths), undefined, "status") }];
+  }
+
+  if (item.kind === "stash") {
+    const onWip = (target.kind === "commit" && target.commit.id === WIP_ID) || (target.kind === "files" && !target.staged);
+    return onWip ? stashActions(item.stash) : [];
+  }
+
+  if (item.kind === "ref") {
+    const src = item.ref;
+    if (target.kind === "ref") return target.ref.fullName === src.fullName ? [] : dropMenu(src, target.ref);
+    if (target.kind === "remote") {
+      if (src.kind === "local") return [{ label: `Push ${src.name} to ${target.remote}`, onSelect: () => pushBranchTo(src, target.remote) }];
+      if (src.kind === "tag")
+        return [
+          {
+            label: `Push tag ${src.name} to ${target.remote}`,
+            onSelect: () => s().run(`Pushing ${src.name}`, (r) => api.pushTag(r, target.remote, src.name, false), `Pushed ${src.name} to ${target.remote}`),
+          },
+        ];
+      return [];
+    }
+    if (target.kind === "commit" && target.commit.id !== WIP_ID && target.commit.kind === "commit" && src.kind === "local") {
+      const c = target.commit;
+      const sid = shortId(c.id);
+      if (c.id === src.target) return [];
+      if (isHeadRef(src)) {
+        return [
+          { label: `Rebase ${src.name} onto ${sid}`, onSelect: () => rebaseOnto(c.id, sid) },
+          { label: `Merge ${sid} into ${src.name}`, onSelect: () => mergeInto(c.id, sid) },
+          { separator: true, label: "" },
+          { label: `Reset ${src.name} to ${sid} — soft`, onSelect: () => resetTo(c, "soft") },
+          { label: `Reset ${src.name} to ${sid} — mixed`, onSelect: () => resetTo(c, "mixed") },
+          { label: `Reset ${src.name} to ${sid} — hard…`, danger: true, onSelect: () => resetTo(c, "hard") },
+        ];
+      }
+      return [{ label: `Move ${src.name} to ${sid}`, onSelect: () => moveBranch(src, c.id, sid) }];
+    }
+    return [];
+  }
+
+  // A commit.
+  const c = item.commit;
+  const sid = shortId(c.id);
+  if (c.id === WIP_ID || c.kind !== "commit") return [];
+  if (target.kind === "commit") {
+    const t = target.commit;
+    if (t.id === c.id || t.id === WIP_ID || t.kind !== "commit") return [];
+    return [
+      {
+        label: `Compare ${sid} with ${shortId(t.id)}`,
+        direct: true,
+        onSelect: () => {
+          s().select(c.id);
+          s().setCompare(t.id);
+        },
+      },
+    ];
+  }
+  if (target.kind !== "ref" || target.ref.kind !== "local") return [];
+  const b = target.ref;
+  if (isHeadRef(b)) {
+    return [
+      { label: `Cherry-pick ${sid} onto ${b.name}`, onSelect: () => cherryPick(c) },
+      { label: `Merge ${sid} into ${b.name}`, onSelect: () => mergeInto(c.id, sid) },
+      { label: `Rebase ${b.name} onto ${sid}`, onSelect: () => rebaseOnto(c.id, sid) },
+    ];
+  }
+  return [
+    { label: `Move ${b.name} to ${sid}`, disabled: b.target === c.id, onSelect: () => moveBranch(b, c.id, sid) },
+    {
+      label: `Check out ${b.name} and cherry-pick ${sid}`,
+      onSelect: async () => {
+        await checkoutRef(b);
+        if (currentBranch() === b.name) await cherryPick(c);
+      },
+    },
+  ];
+}
+
+setDropResolver(dropActions);
 
 // ---------- graph filter ----------
 

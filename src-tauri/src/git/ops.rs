@@ -682,6 +682,25 @@ pub fn delete_branch(repo: &Path, name: &str, force: bool) -> Result<()> {
     Ok(())
 }
 
+/// Point branch `name` at `target` without checking anything out (the
+/// checked-out branch is reset instead).
+pub fn move_branch(repo: &Path, name: &str, target: &str) -> Result<()> {
+    check_name(name)?;
+    let r = open(repo)?;
+    let branch = r
+        .find_branch(name, BranchType::Local)
+        .map_err(|_| Error::msg(format!("No branch named '{name}'")))?;
+    if branch.is_head() {
+        return Err(Error::msg(format!("'{name}' is checked out; reset it instead")));
+    }
+    if super::worktree::list(repo)?.iter().any(|w| w.branch.as_deref() == Some(name)) {
+        return Err(Error::msg(format!("'{name}' is checked out in another work tree")));
+    }
+    let commit = resolve_commit(&r, target)?;
+    r.reference(&format!("refs/heads/{name}"), commit.id(), true, &format!("branch: moved to {target}"))?;
+    Ok(())
+}
+
 pub fn rename_branch(repo: &Path, old: &str, new: &str) -> Result<()> {
     check_name(old)?;
     check_branch_name(new)?;

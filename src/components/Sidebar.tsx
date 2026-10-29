@@ -2,6 +2,7 @@ import { ReactNode, useMemo, useState } from "react";
 
 import { RefInfo, RemoteInfo } from "../api";
 import { addRemote, addWorktree, checkoutRef, submoduleMenu, updateSubmodules, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
+import { beginDrag, dropTarget } from "../dnd";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
 import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
@@ -49,6 +50,8 @@ function RefItem({ r, label, indent = 0 }: { r: RefInfo; label: string; indent?:
       className={`side-item${r.isHead ? " head" : ""}${hidden ? " hidden-ref" : ""}`}
       style={{ paddingLeft: 24 + indent * 12 }}
       title={r.upstream ? `${r.name} → ${r.upstream}` : r.name}
+      ref={dropTarget({ kind: "ref", ref: r })}
+      onMouseDown={(e) => beginDrag(e, { kind: "ref", ref: r }, r.name)}
       onClick={() => select(r.target, true)}
       onDoubleClick={() => checkoutRef(r)}
       onContextMenu={(e) => {
@@ -224,6 +227,7 @@ export function Sidebar() {
               className={`side-item${selectedId === st.id ? " selected" : ""}`}
               style={{ paddingLeft: 24 }}
               title={st.message}
+              onMouseDown={(e) => beginDrag(e, { kind: "stash", stash: st }, st.message)}
               onClick={() => select(st.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -248,6 +252,7 @@ function RemoteGroup({ remote, list, filtering }: { remote: RemoteInfo; list: Re
         className="side-item group"
         style={{ paddingLeft: 18 }}
         title={remote.url ?? undefined}
+        ref={dropTarget({ kind: "remote", remote: remote.name })}
         onClick={() => setOpen(!open)}
         onContextMenu={(e) => {
           e.preventDefault();

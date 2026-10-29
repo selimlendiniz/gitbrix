@@ -353,3 +353,87 @@ test("settings: add a self-hosted GitLab account with a token", async ({ page })
   await expect(accounts).toContainText("No accounts");
   expect(errors).toEqual([]);
 });
+
+// --- drag and drop (mouse-driven, see src/dnd.ts) ---
+
+async function drag(page: Page, from: ReturnType<Page["locator"]>, to: ReturnType<Page["locator"]>) {
+  const a = (await from.boundingBox())!;
+  const b = (await to.boundingBox())!;
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(a.x + a.width / 2 + 20, a.y + a.height / 2 + 4, { steps: 3 });
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+  await page.mouse.up();
+}
+
+async function lastCall(page: Page, cmd: string) {
+  return page.evaluate((c) => window.__gitbrixCalls.filter((x) => x.cmd === c).pop()?.args, cmd);
+}
+
+test("drag: a commit onto the checked-out branch cherry-picks it", async ({ page }) => {
+  await page.goto("/?open");
+  await drag(page, page.locator(".graph-row", { hasText: "Experiment: fast path" }).locator(".message"), page.locator(".pill.head"));
+  await page.getByRole("menuitem", { name: /^Cherry-pick e5d281b onto main/ }).click();
+  expect(await lastCall(page, "cherry_pick")).toMatchObject({ id: expect.stringMatching(/^e5d281b/) });
+});
+
+test("drag: a branch onto a commit moves it; the ghost follows the pointer", async ({ page }) => {
+  await page.goto("/?open");
+  const pill = page.locator(".pill", { hasText: /^fix\/typo/ });
+  const row = page.locator(".graph-row", { hasText: "Write getting started guide" }).locator(".message");
+  const a = (await pill.boundingBox())!;
+  const b = (await row.boundingBox())!;
+  await page.mouse.move(a.x + 5, a.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 40, b.y + b.height / 2, { steps: 8 });
+  await expect(page.locator(".drag-ghost")).toHaveText("fix/typo");
+  await expect(page.locator(".graph-row.drop-target")).toHaveCount(1);
+  await page.screenshot({ path: "test-results/shots/drag-branch.png" });
+  await page.mouse.up();
+  await expect(page.locator(".drag-ghost")).toHaveCount(0);
+  await page.getByRole("menuitem", { name: /^Move fix\/typo to 0f5fc92/ }).click();
+  expect(await lastCall(page, "move_branch")).toMatchObject({ name: "fix/typo", target: expect.stringMatching(/^0f5fc92/) });
+});
+
+test("drag: a file between the unstaged and staged lists", async ({ page }) => {
+  await page.goto("/?open");
+  const staged = page.locator(".wip-section").nth(1);
+  await drag(page, page.locator(".file-row", { hasText: "notes.txt" }), staged);
+  expect(await lastCall(page, "stage")).toMatchObject({ paths: ["notes.txt"] });
+  await drag(page, page.locator(".file-row", { hasText: "CHANGELOG.md" }), page.locator(".wip-section").first());
+  expect(await lastCall(page, "unstage")).toMatchObject({ paths: ["CHANGELOG.md"] });
+});
+
+test("drag: a stash onto the WIP row; a branch onto a remote; two commits compare", async ({ page }) => {
+  await page.goto("/?open");
+  await drag(page, page.locator(".side-item", { hasText: "half-written docs" }), page.locator(".graph-row.wip"));
+  await page.getByRole("menuitem", { name: /^Pop stash/ }).click();
+  expect(await lastCall(page, "stash_apply")).toMatchObject({ pop: true });
+
+  await drag(page, page.locator(".side-item", { hasText: /^parser$/ }), page.locator(".side-item.group", { hasText: "origin" }));
+  await page.getByRole("menuitem", { name: "Push feature/parser to origin" }).click();
+  expect(await lastCall(page, "push_branch")).toMatchObject({ remote: "origin", branch: "feature/parser" });
+
+  await drag(
+    page,
+    page.locator(".graph-row", { hasText: "UI: dark theme" }).locator(".message"),
+    page.locator(".graph-row", { hasText: "Start UI module" }).locator(".message"),
+  );
+  await expect(page.locator(".graph-row.compared")).toHaveCount(1);
+});
+
+test("drag: a click is still a click, and Escape cancels a drag", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".graph-row", { hasText: "UI: dark theme" }).click();
+  await expect(page.locator(".commit-summary")).toHaveText("UI: dark theme");
+  const pill = page.locator(".pill", { hasText: /^feature\/ui/ });
+  const head = (await page.locator(".pill.head").boundingBox())!;
+  const a = (await pill.boundingBox())!;
+  await page.mouse.move(a.x + 5, a.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(head.x + 5, head.y + 5, { steps: 6 });
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page.locator(".drag-ghost")).toHaveCount(0);
+});

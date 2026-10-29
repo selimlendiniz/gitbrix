@@ -82,6 +82,30 @@ async function shot(name) {
   writeFileSync(join(shots, `e2e-${name}.png`), Buffer.from(png, "base64"));
 }
 
+/** Drag with real pointer input (WebDriver actions) from one element to
+ *  another; both are WebElement references returned by `js`. */
+async function dragEl(from, to) {
+  const move = (origin, x = 0, y = 0, duration = 100) => ({ type: "pointerMove", origin, x, y, duration });
+  await wd("POST", `/session/${session}/actions`, {
+    actions: [
+      {
+        type: "pointer",
+        id: "mouse",
+        parameters: { pointerType: "mouse" },
+        actions: [
+          move(from),
+          { type: "pointerDown", button: 0 },
+          move(from, 12, 4),
+          move(to, 0, 0, 300),
+          move(to, 2, 0),
+          { type: "pointerUp", button: 0 },
+        ],
+      },
+    ],
+  });
+  await wd("DELETE", `/session/${session}/actions`);
+}
+
 const results = [];
 async function step(name, fn) {
   try {
@@ -409,6 +433,33 @@ try {
       js("const imgs = [...document.querySelectorAll('.image-diff img')]; return imgs.length === 2 && imgs.every(i => i.complete && i.naturalWidth === 1)"),
     );
     await shot("18-image-diff");
+  });
+
+  await step("drag and drop: stage a file, move a branch", async () => {
+    await js(`document.querySelector('.diff-header .icon-btn[title^="Close"]')?.click()`);
+    writeFileSync(join(repo, "dragged.txt"), "dragged into the staged list\n");
+    await waitFor("WIP row", () => js("return !!document.querySelector('.graph-row.wip')"));
+    await js(`document.querySelector('.graph-row.wip').dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}))`);
+    await waitFor("dragged.txt listed", () =>
+      js("return [...document.querySelectorAll('.wip-panel .file-row')].some(r => r.textContent.includes('dragged.txt'))"),
+    );
+    const file = await js("return [...document.querySelectorAll('.wip-panel .file-row')].find(r => r.textContent.includes('dragged.txt'))");
+    const stagedArea = await js("return document.querySelectorAll('.wip-section')[1]");
+    await dragEl(file, stagedArea);
+    await waitFor("dragged.txt staged", () => git("diff", "--cached", "--name-only").includes("dragged.txt"));
+
+    git("branch", "dnd-moved");
+    const target = git("rev-parse", "HEAD~1");
+    await waitFor("branch in sidebar", () =>
+      js("return [...document.querySelectorAll('.side-item')].some(e => e.textContent.trim() === 'dnd-moved')"),
+    );
+    const item = await js("return [...document.querySelectorAll('.side-item')].find(e => e.textContent.trim() === 'dnd-moved')");
+    const row = await js("return document.querySelector(`.graph-row[data-commit='${arguments[0]}'] .message`)", target);
+    await dragEl(item, row);
+    await waitFor("drop menu", () => js("return [...document.querySelectorAll('[role=menuitem]')].some(m => m.textContent.startsWith('Move dnd-moved to'))"));
+    await shot("19-drag-menu");
+    await js(`[...document.querySelectorAll('[role=menuitem]')].find(m => m.textContent.startsWith('Move dnd-moved to')).click()`);
+    await waitFor("branch moved", () => git("rev-parse", "dnd-moved") === target);
   });
 
   await wd("DELETE", `/session/${session}`);

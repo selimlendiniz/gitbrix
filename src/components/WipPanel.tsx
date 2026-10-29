@@ -6,6 +6,7 @@ import { discardAll, discardFiles, fileItems, ignoreItems, stashSave } from "../
 import { useStore } from "../store";
 import { describe, trackHead } from "../undo";
 import { FileViewToggle } from "./CommitPanel";
+import { dropTarget } from "../dnd";
 import { FileList, FileRow } from "./FileList";
 import { IconMinus, IconPlus, IconTrash } from "./Icons";
 
@@ -66,7 +67,7 @@ export function WipPanel() {
   return (
     <div className="wip-panel">
 
-      <div className="wip-section">
+      <div className="wip-section" ref={dropTarget({ kind: "files", staged: false })}>
         <div className="panel-subhead">
           <span>Unstaged files ({unstaged.length})</span>
           <span className="subhead-actions">
@@ -90,6 +91,7 @@ export function WipPanel() {
         </div>
         <FileList
           files={unstaged}
+          dragStaged={false}
           empty="No unstaged changes"
           activePath={active && !active.staged ? active.path : diffSource?.kind === "conflict" ? diffSource.path : null}
           onOpen={(f) =>
@@ -123,7 +125,7 @@ export function WipPanel() {
         />
       </div>
 
-      <div className="wip-section">
+      <div className="wip-section" ref={dropTarget({ kind: "files", staged: true })}>
         <div className="panel-subhead">
           <span>Staged files ({staged.length})</span>
           {staged.length > 0 && (
@@ -134,6 +136,7 @@ export function WipPanel() {
         </div>
         <FileList
           files={staged}
+          dragStaged={true}
           empty="Nothing staged yet"
           activePath={active?.staged ? active.path : null}
           onOpen={(f) => openDiff({ kind: "wip", path: f.path, staged: true })}

@@ -1428,6 +1428,18 @@ fn stash_pop_with_conflicts_keeps_the_stash() {
     assert_eq!(refs::stashes(&mut t.open()).unwrap().len(), 1, "stash kept");
 }
 
+#[test]
+fn branches_move_without_checkout() {
+    let t = TestRepo::new();
+    let first = t.commit("a.txt", "1\n", "first");
+    t.commit("a.txt", "2\n", "second");
+    ops::create_branch(&t.path, "topic", None, false).unwrap();
+    ops::move_branch(&t.path, "topic", &first).unwrap();
+    assert_eq!(t.git(&["rev-parse", "topic"]), first);
+    assert!(ops::move_branch(&t.path, "main", &first).is_err(), "checked-out branch is reset, not moved");
+    assert!(ops::move_branch(&t.path, "nope", &first).is_err());
+}
+
 // --- regressions from the review of the libgit2 move ----------------------
 
 #[test]
