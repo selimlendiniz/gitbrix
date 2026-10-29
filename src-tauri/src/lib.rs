@@ -27,6 +27,7 @@ pub fn run() {
             commands::unstage,
             commands::unstage_all,
             commands::discard,
+            commands::apply_patch,
             commands::commit,
             commands::checkout_branch,
             commands::checkout_remote,

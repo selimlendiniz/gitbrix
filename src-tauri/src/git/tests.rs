@@ -419,6 +419,75 @@ fn pull_fast_forwards_from_clone() {
     assert!(ops::pull(&t.path, "sideways").is_err());
 }
 
+#[test]
+fn stage_unstage_and_discard_single_hunks() {
+    let t = TestRepo::new();
+    let base: String = (1..=20).map(|i| format!("line {i}\n")).collect();
+    t.commit("f.txt", &base, "base");
+    // Two changes far apart: two hunks.
+    t.write("f.txt", &base.replace("line 2\n", "LINE TWO\n").replace("line 19\n", "LINE NINETEEN\n"));
+
+    // Stage only the second hunk, the way the UI builds it.
+    let patch = "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n\
+                 @@ -16,5 +16,5 @@\n line 16\n line 17\n line 18\n-line 19\n+LINE NINETEEN\n line 20\n";
+    ops::apply_patch(&t.path, patch, true, false).unwrap();
+    let staged = t.git(&["diff", "--cached"]);
+    assert!(staged.contains("+LINE NINETEEN") && !staged.contains("LINE TWO"), "{staged}");
+    let unstaged = t.git(&["diff"]);
+    assert!(unstaged.contains("+LINE TWO") && !unstaged.contains("NINETEEN"), "{unstaged}");
+
+    // Unstage it again: same patch, reversed, against the index.
+    ops::apply_patch(&t.path, patch, true, true).unwrap();
+    assert_eq!(t.git(&["diff", "--cached"]), "");
+
+    // Discard the first hunk from the work tree.
+    let first = "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n\
+                 @@ -1,5 +1,5 @@\n line 1\n-line 2\n+LINE TWO\n line 3\n line 4\n line 5\n";
+    ops::apply_patch(&t.path, first, false, true).unwrap();
+    let content = fs::read_to_string(t.path.join("f.txt")).unwrap();
+    assert!(content.contains("line 2\n") && content.contains("LINE NINETEEN"));
+}
+
+#[test]
+fn stage_selected_lines_only() {
+    let t = TestRepo::new();
+    t.commit("f.txt", "a\nb\nc\n", "base");
+    t.write("f.txt", "a\nB\nC\nc\n");
+    // Selected: "-b" and "+B"; "+C" left out.
+    let patch = "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n";
+    ops::apply_patch(&t.path, patch, true, false).unwrap();
+    assert_eq!(t.git(&["show", ":f.txt"]), "a\nB\nc");
+    assert_eq!(fs::read_to_string(t.path.join("f.txt")).unwrap(), "a\nB\nC\nc\n");
+}
+
+#[test]
+fn stage_part_of_an_untracked_file() {
+    let t = TestRepo::new();
+    t.commit("keep.txt", "x\n", "base");
+    t.write("new.txt", "one\ntwo\n");
+    let fd = diff::workdir_file_diff(&t.open(), "new.txt", false).unwrap();
+    assert_eq!(fd.hunks[0].old_start, 0);
+    ops::intent_to_add(&t.path, "new.txt").unwrap();
+    let patch = "diff --git a/new.txt b/new.txt\n--- a/new.txt\n+++ b/new.txt\n@@ -0,0 +1,1 @@\n+one\n";
+    ops::apply_patch(&t.path, patch, true, false).unwrap();
+    assert_eq!(t.git(&["show", ":new.txt"]), "one");
+}
+
+#[test]
+fn missing_final_newline_is_marked_and_patchable() {
+    let t = TestRepo::new();
+    t.commit("f.txt", "a\nb", "no newline at end");
+    t.write("f.txt", "a\nc");
+    let fd = diff::workdir_file_diff(&t.open(), "f.txt", false).unwrap();
+    let lines: Vec<(&str, &str, bool)> =
+        fd.hunks[0].lines.iter().map(|l| (l.kind, l.text.as_str(), l.no_eol)).collect();
+    assert_eq!(lines, vec![("ctx", "a", false), ("del", "b", true), ("add", "c", true)]);
+
+    let patch = "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n a\n-b\n\\ No newline at end of file\n+c\n\\ No newline at end of file\n";
+    ops::apply_patch(&t.path, patch, true, false).unwrap();
+    assert_eq!(t.git(&["diff"]), "");
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

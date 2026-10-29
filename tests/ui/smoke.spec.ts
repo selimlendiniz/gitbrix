@@ -63,3 +63,16 @@ test("staging and committing call the backend", async ({ page }) => {
   expect(cmds).toContain("stage");
   expect(cmds).toContain("commit");
 });
+
+test("selecting diff lines stages just those lines", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".wip-panel .file-row", { hasText: "main.rs" }).click();
+  await expect(page.getByTestId("diff")).toBeVisible();
+  await page.locator(".dl.add").first().click();
+  await expect(page.getByRole("button", { name: "Stage 1 line" })).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/line-staging.png" });
+  await page.getByRole("button", { name: "Stage 1 line" }).click();
+  const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "apply_patch")?.args);
+  expect(call).toMatchObject({ target: "index", reverse: false, intentToAdd: null });
+  expect(call!.patch as string).toContain("+// unstaged edit");
+});

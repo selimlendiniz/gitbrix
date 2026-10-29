@@ -154,6 +154,17 @@ try {
     await shot("04-branch");
   });
 
+  await step("stages a single hunk from the diff view", async () => {
+    // src/main.rs has one unstaged hunk in the demo repo.
+    await js(`[...document.querySelectorAll('.wip-panel .file-row')].find(r => r.textContent.includes('main.rs')).click()`);
+    await waitFor("hunk button", () => js(`return [...document.querySelectorAll('.hunk-actions button')].some(b => b.textContent === 'Stage hunk')`));
+    await shot("05-hunk");
+    await js(`[...document.querySelectorAll('.hunk-actions button')].find(b => b.textContent === 'Stage hunk').click()`);
+    await waitFor("main.rs staged", () => git("diff", "--cached", "--name-only").includes("src/main.rs"));
+    if (git("diff", "--name-only").includes("src/main.rs")) throw new Error("main.rs still has unstaged changes");
+    await js(`document.querySelector('.diff-header .icon-btn[title^="Close"]')?.click()`);
+  });
+
   await step("picks up changes made outside the app", async () => {
     writeFileSync(join(repo, "external.txt"), "written by another program\n");
     await waitFor("external.txt listed", () =>
@@ -163,7 +174,7 @@ try {
     await waitFor("terminal commit in graph", () =>
       js("return [...document.querySelectorAll('.graph-row')].some(r => r.textContent.includes('Commit from terminal'))"),
     );
-    await shot("05-external-change");
+    await shot("06-external-change");
   });
 
   await wd("DELETE", `/session/${session}`);

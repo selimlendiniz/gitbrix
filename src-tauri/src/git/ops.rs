@@ -53,6 +53,29 @@ pub fn unstage_all(repo: &Path) -> Result<()> {
 
 /// Throw away unstaged changes. Tracked files go back to their index
 /// version; untracked files are deleted.
+/// Apply a patch built by the UI from part of a diff, to the index
+/// (staging / unstaging hunks and lines) or the work tree (discarding).
+/// `--recount` lets the UI leave hunk line counts approximate.
+pub fn apply_patch(repo: &Path, patch: &str, to_index: bool, reverse: bool) -> Result<()> {
+    let mut args = vec!["apply", "--recount", "--whitespace=nowarn"];
+    if to_index {
+        args.push("--cached");
+    }
+    if reverse {
+        args.push("--reverse");
+    }
+    args.push("-");
+    run_with_input(repo, &args, Some(patch))?;
+    Ok(())
+}
+
+/// Record an untracked file in the index as empty, so a patch can stage
+/// part of its content.
+pub fn intent_to_add(repo: &Path, path: &str) -> Result<()> {
+    run(repo, &["add", "-N", "--", path])?;
+    Ok(())
+}
+
 pub fn discard(repo: &Path, tracked: &[String], untracked: &[String]) -> Result<()> {
     if !tracked.is_empty() {
         run(repo, &with_paths(vec!["restore", "--worktree"], tracked))?;

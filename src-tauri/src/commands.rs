@@ -111,6 +111,17 @@ pub fn unstage_all(repo: String) -> Result<()> {
     ops::unstage_all(&workdir(&repo)?)
 }
 
+/// `target` is `index` or `worktree`. `intent_to_add` names an untracked
+/// file that must be known to the index before part of it can be staged.
+#[tauri::command(async)]
+pub fn apply_patch(repo: String, patch: String, target: String, reverse: bool, intent_to_add: Option<String>) -> Result<()> {
+    let wd = workdir(&repo)?;
+    if let Some(p) = intent_to_add {
+        ops::intent_to_add(&wd, &p)?;
+    }
+    ops::apply_patch(&wd, &patch, target == "index", reverse)
+}
+
 #[tauri::command(async)]
 pub fn discard(repo: String, paths: Vec<String>) -> Result<()> {
     let r = open(&repo)?;

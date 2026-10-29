@@ -1104,7 +1104,10 @@ textarea {
 }
 
 .hunk-header {
-  padding: 4px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 14px;
   color: var(--text-faint);
   background: rgba(90, 169, 255, 0.06);
   border-top: 1px solid var(--border);
@@ -1112,9 +1115,37 @@ textarea {
   white-space: pre;
 }
 
+.hunk-range {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hunk-actions {
+  display: flex;
+  gap: 6px;
+  color: var(--text);
+  font-family: var(--sans);
+  position: sticky;
+  right: 10px;
+}
+
 .dl {
   display: flex;
   white-space: pre;
+}
+
+.dl.pickable {
+  cursor: pointer;
+}
+
+.dl.pickable:hover .sign {
+  color: var(--text);
+}
+
+.dl.picked {
+  box-shadow: inset 3px 0 0 var(--accent);
+  filter: brightness(1.35);
 }
 
 .dl .ln {

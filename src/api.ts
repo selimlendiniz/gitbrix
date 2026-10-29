@@ -115,6 +115,7 @@ export interface DiffLine {
   oldNo: number | null;
   newNo: number | null;
   text: string;
+  noEol?: boolean;
 }
 
 export interface Hunk {
@@ -159,6 +160,8 @@ export const api = {
   stageAll: (repo: string) => invoke<void>("stage_all", { repo }),
   unstage: (repo: string, paths: string[]) => invoke<void>("unstage", { repo, paths }),
   unstageAll: (repo: string) => invoke<void>("unstage_all", { repo }),
+  applyPatch: (repo: string, patch: string, target: "index" | "worktree", reverse: boolean, intentToAdd: string | null) =>
+    invoke<void>("apply_patch", { repo, patch, target, reverse, intentToAdd }),
   discard: (repo: string, paths: string[]) => invoke<void>("discard", { repo, paths }),
   commit: (repo: string, message: string, amend: boolean) => invoke<void>("commit", { repo, message, amend }),
 

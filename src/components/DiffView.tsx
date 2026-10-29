@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, DiffLine, FileDiff } from "../api";
 import { discardFiles } from "../actions";
 import { shortId, statusLetter } from "../format";
+import { buildPatch, lineRange } from "../diff/patch";
 import { splitRows } from "../diff/split";
 import { useStore } from "../store";
 import { IconClose } from "./Icons";
@@ -94,41 +95,133 @@ export function DiffView() {
         ) : !diff ? (
           <div className="diff-message">Loading diff…</div>
         ) : (
-          <DiffContent diff={diff} mode={mode} />
+          <DiffContent diff={diff} mode={mode} wip={source.kind === "wip" ? source : null} />
         )}
       </div>
     </div>
   );
 }
 
-function DiffContent({ diff, mode }: { diff: FileDiff; mode: Mode }) {
+type WipSource = { kind: "wip"; path: string; staged: boolean };
+
+interface Selection {
+  hunk: number;
+  lines: Set<number>;
+  anchor: number;
+}
+
+function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; wip: WipSource | null }) {
+  const run = useStore((s) => s.run);
+  const confirm = useStore((s) => s.confirm);
+  const [sel, setSel] = useState<Selection | null>(null);
+
+  // A new diff (after staging, or another file) invalidates line indices.
+  useEffect(() => setSel(null), [diff]);
+
   if (diff.binary) return <div className="diff-message">Binary file — no text diff.</div>;
   if (diff.hunks.length === 0) {
     return <div className="diff-message">{diff.status === "renamed" ? "File renamed without changes." : "No content changes."}</div>;
   }
+
+  function pick(hunk: number, line: number, extend: boolean) {
+    setSel((cur) => {
+      if (extend && cur && cur.hunk === hunk) {
+        return { ...cur, lines: new Set([...cur.lines, ...lineRange(diff.hunks[hunk], cur.anchor, line)]) };
+      }
+      const lines = new Set(cur?.hunk === hunk ? cur.lines : []);
+      if (lines.has(line)) lines.delete(line);
+      else lines.add(line);
+      return lines.size ? { hunk, lines, anchor: line } : null;
+    });
+  }
+
+  async function apply(hunk: number, action: "stage" | "unstage" | "discard") {
+    const h = diff.hunks[hunk];
+    const lines = sel?.hunk === hunk ? sel.lines : null;
+    const reverse = action !== "stage";
+    const patch = buildPatch(diff, h, lines, reverse);
+    if (!patch) return;
+    const what = lines ? `${lines.size} line${lines.size === 1 ? "" : "s"}` : "this hunk";
+    if (action === "discard") {
+      const ok = await confirm({
+        title: "Discard changes",
+        message: `Discard ${what} in ${diff.path}? This cannot be undone.`,
+        confirmLabel: "Discard",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    const intentToAdd = action === "stage" && diff.status === "untracked" ? diff.path : null;
+    const label = { stage: "Staging", unstage: "Unstaging", discard: "Discarding" }[action];
+    await run(label, (r) => api.applyPatch(r, patch, action === "discard" ? "worktree" : "index", reverse, intentToAdd));
+  }
+
   return (
     <div className={`diff-table ${mode}`}>
-      {diff.hunks.map((h, i) => (
-        <div className="hunk" key={i}>
-          <div className="hunk-header">{h.header}</div>
-          {mode === "unified"
-            ? h.lines.map((l, j) => <UnifiedLine key={j} l={l} />)
-            : splitRows(h.lines).map((r, j) => (
-                <div className="split-row" key={j}>
-                  <SideLine l={r.left} side="old" />
-                  <SideLine l={r.right} side="new" />
-                </div>
-              ))}
-        </div>
-      ))}
+      {diff.hunks.map((h, i) => {
+        const n = sel?.hunk === i ? sel.lines.size : 0;
+        const what = n ? `${n} line${n === 1 ? "" : "s"}` : "hunk";
+        return (
+          <div className="hunk" key={i}>
+            <div className="hunk-header">
+              <span className="hunk-range">{h.header}</span>
+              {wip && (
+                <span className="hunk-actions">
+                  {wip.staged ? (
+                    <button className="small-btn" onClick={() => apply(i, "unstage")}>
+                      Unstage {what}
+                    </button>
+                  ) : (
+                    <>
+                      <button className="small-btn danger" onClick={() => apply(i, "discard")}>
+                        Discard {what}
+                      </button>
+                      <button className="small-btn" onClick={() => apply(i, "stage")}>
+                        Stage {what}
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+            {mode === "unified"
+              ? h.lines.map((l, j) => (
+                  <UnifiedLine
+                    key={j}
+                    l={l}
+                    selected={sel?.hunk === i && sel.lines.has(j)}
+                    onPick={wip && l.kind !== "ctx" ? (extend) => pick(i, j, extend) : undefined}
+                  />
+                ))
+              : splitRows(h.lines).map((r, j) => (
+                  <div className="split-row" key={j}>
+                    <SideLine l={r.left} side="old" />
+                    <SideLine l={r.right} side="new" />
+                  </div>
+                ))}
+          </div>
+        );
+      })}
       {diff.truncated && <div className="diff-message">Diff truncated — file is too large to show in full.</div>}
     </div>
   );
 }
 
-function UnifiedLine({ l }: { l: DiffLine }) {
+function UnifiedLine({ l, selected, onPick }: { l: DiffLine; selected: boolean; onPick?: (extend: boolean) => void }) {
   return (
-    <div className={`dl ${l.kind}`}>
+    <div
+      className={`dl ${l.kind}${selected ? " picked" : ""}${onPick ? " pickable" : ""}`}
+      onMouseDown={
+        onPick
+          ? (e) => {
+              if (e.button !== 0) return;
+              e.preventDefault();
+              onPick(e.shiftKey);
+            }
+          : undefined
+      }
+      title={onPick ? "Click to select, Shift+click for a range" : undefined}
+    >
       <span className="ln">{l.oldNo ?? ""}</span>
       <span className="ln">{l.newNo ?? ""}</span>
       <span className="sign">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : " "}</span>

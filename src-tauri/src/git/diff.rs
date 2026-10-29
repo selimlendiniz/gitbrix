@@ -25,6 +25,9 @@ pub struct Line {
     pub old_no: Option<u32>,
     pub new_no: Option<u32>,
     pub text: String,
+    /// The line has no newline at the end of the file. Needed to rebuild
+    /// an applicable patch from these lines.
+    pub no_eol: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -181,7 +184,14 @@ pub fn file_diff(diff: &Diff, path: &str) -> Result<FileDiff> {
                     '+' => "add",
                     '-' => "del",
                     ' ' => "ctx",
-                    // '=', '>', '<': end-of-file newline markers.
+                    // '=', '>', '<': "\ No newline at end of file" for the
+                    // line just before.
+                    '=' | '>' | '<' => {
+                        if let Some(prev) = out.lines.last_mut() {
+                            prev.no_eol = true;
+                        }
+                        continue;
+                    }
                     _ => continue,
                 };
                 let text = String::from_utf8_lossy(line.content());
@@ -190,6 +200,7 @@ pub fn file_diff(diff: &Diff, path: &str) -> Result<FileDiff> {
                     old_no: line.old_lineno(),
                     new_no: line.new_lineno(),
                     text: text.strip_suffix('\n').unwrap_or(&text).to_owned(),
+                    no_eol: false,
                 });
                 total += 1;
             }
