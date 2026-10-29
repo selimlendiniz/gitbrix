@@ -31,6 +31,17 @@ fn base(repo: &Path) -> Command {
     cmd
 }
 
+/// Start git, or explain that it is missing: the bare io error would read
+/// "No such file or directory".
+fn spawn(cmd: &mut Command) -> Result<std::process::Child> {
+    cmd.spawn().map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => {
+            Error::msg("git is not installed or not on PATH. gitbrix needs it for commits, merges and network operations.")
+        }
+        _ => e.into(),
+    })
+}
+
 /// A file name as a pathspec that matches only itself: `a*b.txt` must not
 /// also match `axb.txt`. (Not GIT_LITERAL_PATHSPECS: that also disables
 /// the magic pathspecs git uses internally, e.g. in `stash -u`.)
@@ -57,7 +68,7 @@ fn run_full(repo: &Path, args: &[&str], input: Option<&str>, env: &[(&str, &str)
     if input.is_some() {
         cmd.stdin(Stdio::piped());
     }
-    let mut child = cmd.spawn()?;
+    let mut child = spawn(&mut cmd)?;
     if let Some(text) = input {
         // Dropping the handle closes stdin so git sees EOF.
         let mut stdin = child.stdin.take().expect("stdin is piped");
@@ -83,7 +94,7 @@ fn run_full(repo: &Path, args: &[&str], input: Option<&str>, env: &[(&str, &str)
 pub fn run_progress(repo: &Path, args: &[&str], mut on_progress: impl FnMut(&str)) -> Result<Output> {
     let mut cmd = base(repo);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = cmd.spawn()?;
+    let mut child = spawn(&mut cmd)?;
 
     // Drain stdout on another thread so a full pipe can't block git.
     let mut stdout_pipe = child.stdout.take().expect("stdout is piped");
@@ -145,4 +156,15 @@ fn is_progress_line(l: &str) -> bool {
         "Updating files",
     ];
     PREFIXES.iter().any(|p| l.starts_with(p)) || l.starts_with("remote: Counting") || l.starts_with("remote: Compressing")
+}
+
+#[cfg(test)]
+mod spawn_tests {
+    use super::*;
+
+    #[test]
+    fn missing_git_is_explained() {
+        let err = spawn(&mut Command::new("gitbrix-no-such-git")).unwrap_err();
+        assert!(err.to_string().contains("git is not installed"), "{err}");
+    }
 }
