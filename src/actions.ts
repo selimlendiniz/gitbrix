@@ -234,7 +234,7 @@ export async function discardFiles(paths: string[]) {
     confirmLabel: "Discard",
     danger: true,
   });
-  if (ok) await s().run("Discarding", (r) => api.discard(r, paths));
+  if (ok) await s().run("Discarding", (r) => api.discard(r, paths), undefined, "status");
 }
 
 export function stashMenu(st: StashInfo): MenuItem[] {
@@ -289,8 +289,8 @@ export function commitMenu(c: CommitRow): MenuItem[] {
   if (c.id === WIP_ID) {
     return [
       { label: "Stash all changes…", onSelect: () => stashSave() },
-      { label: "Stage all", onSelect: () => s().run("Staging", (r) => api.stageAll(r)) },
-      { label: "Unstage all", onSelect: () => s().run("Unstaging", (r) => api.unstageAll(r)) },
+      { label: "Stage all", onSelect: () => s().run("Staging", (r) => api.stageAll(r), undefined, "status") },
+      { label: "Unstage all", onSelect: () => s().run("Unstaging", (r) => api.unstageAll(r), undefined, "status") },
     ];
   }
   const head = currentBranch();

@@ -55,7 +55,7 @@ export function DiffView() {
         <span className="diff-header-actions">
           {source.kind === "wip" &&
             (source.staged ? (
-              <button className="small-btn" onClick={() => run("Unstaging", (r) => api.unstage(r, [source.path]))}>
+              <button className="small-btn" onClick={() => run("Unstaging", (r) => api.unstage(r, [source.path]), undefined, "status")}>
                 Unstage file
               </button>
             ) : (
@@ -65,7 +65,7 @@ export function DiffView() {
                     Discard
                   </button>
                 )}
-                <button className="small-btn" onClick={() => run("Staging", (r) => api.stage(r, [source.path]))}>
+                <button className="small-btn" onClick={() => run("Staging", (r) => api.stage(r, [source.path]), undefined, "status")}>
                   Stage file
                 </button>
               </>
@@ -158,7 +158,7 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
     }
     const intentToAdd = action === "stage" && diff.status === "untracked" ? diff.path : null;
     const label = { stage: "Staging", unstage: "Unstaging", discard: "Discarding" }[action];
-    await run(label, (r) => api.applyPatch(r, patch, action === "discard" ? "worktree" : "index", reverse, intentToAdd));
+    await run(label, (r) => api.applyPatch(r, patch, action === "discard" ? "worktree" : "index", reverse, intentToAdd), undefined, "status");
   }
 
   return (

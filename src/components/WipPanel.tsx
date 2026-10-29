@@ -34,8 +34,8 @@ export function WipPanel() {
   const staged: FileRow[] = status.staged;
   const active = diffSource?.kind === "wip" ? diffSource : null;
 
-  const stage = (paths: string[]) => run("Staging", (r) => api.stage(r, paths));
-  const unstage = (paths: string[]) => run("Unstaging", (r) => api.unstage(r, paths));
+  const stage = (paths: string[]) => run("Staging", (r) => api.stage(r, paths), undefined, "status");
+  const unstage = (paths: string[]) => run("Unstaging", (r) => api.unstage(r, paths), undefined, "status");
 
   async function toggleAmend(on: boolean) {
     useDraft.setState({ amend: on });
@@ -72,7 +72,7 @@ export function WipPanel() {
                 <button className="link-btn" onClick={() => stashSave()}>
                   Stash
                 </button>
-                <button className="small-btn" onClick={() => run("Staging", (r) => api.stageAll(r))}>
+                <button className="small-btn" onClick={() => run("Staging", (r) => api.stageAll(r), undefined, "status")}>
                   Stage all
                 </button>
               </>
@@ -116,7 +116,7 @@ export function WipPanel() {
         <div className="panel-subhead">
           <span>Staged files ({staged.length})</span>
           {staged.length > 0 && (
-            <button className="small-btn" onClick={() => run("Unstaging", (r) => api.unstageAll(r))}>
+            <button className="small-btn" onClick={() => run("Unstaging", (r) => api.unstageAll(r), undefined, "status")}>
               Unstage all
             </button>
           )}

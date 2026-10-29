@@ -18,11 +18,8 @@ export interface RepoInfo {
   behind: number;
 }
 
-export interface Seg {
-  from: number;
-  to: number;
-  color: number;
-}
+/** Graph line segment: [from lane, to lane, colour index]. */
+export type Seg = [from: number, to: number, color: number];
 
 export interface CommitRow {
   id: string;

@@ -13,7 +13,7 @@ import {
 } from "./api";
 import { addRecent } from "./recent";
 
-const GRAPH_LIMIT = 20_000;
+const GRAPH_PAGE = 5_000;
 
 export type DiffSource =
   | { kind: "commit"; id: string; path: string; oldPath: string | null }
@@ -94,14 +94,25 @@ interface State {
   menu: MenuState | null;
   /** Bumped to ask the graph to scroll the selection into view. */
   scrollRequest: number;
+  /** How many commits the graph loads; grows with "load more". */
+  graphLimit: number;
 
   openRepo: (path: string) => Promise<void>;
   closeRepo: () => void;
-  refresh: () => Promise<void>;
+  /** "status" re-reads only the working tree, unless the WIP row must
+   *  appear or disappear; "all" reloads refs and the graph too. */
+  refresh: (scope?: "all" | "status") => Promise<void>;
+  loadMoreCommits: () => Promise<void>;
   select: (id: string | null, scroll?: boolean) => void;
   openDiff: (source: DiffSource) => Promise<void>;
+  reloadOpenDiff: (status: WorkingStatus) => void;
   closeDiff: () => void;
-  run: (label: string, fn: (repo: string) => Promise<unknown>, success?: string) => Promise<boolean>;
+  run: (
+    label: string,
+    fn: (repo: string) => Promise<unknown>,
+    success?: string,
+    scope?: "all" | "status",
+  ) => Promise<boolean>;
   toast: (kind: Toast["kind"], text: string) => void;
   dismissToast: (id: number) => void;
   prompt: (req: Omit<PromptRequest, "kind" | "resolve">) => Promise<PromptResult | null>;
@@ -139,6 +150,7 @@ export const useStore = create<State>((set, get) => ({
   dialog: null,
   menu: null,
   scrollRequest: 0,
+  graphLimit: GRAPH_PAGE,
 
   async openRepo(path) {
     set({ loading: true });
@@ -156,6 +168,7 @@ export const useStore = create<State>((set, get) => ({
         details: null,
         diffSource: null,
         diff: null,
+        graphLimit: GRAPH_PAGE,
       });
       await get().refresh();
       const { graph, status } = get();
@@ -173,14 +186,26 @@ export const useStore = create<State>((set, get) => ({
     set({ repo: null, graph: null, status: null, stashes: [], selectedId: null, details: null, diffSource: null, diff: null });
   },
 
-  async refresh() {
+  async refresh(scope = "all") {
     const repo = get().repo;
     if (!repo) return;
     const seq = ++refreshSeq;
     try {
+      if (scope === "status" && get().graph) {
+        const status = await api.status(repo.path);
+        if (seq !== refreshSeq || get().repo?.path !== repo.path) return;
+        const dirty = status.staged.length + status.unstaged.length + status.conflicted.length > 0;
+        const hasWipRow = get().graph?.commits[0]?.id === WIP_ID;
+        if (dirty === hasWipRow) {
+          set({ status });
+          get().reloadOpenDiff(status);
+          return;
+        }
+        // The WIP row has to appear or disappear: fall through to a full load.
+      }
       const [info, graph, status, stashes] = await Promise.all([
         api.repoInfo(repo.path),
-        api.graph(repo.path, GRAPH_LIMIT),
+        api.graph(repo.path, get().graphLimit),
         api.status(repo.path),
         api.stashes(repo.path),
       ]);
@@ -196,26 +221,35 @@ export const useStore = create<State>((set, get) => ({
         get().select(info.headOid ?? graph.commits[0]?.id ?? null);
       }
 
-      // A working-tree diff may be stale now; reload it or close it.
-      const src = get().diffSource;
-      if (src?.kind === "conflict" && !status.conflicted.some((e) => e.path === src.path)) {
-        get().closeDiff();
-      } else if (src?.kind === "wip") {
-        const list = src.staged ? status.staged : [...status.unstaged, ...status.conflicted];
-        if (list.some((e) => e.path === src.path)) {
-          void get().openDiff(src);
-        } else {
-          const other = src.staged ? status.unstaged : status.staged;
-          if (other.some((e) => e.path === src.path)) {
-            void get().openDiff({ ...src, staged: !src.staged });
-          } else {
-            get().closeDiff();
-          }
-        }
-      }
+      get().reloadOpenDiff(status);
     } catch (e) {
       get().toast("error", errorText(e));
     }
+  },
+
+  reloadOpenDiff(status) {
+    // A working-tree diff may be stale now; reload it or close it.
+    const src = get().diffSource;
+    if (src?.kind === "conflict" && !status.conflicted.some((e) => e.path === src.path)) {
+      get().closeDiff();
+    } else if (src?.kind === "wip") {
+      const list = src.staged ? status.staged : [...status.unstaged, ...status.conflicted];
+      if (list.some((e) => e.path === src.path)) {
+        void get().openDiff(src);
+      } else {
+        const other = src.staged ? status.unstaged : status.staged;
+        if (other.some((e) => e.path === src.path)) {
+          void get().openDiff({ ...src, staged: !src.staged });
+        } else {
+          get().closeDiff();
+        }
+      }
+    }
+  },
+
+  async loadMoreCommits() {
+    set((s) => ({ graphLimit: s.graphLimit + 2 * GRAPH_PAGE }));
+    await get().refresh();
   },
 
   select(id, scroll = false) {
@@ -264,7 +298,7 @@ export const useStore = create<State>((set, get) => ({
     set({ diffSource: null, diff: null, diffError: null });
   },
 
-  async run(label, fn, success) {
+  async run(label, fn, success, scope = "all") {
     const repo = get().repo;
     if (!repo || get().busy) return false;
     set({ busy: label, progress: null });
@@ -277,7 +311,7 @@ export const useStore = create<State>((set, get) => ({
       get().toast("error", errorText(e));
     } finally {
       set({ busy: null, progress: null });
-      await get().refresh();
+      await get().refresh(scope);
     }
     return ok;
   },

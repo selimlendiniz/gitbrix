@@ -775,3 +775,31 @@ fn record_ui_fixture() {
     });
     fs::write(&out, serde_json::to_string(&fixture).unwrap()).unwrap();
 }
+
+/// Timing for the graph on a big repository:
+/// `GITBRIX_BENCH_REPO=<path> cargo test --release bench_graph -- --ignored --nocapture`
+#[test]
+#[ignore = "benchmark; needs GITBRIX_BENCH_REPO"]
+fn bench_graph() {
+    use std::time::Instant;
+    let path = std::env::var("GITBRIX_BENCH_REPO").expect("GITBRIX_BENCH_REPO");
+    let r = repo::open(Path::new(&path)).unwrap();
+    for limit in [2_000, 20_000, 100_000] {
+        let t0 = Instant::now();
+        let g = log::graph(&r, limit, false).unwrap();
+        let walk = t0.elapsed();
+        let json = serde_json::to_string(&g).unwrap();
+        println!(
+            "limit {limit:>6}: {} commits, {} refs, {} lanes, graph {:?}, json {:?} {} KB",
+            g.commits.len(),
+            g.refs.len(),
+            g.max_lanes,
+            walk,
+            t0.elapsed() - walk,
+            json.len() / 1024
+        );
+    }
+    let t0 = Instant::now();
+    let st = status::status(&r).unwrap();
+    println!("status: {:?} ({} entries)", t0.elapsed(), st.unstaged.len());
+}

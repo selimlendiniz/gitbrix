@@ -11,7 +11,7 @@
     "test": "pnpm test:rust && pnpm test:unit && pnpm test:ui",
     "test:rust": "cd src-tauri && cargo test",
     "test:unit": "vitest run",
-    "test:ui": "playwright test",
+    "test:ui": "scripts/record-fixture.sh && playwright test",
     "test:e2e": "tauri build --debug --no-bundle && node tests/e2e/run.mjs"
   },
   "dependencies": {

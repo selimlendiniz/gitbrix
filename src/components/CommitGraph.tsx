@@ -11,6 +11,11 @@ import { IconClose, IconCloud, IconLaptop, IconSearch, IconTag } from "./Icons";
 
 const REFS_W = 190;
 const MAX_GRAPH_W = 320;
+const AUTHOR_W = 150;
+const DATE_W = 110;
+/** The message column never gets narrower than this; the graph is
+ *  clipped instead (its leftmost lanes are the important ones). */
+const MIN_MESSAGE_W = 220;
 const OVERSCAN = 6;
 
 /** Does a commit match the search text? Message, author or SHA prefix. */
@@ -42,6 +47,7 @@ export function CommitGraph() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewH, setViewH] = useState(600);
+  const [viewW, setViewW] = useState(1000);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -77,14 +83,21 @@ export function CommitGraph() {
         : ([...matches].reverse().find((i) => i < selectedIndex) ?? matches[matches.length - 1]);
     select(commits[next].id, true);
   }
-  const gw = Math.min(MAX_GRAPH_W, graphWidth(graph?.maxLanes ?? 1));
+  const room = viewW - REFS_W - AUTHOR_W - DATE_W - MIN_MESSAGE_W;
+  const gw = Math.max(64, Math.min(MAX_GRAPH_W, graphWidth(graph?.maxLanes ?? 1), room));
+  const columns = `${REFS_W}px ${gw}px minmax(0, 1fr) ${AUTHOR_W}px ${DATE_W}px`;
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setViewH(el.clientHeight));
+    const ro = new ResizeObserver(() => {
+      setViewH(el.clientHeight);
+    setViewW(el.clientWidth);
+      setViewW(el.clientWidth);
+    });
     ro.observe(el);
     setViewH(el.clientHeight);
+    setViewW(el.clientWidth);
     return () => ro.disconnect();
   }, []);
 
@@ -156,7 +169,7 @@ export function CommitGraph() {
         key={c.id}
         commit={c}
         index={i}
-        graphW={gw}
+        columns={columns}
         pills={pills.get(c.id)}
         selected={c.id === selectedId}
         dim={!!matchSet && !matchSet.has(i)}
@@ -172,7 +185,7 @@ export function CommitGraph() {
 
   return (
     <div className="graph">
-      <div className="graph-header" style={{ gridTemplateColumns: `${REFS_W}px ${gw}px 1fr 160px 120px` }}>
+      <div className="graph-header" style={{ gridTemplateColumns: columns }}>
         <span>Branch / Tag</span>
         <span>Graph</span>
         <span className="graph-header-msg">
@@ -242,7 +255,12 @@ export function CommitGraph() {
           {rows}
         </div>
         {graph?.truncated && (
-          <div className="graph-truncated">Showing the newest {commits.length.toLocaleString()} commits.</div>
+          <div className="graph-truncated">
+            Showing the newest {commits.length.toLocaleString()} commits.{" "}
+            <button className="link-btn" onClick={() => useStore.getState().loadMoreCommits()}>
+              Load more
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -252,7 +270,7 @@ export function CommitGraph() {
 interface RowProps {
   commit: CommitRow;
   index: number;
-  graphW: number;
+  columns: string;
   pills: RefPill[] | undefined;
   selected: boolean;
   dim: boolean;
@@ -261,12 +279,12 @@ interface RowProps {
   onMenu: (x: number, y: number) => void;
 }
 
-const GraphRow = memo(function GraphRow({ commit: c, index, graphW, pills, selected, dim, wip, onSelect, onMenu }: RowProps) {
+const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, selected, dim, wip, onSelect, onMenu }: RowProps) {
   const color = laneColor(c.color);
   return (
     <div
       className={`graph-row${selected ? " selected" : ""}${wip ? " wip" : ""}${dim ? " dim" : ""}`}
-      style={{ top: index * ROW_H, height: ROW_H, gridTemplateColumns: `${REFS_W}px ${graphW}px 1fr 160px 120px` }}
+      style={{ top: index * ROW_H, height: ROW_H, gridTemplateColumns: columns }}
       data-commit={c.id}
       onMouseDown={(e) => {
         if (e.button === 0) onSelect(c.id);

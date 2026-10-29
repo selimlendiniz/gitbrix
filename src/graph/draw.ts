@@ -32,10 +32,10 @@ export interface DrawOptions {
   nodeText: string;
 }
 
-function segment(ctx: CanvasRenderingContext2D, s: Seg, y0: number, y1: number) {
-  const x0 = laneX(s.from);
-  const x1 = laneX(s.to);
-  ctx.strokeStyle = laneColor(s.color);
+function segment(ctx: CanvasRenderingContext2D, [from, to, color]: Seg, y0: number, y1: number) {
+  const x0 = laneX(from);
+  const x1 = laneX(to);
+  ctx.strokeStyle = laneColor(color);
   ctx.beginPath();
   ctx.moveTo(x0, y0);
   if (x0 === x1) {
@@ -69,10 +69,29 @@ export function drawGraph(ctx: CanvasRenderingContext2D, o: DrawOptions) {
   for (let i = o.first; i <= o.last; i++) {
     const c = o.commits[i];
     if (!c) continue;
-    const x = laneX(c.lane);
     const y = i * ROW_H - o.scrollTop + ROW_H / 2;
     const color = laneColor(c.color);
     const selected = c.id === o.selectedId;
+    let x = laneX(c.lane);
+
+    // Lane is beyond the visible graph column: mark the commit at the edge.
+    if (x > o.width - NODE_R) {
+      x = o.width - 7;
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, y - 6);
+      ctx.lineTo(x + 4, y);
+      ctx.lineTo(x - 5, y + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (selected) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+      }
+      continue;
+    }
 
     if (c.id === WIP_ID) {
       ctx.fillStyle = o.background;

@@ -42,9 +42,9 @@ function useGlobalKeys() {
     window.addEventListener("focus", onFocus);
     // The backend watcher reports changes made outside the app. An
     // operation in progress refreshes when it finishes anyway.
-    const unlisten = listen<string>("repo-changed", (e) => {
+    const unlisten = listen<{ path: string; git: boolean }>("repo-changed", (e) => {
       const s = useStore.getState();
-      if (s.repo?.path === e.payload && !s.busy) void s.refresh();
+      if (s.repo?.path === e.payload.path && !s.busy) void s.refresh(e.payload.git ? "all" : "status");
     });
     const unlistenProgress = listen<string>("git-progress", (e) => useStore.setState({ progress: e.payload }));
     return () => {

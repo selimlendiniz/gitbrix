@@ -11,16 +11,24 @@
 //! to lane `to` at the bottom edge. A vertical pass-through line therefore
 //! has `from == to` in both halves.
 
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Seg {
     pub from: u16,
     pub to: u16,
     pub color: u16,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+// Sent as `[from, to, color]`: a graph has tens of thousands of rows with
+// several segments each, and field names would triple the payload.
+impl Serialize for Seg {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        (self.from, self.to, self.color).serialize(s)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RowLayout {
     pub lane: u16,
     pub color: u16,
