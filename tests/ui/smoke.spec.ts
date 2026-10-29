@@ -304,3 +304,11 @@ test("code search keeps the query's case", async ({ page }) => {
   await page.getByPlaceholder(/Text added or removed/).fill("ParseConfig");
   await expect.poll(() => page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "search_history")?.args.query)).toBe("ParseConfig");
 });
+
+test("hovering a branch label dims commits not on it", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".pill", { hasText: /^feature\/ui/ }).hover();
+  await expect(page.locator(".graph-row", { hasText: "UI: dark theme" })).not.toHaveClass(/dim/);
+  await expect(page.locator(".graph-row", { hasText: "Experiment: fast path" })).toHaveClass(/dim/);
+  await page.screenshot({ path: "test-results/shots/branch-hover.png" });
+});

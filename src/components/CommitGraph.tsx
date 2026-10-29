@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { create } from "zustand";
 
 import { api, CommitRow, errorText, WIP_ID } from "../api";
 import { checkoutRef, commitMenu, dropMenu, refMenu, stashMenu } from "../actions";
@@ -12,7 +13,7 @@ import { IconClose, IconCloud, IconLaptop, IconSearch, IconStash, IconTag } from
 
 const REFS_W = 190;
 const MAX_GRAPH_W = 320;
-const AUTHOR_W = 150;
+const AUTHOR_W = 140;
 const DATE_W = 110;
 /** The message column never gets narrower than this; the graph is
  *  clipped instead (its leftmost lanes are the important ones). */
@@ -106,6 +107,16 @@ export function CommitGraph() {
   }, [commits, q, mode, hits]);
   const notLoaded = mode !== "message" && hits && matches ? hits.ids.size - matches.length : 0;
   const matchSet = useMemo(() => (matches ? new Set(matches) : null), [matches]);
+
+  // Hovering a branch label highlights its first-parent line.
+  const hoveredTip = useHover((h) => h.tip);
+  const branchSet = useMemo(() => {
+    if (!hoveredTip) return null;
+    const byId = new Map(commits.map((c) => [c.id, c]));
+    const set = new Set<string>();
+    for (let id: string | undefined = hoveredTip; id && !set.has(id); id = byId.get(id)?.parents[0]) set.add(id);
+    return set;
+  }, [hoveredTip, commits]);
   const selectedIndex = commits.findIndex((c) => c.id === selectedId);
   const matchPos = matches ? matches.indexOf(selectedIndex) : -1;
 
@@ -129,7 +140,7 @@ export function CommitGraph() {
   }
   // Narrow windows drop the author, then the date column, and squeeze the
   // ref column, before the message column gets too small to read.
-  const authorW = viewW >= 820 ? AUTHOR_W : 0;
+  const authorW = viewW >= 720 ? AUTHOR_W : 0;
   const dateW = viewW >= 600 ? DATE_W : 0;
   const refsW = Math.round(Math.max(110, Math.min(REFS_W, viewW * 0.24)));
   const room = viewW - refsW - authorW - dateW - MIN_MESSAGE_W;
@@ -236,7 +247,7 @@ export function CommitGraph() {
         pills={pills.get(c.id)}
         selected={c.id === selectedId}
         compared={c.id === compareId}
-        dim={!!matchSet && !matchSet.has(i)}
+        dim={matchSet ? !matchSet.has(i) : !!branchSet && !branchSet.has(c.id)}
         wip={c.id === WIP_ID ? wipCounts : null}
         onSelect={(id, extend) => (extend && selectedId && selectedId !== WIP_ID ? setCompare(id) : select(id))}
         onMenu={(x, y) => {
@@ -324,7 +335,11 @@ export function CommitGraph() {
         ref={scrollRef}
         tabIndex={0}
         data-testid="graph"
-        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        onScroll={(e) => {
+          setScrollTop(e.currentTarget.scrollTop);
+          // A label scrolled away under the mouse never gets mouseleave.
+          if (useHover.getState().tip) useHover.setState({ tip: null });
+        }}
         onKeyDown={onKeyDown}
       >
         <div className="graph-canvas-holder">
@@ -449,6 +464,9 @@ function Pills({ pills, color }: { pills: RefPill[]; color: string }) {
 
 const DRAG_TYPE = "application/x-gitbrix-ref";
 
+/** The branch tip under the mouse, for highlighting its history. */
+const useHover = create<{ tip: string | null }>(() => ({ tip: null }));
+
 function Pill({ pill, color }: { pill: RefPill; color: string }) {
   const showMenu = useStore((s) => s.showMenu);
   const [dropping, setDropping] = useState(false);
@@ -458,6 +476,8 @@ function Pill({ pill, color }: { pill: RefPill; color: string }) {
       className={`pill${pill.isHead ? " head" : ""}${pill.kind === "tag" ? " tag" : ""}${dropping ? " drop-target" : ""}`}
       style={{ ["--pill" as string]: color }}
       draggable
+      onMouseEnter={() => useHover.setState({ tip: ref.target })}
+      onMouseLeave={() => useHover.setState({ tip: null })}
       onDragStart={(e) => {
         e.dataTransfer.setData(DRAG_TYPE, ref.fullName);
         e.dataTransfer.effectAllowed = "move";
