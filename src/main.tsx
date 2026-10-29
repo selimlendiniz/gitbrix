@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { api } from "./api";
 import { useStore } from "./store";
+import { loadTabs } from "./tabs";
 
 declare global {
   interface Window {
@@ -25,8 +26,11 @@ async function start() {
       <App />
     </React.StrictMode>,
   );
+  // A path on the command line wins; otherwise reopen the last session.
   const initial = await api.initialRepo().catch(() => null);
+  const { active } = loadTabs();
   if (initial) void useStore.getState().openRepo(initial);
+  else if (active) void useStore.getState().openRepo(active);
 }
 
 void start();

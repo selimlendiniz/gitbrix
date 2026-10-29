@@ -12,6 +12,7 @@ import {
   WorkingStatus,
 } from "./api";
 import { addRecent } from "./recent";
+import { loadTabs, saveTabs, Tab } from "./tabs";
 
 const GRAPH_PAGE = 5_000;
 
@@ -97,8 +98,12 @@ interface State {
   /** How many commits the graph loads; grows with "load more". */
   graphLimit: number;
 
+  /** Open repositories, one per tab. */
+  tabs: Tab[];
   openRepo: (path: string) => Promise<void>;
+  /** Leave the current repository for the welcome screen (tabs stay). */
   closeRepo: () => void;
+  closeTab: (path: string) => void;
   /** "status" re-reads only the working tree, unless the WIP row must
    *  appear or disappear; "all" reloads refs and the graph too. */
   refresh: (scope?: "all" | "status") => Promise<void>;
@@ -151,12 +156,18 @@ export const useStore = create<State>((set, get) => ({
   menu: null,
   scrollRequest: 0,
   graphLimit: GRAPH_PAGE,
+  tabs: loadTabs().tabs,
 
   async openRepo(path) {
     set({ loading: true });
     try {
       const info = await api.openRepo(path);
       addRecent(info.path, info.name);
+      const tabs = get().tabs.some((t) => t.path === info.path)
+        ? get().tabs
+        : [...get().tabs, { path: info.path, name: info.name }];
+      set({ tabs });
+      saveTabs(tabs, info.path);
       // Without a watcher the app still refreshes on window focus.
       api.watchRepo(info.path).catch((e) => console.warn("watch failed:", errorText(e)));
       set({
@@ -176,12 +187,34 @@ export const useStore = create<State>((set, get) => ({
       get().select(dirty ? WIP_ID : graph?.commits[0]?.id ?? null);
     } catch (e) {
       get().toast("error", errorText(e));
+      // A tab whose repository can't be opened (moved, deleted) goes away.
+      if (get().tabs.some((t) => t.path === path) && get().repo?.path !== path) {
+        const tabs = get().tabs.filter((t) => t.path !== path);
+        set({ tabs });
+        saveTabs(tabs, get().repo?.path ?? null);
+      }
     } finally {
       set({ loading: false });
     }
   },
 
+  closeTab(path) {
+    const { tabs, repo } = get();
+    const i = tabs.findIndex((t) => t.path === path);
+    const rest = tabs.filter((t) => t.path !== path);
+    set({ tabs: rest });
+    if (repo?.path !== path) {
+      saveTabs(rest, repo?.path ?? null);
+      return;
+    }
+    const next = rest[Math.min(i, rest.length - 1)];
+    saveTabs(rest, next?.path ?? null);
+    if (next) void get().openRepo(next.path);
+    else get().closeRepo();
+  },
+
   closeRepo() {
+    saveTabs(get().tabs, null);
     api.unwatchRepo().catch(() => {});
     set({ repo: null, graph: null, status: null, stashes: [], selectedId: null, details: null, diffSource: null, diff: null });
   },

@@ -138,6 +138,99 @@ textarea {
   color: var(--text-dim);
 }
 
+/* ---------- tabs ---------- */
+
+.tabbar {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+  padding: 0 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  max-width: 220px;
+  padding: 0 6px 0 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 7px 7px 0 0;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.tab:hover {
+  color: var(--text);
+  background: var(--bg-panel);
+}
+
+.tab.active {
+  color: var(--text);
+  background: var(--bg-panel);
+  border-color: var(--border);
+  margin-bottom: -1px;
+  height: 29px;
+}
+
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-faint);
+  padding: 0;
+  visibility: hidden;
+}
+
+.tab:hover .tab-close,
+.tab.active .tab-close {
+  visibility: visible;
+}
+
+.tab-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.tab-new {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.tab-new:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
 /* ---------- toolbar ---------- */
 
 .toolbar {

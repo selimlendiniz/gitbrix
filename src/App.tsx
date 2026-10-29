@@ -13,6 +13,7 @@ import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { RebaseView } from "./components/RebaseView";
 import { RepoDialogs } from "./components/RepoDialogs";
 import { Sidebar } from "./components/Sidebar";
+import { TabBar } from "./components/TabBar";
 import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
 import { openRepoDialog, Welcome } from "./components/Welcome";
@@ -73,6 +74,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <TabBar />
       {repo ? (
         <>
           <Toolbar />

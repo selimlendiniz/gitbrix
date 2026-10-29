@@ -147,3 +147,15 @@ test("diffs are syntax highlighted with intra-line marks", async ({ page }) => {
   await expect(page.locator(".diff-table .hl-comment").first()).toBeVisible();
   await page.screenshot({ path: "test-results/shots/diff-highlighted.png" });
 });
+
+test("tabs: new tab shows the welcome screen, closing returns", async ({ page }) => {
+  await page.goto("/?open");
+  await expect(page.locator(".tab")).toHaveText(["demo-app"]);
+  await page.getByTitle("Open another repository").click();
+  await expect(page.getByRole("button", { name: /Open repository/ })).toBeVisible();
+  await page.locator(".tab").click();
+  await expect(page.locator(".repo-name")).toHaveText("demo-app");
+  await page.locator(".tab").getByTitle("Close tab").click();
+  await expect(page.locator(".tab")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Open repository/ })).toBeVisible();
+});

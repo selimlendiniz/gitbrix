@@ -98,7 +98,15 @@ async function step(name, fn) {
 try {
   if (!process.env.E2E_DISPLAY) start("Xvfb", [DISPLAY, "-screen", "0", "1440x900x24", "-nolisten", "tcp"]);
   await sleep(500);
-  start("tauri-driver", ["--port", String(PORT)], {
+  // Resolve through mise now: with XDG_DATA_HOME redirected below, the
+  // mise shim could no longer find its installs.
+  const driver = execFileSync("mise", ["which", "tauri-driver"], { cwd: root, encoding: "utf8" }).trim();
+  start(driver, ["--port", String(PORT)], {
+    // Keep the app's webview storage (recent repos, tabs) out of the
+    // real user profile.
+    XDG_DATA_HOME: join(work, "xdg-data"),
+    XDG_CONFIG_HOME: join(work, "xdg-config"),
+    XDG_CACHE_HOME: join(work, "xdg-cache"),
     DISPLAY,
     GDK_BACKEND: "x11",
     WAYLAND_DISPLAY: "",
@@ -275,6 +283,12 @@ try {
     await click(".modal.wide button[type=submit]");
     await waitFor("cloned repo opened", async () => (await text(".repo-name")) === "origin", 60000);
     await waitFor("cloned graph", () => js("return document.querySelectorAll('.graph-row').length > 3"));
+    await waitFor("two tabs", () => js("return [...document.querySelectorAll('.tab')].map(t => t.textContent).join(',') === 'demo-app,origin'"));
+    // Back to the first tab.
+    await js(`document.querySelector('.tab').click()`);
+    await waitFor("first tab active", async () => (await text(".repo-name")) === "demo-app");
+    await js(`document.querySelectorAll('.tab')[1].click()`);
+    await waitFor("second tab active", async () => (await text(".repo-name")) === "origin");
     await shot("13-cloned");
   });
 

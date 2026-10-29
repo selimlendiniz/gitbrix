@@ -76,7 +76,7 @@ export function Toolbar() {
   const status = useStore((s) => s.status);
   const refresh = useStore((s) => s.refresh);
   const showMenu = useStore((s) => s.showMenu);
-  const closeRepo = useStore((s) => s.closeRepo);
+  const closeTab = useStore((s) => s.closeTab);
   const undoStack = useUndo((s) => s.stack);
   if (!repo) return null;
   const undoEntry = nextUndo(undoStack, repo.path);
@@ -96,7 +96,8 @@ export function Toolbar() {
               { label: "Open repository…", onSelect: () => openRepoDialog() },
               { label: "Clone repository…", onSelect: () => useRepoDialog.setState({ kind: "clone" }) },
               { label: "New repository…", onSelect: () => useRepoDialog.setState({ kind: "init" }) },
-              { label: "Close repository", onSelect: () => closeRepo() },
+              { separator: true, label: "" },
+              { label: "Close tab", onSelect: () => closeTab(repo.path) },
             ]);
           }}
         >
