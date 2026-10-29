@@ -1427,3 +1427,92 @@ fn stash_pop_with_conflicts_keeps_the_stash() {
     assert!(res.is_err());
     assert_eq!(refs::stashes(&mut t.open()).unwrap().len(), 1, "stash kept");
 }
+
+// --- regressions from the review of the libgit2 move ----------------------
+
+#[test]
+fn discard_spares_nested_repositories_and_ignored_files() {
+    let t = TestRepo::new();
+    t.commit(".gitignore", "*.log\n", "ignore logs");
+    git_in(&t.path, &["init", "-q", "nested"]);
+    t.write("nested/work.txt", "unpushed\n");
+    t.write("scratch/a.txt", "a\n");
+    t.write("scratch/keep.log", "log\n");
+    assert!(ops::discard(&t.path, &[], &["nested/".into()]).is_err());
+    assert!(t.path.join("nested/.git").exists());
+    ops::discard(&t.path, &[], &["scratch/".into()]).unwrap();
+    assert!(!t.path.join("scratch/a.txt").exists());
+    assert!(t.path.join("scratch/keep.log").exists(), "ignored files stay, like git clean without -x");
+}
+
+#[test]
+fn rebase_abort_returns_to_the_branch_and_reset_waits_for_it() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "base\n", "base");
+    t.git(&["switch", "-q", "-c", "feature"]);
+    let tip = t.commit("a.txt", "feature\n", "feature edit");
+    t.git(&["switch", "-q", "main"]);
+    t.commit("a.txt", "main\n", "main edit");
+    t.git(&["switch", "-q", "feature"]);
+    assert!(rebase::onto(&t.open(), "main").is_err());
+
+    let err = ops::reset(&t.path, &tip, "keep").unwrap_err().to_string();
+    assert!(err.contains("rebase is in progress"), "{err}");
+    assert!(ops::reset(&t.path, &tip, "hard").is_err());
+    assert_eq!(repo::info(&t.open()).unwrap().state, "rebase");
+
+    ops::sequencer(&t.path, "rebase", "abort").unwrap();
+    assert_eq!(t.git(&["symbolic-ref", "--short", "HEAD"]), "feature");
+    assert_eq!(t.git(&["rev-parse", "HEAD"]), tip);
+}
+
+#[test]
+fn sequencer_needs_the_operation_in_progress() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    t.write("new.txt", "staged\n");
+    ops::stage(&t.path, &["new.txt".into()]).unwrap();
+    for (op, action) in [("merge", "abort"), ("cherry-pick", "skip"), ("revert", "continue")] {
+        assert!(ops::sequencer(&t.path, op, action).is_err(), "{op} {action}");
+    }
+    assert!(t.path.join("new.txt").exists(), "staged work untouched");
+    assert_eq!(t.git(&["status", "--porcelain"]), "A  new.txt");
+}
+
+#[test]
+fn stash_over_staged_changes_explains_itself() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    t.write("a.txt", "2\n");
+    ops::stash_save(&t.path, None, false).unwrap();
+    t.write("b.txt", "b\n");
+    ops::stage(&t.path, &["b.txt".into()]).unwrap();
+    let err = ops::stash_apply(&t.path, 0, false).unwrap_err().to_string();
+    assert!(err.contains("staged changes"), "{err}");
+}
+
+#[test]
+fn squash_never_folds_into_the_base() {
+    let t = TestRepo::new();
+    let base = t.commit("base.txt", "base\n", "base");
+    let c1 = t.commit("f.txt", "x\n", "add f");
+    t.git(&["rm", "-q", "f.txt"]);
+    t.git(&["commit", "-q", "-m", "remove f"]);
+    let c2 = t.git(&["rev-parse", "HEAD"]);
+    let c3 = t.commit("g.txt", "g\n", "add g");
+    // Without c1, "remove f" is empty and dropped; c3 has nothing of ours
+    // below it to squash into.
+    let plan = vec![step("drop", &c1, None), step("pick", &c2, None), step("squash", &c3, None)];
+    rebase::run(&t.open(), &base, &plan).unwrap();
+    assert_eq!(subjects(&t, &base), vec!["add g"]);
+    assert_eq!(t.git(&["rev-parse", "HEAD~1"]), base, "base commit untouched");
+}
+
+#[test]
+fn amending_during_a_merge_is_refused() {
+    let t = conflicted_repo();
+    ops::resolve_with_content(&t.path, "a.txt", "top\nboth\nbottom\n").unwrap();
+    assert!(ops::commit(&t.path, "amend it", true).is_err());
+    ops::commit(&t.path, "Merge other", false).unwrap();
+    assert_eq!(t.git(&["log", "-1", "--format=%p"]).split(' ').count(), 2);
+}

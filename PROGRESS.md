@@ -47,8 +47,20 @@ GitHub / GitLab (including self-hosted) with access tokens.
   path, for several accounts on one GitLab). `~/.git-credentials` is a
   fallback. A GitLab token without `read_user` is stored as user `oauth2`.
 - Packaging: the RPM no longer depends on `git`.
+- An independent review of the move found 7 bugs, all fixed with tests:
+  discard deleted nested repositories and ignored files (now like
+  `git clean -f -d`); rebase abort left HEAD detached and reset during a
+  stopped rebase destroyed it (libgit2's reset deletes `rebase-merge`);
+  abort/skip with no operation in progress threw away staged work; stash
+  over staged changes gave a raw libgit2 error; the GitLab token could
+  follow redirects (redirects now off for the token check); accounts for
+  a group path checked the token at the wrong API URL. Also: squash can't
+  fold into the base, a manual commit during a stopped rebase keeps the
+  original author, amend refused mid-merge, hook/gpg pipes can't
+  deadlock, ssh signing scratch files in a private 0700 directory,
+  worktrees with checked-out submodules aren't removed.
 
-Tests: 82 Rust (new: hooks, ssh signing verified by git, rebase
+Tests: 89 Rust (new: hooks, ssh signing verified by git, rebase
 continue/skip, cherry-pick author, merge abort, lease, remote branch delete
 and tag push, ssh transport through a fake `ssh`, submodule update, stash
 conflicts), 44 unit, 31 Playwright UI, 16 e2e steps — all passing.

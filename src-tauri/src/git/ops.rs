@@ -397,11 +397,36 @@ pub fn discard(repo: &Path, tracked: &[String], untracked: &[String]) -> Result<
         check_path(p)?;
         let full = wd.join(p);
         match std::fs::symlink_metadata(&full) {
-            Ok(m) if m.is_dir() => std::fs::remove_dir_all(&full)?,
+            Ok(m) if m.is_dir() => remove_untracked_dir(&r, &wd, &full)?,
             Ok(_) => std::fs::remove_file(&full)?,
             Err(_) => {}
         }
     }
+    Ok(())
+}
+
+/// Delete an untracked directory like `git clean -f -d`: never a nested
+/// repository (its history may exist nowhere else), never ignored files.
+fn remove_untracked_dir(r: &Repository, wd: &Path, dir: &Path) -> Result<()> {
+    if dir.join(".git").exists() {
+        let rel = dir.strip_prefix(wd).unwrap_or(dir).display();
+        return Err(Error::msg(format!("{rel} is a separate repository; not deleting it")));
+    }
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        let rel = path.strip_prefix(wd).unwrap_or(&path);
+        if r.status_should_ignore(rel).unwrap_or(true) {
+            continue;
+        }
+        let meta = std::fs::symlink_metadata(&path)?;
+        if meta.is_dir() {
+            remove_untracked_dir(r, wd, &path)?;
+        } else {
+            std::fs::remove_file(&path)?;
+        }
+    }
+    // Still holding ignored files: keep it.
+    let _ = std::fs::remove_dir(dir);
     Ok(())
 }
 
@@ -419,6 +444,9 @@ pub fn commit(repo: &Path, message: &str, amend: bool) -> Result<()> {
     let head = head_commit(&r);
     if amend && head.is_none() {
         return Err(Error::msg("There is no commit to amend yet"));
+    }
+    if amend && matches!(r.state(), RepositoryState::Merge | RepositoryState::CherryPick | RepositoryState::Revert) {
+        return Err(Error::msg("Finish or abort the operation in progress before amending"));
     }
     hooks::run(&r, "pre-commit", &[], None)?;
     // The hook may have staged more (formatters do).
@@ -441,9 +469,13 @@ pub fn commit(repo: &Path, message: &str, amend: bool) -> Result<()> {
             }
         }
         author = match state {
-            // Finishing a stopped cherry-pick keeps the original author.
+            // Finishing a stopped cherry-pick (or rebase step) keeps the
+            // original author.
             RepositoryState::CherryPick => r.revparse_single("CHERRY_PICK_HEAD")?.peel_to_commit()?.author().to_owned(),
-            _ => self::author(&r)?,
+            _ => match rebase::stopped_commit(&r).and_then(|id| r.find_commit(id).ok()) {
+                Some(c) => c.author().to_owned(),
+                None => self::author(&r)?,
+            },
         };
         let unchanged = match &head {
             Some(h) => h.tree_id() == tree.id(),
@@ -772,6 +804,10 @@ pub(crate) fn apply_stash(r: &mut Repository, index: usize, pop: bool) -> Result
         Err(e) if e.code() == ErrorCode::Conflict => {
             return Err(Error::msg("Your local changes would be overwritten by the stash. Commit or stash them first."));
         }
+        // libgit2 can't apply a stash over staged changes (git can).
+        Err(e) if e.class() == git2::ErrorClass::Stash && e.message().contains("uncommitted changes exist in the index") => {
+            return Err(Error::msg("Unstage or commit your staged changes before applying a stash"));
+        }
         Err(e) if e.code() != ErrorCode::MergeConflict => return Err(e.into()),
         Err(_) => {}
     }
@@ -808,6 +844,10 @@ pub fn stash_store(repo: &Path, id: &str, message: &str) -> Result<()> {
 // Reset, cherry-pick, revert, merge and finishing them
 
 pub fn reset(repo: &Path, oid: &str, mode: &str) -> Result<()> {
+    // libgit2's reset also deletes a stopped rebase's state; git's doesn't.
+    if rebase::in_progress(&open(repo)?) {
+        return Err(Error::msg("A rebase is in progress; continue or abort it first"));
+    }
     let kind = match mode {
         "soft" => ResetType::Soft,
         "mixed" => ResetType::Mixed,
@@ -1069,6 +1109,14 @@ pub fn sequencer(repo: &Path, op: &str, action: &str) -> Result<()> {
     let r = open(repo)?;
     if op == "rebase" {
         return rebase::sequence(&r, action);
+    }
+    let expected = match op {
+        "merge" => RepositoryState::Merge,
+        "cherry-pick" => RepositoryState::CherryPick,
+        _ => RepositoryState::Revert,
+    };
+    if r.state() != expected {
+        return Err(Error::msg(format!("No {op} is in progress")));
     }
     match action {
         "continue" => finish_operation(&r),

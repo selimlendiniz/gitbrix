@@ -59,8 +59,13 @@ pub fn run(r: &Repository, name: &str, args: &[&str], stdin: Option<&str>) -> Re
     let mut child = cmd.spawn().map_err(|e| Error::msg(format!("Couldn't run the {name} hook: {e}")))?;
     if let Some(text) = stdin {
         let mut pipe = child.stdin.take().expect("stdin is piped");
-        // A hook may exit without reading its input; that isn't our error.
-        let _ = pipe.write_all(text.as_bytes());
+        let text = text.to_owned();
+        // Written from another thread so a hook that prints a lot before
+        // reading can't deadlock us. A hook may exit without reading its
+        // input; that isn't our error.
+        std::thread::spawn(move || {
+            let _ = pipe.write_all(text.as_bytes());
+        });
     }
     let out = child.wait_with_output()?;
     if !out.status.success() {

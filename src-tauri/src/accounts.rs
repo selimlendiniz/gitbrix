@@ -88,19 +88,29 @@ fn normalize(url: &str) -> Result<String> {
     Ok(format!("{scheme}://{host}{path}"))
 }
 
+/// The "who am I" endpoint and the login field in its answer.
+fn user_api(provider: &str, url: &str) -> Result<(String, &'static str)> {
+    let (scheme, host, _) = split_url(url).ok_or_else(|| Error::msg("Invalid address"))?;
+    let root = format!("{scheme}://{host}");
+    Ok(match provider {
+        "github" if host == "github.com" => ("https://api.github.com/user".to_owned(), "login"),
+        "github" => (format!("{root}/api/v3/user"), "login"),
+        "gitlab" => (format!("{root}/api/v4/user"), "username"),
+        other => return Err(Error::msg(format!("Unknown provider {other}"))),
+    })
+}
+
 /// Ask the service who the token belongs to; this also proves it works.
 fn whoami(provider: &str, url: &str, token: &str) -> Result<(String, Option<String>)> {
-    let (_, host, _) = split_url(url).ok_or_else(|| Error::msg("Invalid address"))?;
-    let (api, auth_header, auth_value, login_key) = match provider {
-        "github" => {
-            let api = if host == "github.com" { "https://api.github.com/user".to_owned() } else { format!("{url}/api/v3/user") };
-            (api, "Authorization", format!("Bearer {token}"), "login")
-        }
-        "gitlab" => (format!("{url}/api/v4/user"), "PRIVATE-TOKEN", token.to_owned(), "username"),
-        other => return Err(Error::msg(format!("Unknown provider {other}"))),
-    };
-    let response = ureq::get(&api)
-        .header(auth_header, &auth_value)
+    // The API lives at the server's root even when the account is for a
+    // group path (https://git.example.com/infra).
+    let (api, login_key) = user_api(provider, url)?;
+    let host = split_url(url).map(|(_, h, _)| h).unwrap_or_default();
+    // No redirects: the token must not follow one to another host.
+    let agent: ureq::Agent = ureq::Agent::config_builder().max_redirects(0).build().into();
+    let response = agent
+        .get(&api)
+        .header("Authorization", &format!("Bearer {token}"))
         .header("User-Agent", "gitbrix")
         .header("Accept", "application/json")
         .call();
@@ -192,6 +202,14 @@ mod tests {
         assert_eq!(split_url("https://me:pw@github.com/o/r.git"), Some(("https".into(), "github.com".into(), "/o/r.git".into())));
         assert_eq!(split_url("git@github.com:o/r.git"), None);
         assert_eq!(normalize("https://github.com/").unwrap(), "https://github.com");
+    }
+
+    #[test]
+    fn user_api_is_at_the_server_root() {
+        assert_eq!(user_api("gitlab", "https://git.example.com/infra").unwrap().0, "https://git.example.com/api/v4/user");
+        assert_eq!(user_api("github", "https://github.com").unwrap().0, "https://api.github.com/user");
+        assert_eq!(user_api("github", "https://ghe.corp:8443").unwrap().0, "https://ghe.corp:8443/api/v3/user");
+        assert!(user_api("bitbucket", "https://x").is_err());
     }
 
     #[test]

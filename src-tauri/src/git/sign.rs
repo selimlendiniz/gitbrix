@@ -96,8 +96,13 @@ fn sign_gpg(program: &str, data: &[u8], key: &str) -> Result<String> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| Error::msg(format!("Couldn't run {program} to sign: {e}")))?;
-    child.stdin.take().expect("stdin is piped").write_all(data)?;
+    let mut stdin = child.stdin.take().expect("stdin is piped");
+    let data = data.to_vec();
+    // Feed it from another thread so gpg's output can't fill a pipe and
+    // deadlock us.
+    let writer = std::thread::spawn(move || stdin.write_all(&data));
     let out = child.wait_with_output()?;
+    let _ = writer.join();
     let status = String::from_utf8_lossy(&out.stderr);
     if !out.status.success() || !status.contains("SIG_CREATED") {
         return Err(Error::msg(format!("Signing failed:\n{}", status.trim())));
@@ -105,22 +110,35 @@ fn sign_gpg(program: &str, data: &[u8], key: &str) -> Result<String> {
     String::from_utf8(out.stdout).map_err(|_| Error::msg("The signature isn't text"))
 }
 
-/// A scratch file removed on drop.
+/// A private scratch directory (mode 0700), removed on drop. ssh-keygen
+/// writes `<file>.sig` next to its input, so the input can't sit in the
+/// shared temp directory.
 struct Scratch(PathBuf);
 
 impl Scratch {
-    fn new(tag: &str, content: &[u8]) -> Result<Self> {
+    fn new() -> Result<Self> {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("gitbrix-{tag}-{}-{nanos}", std::process::id()));
-        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&path)?;
-        f.write_all(content)?;
+        let path = std::env::temp_dir().join(format!("gitbrix-sign-{}-{nanos}", std::process::id()));
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(&path)?;
         Ok(Scratch(path))
+    }
+
+    fn file(&self, name: &str, content: &[u8]) -> Result<PathBuf> {
+        let path = self.0.join(name);
+        std::fs::write(&path, content)?;
+        Ok(path)
     }
 }
 
 impl Drop for Scratch {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
+        let _ = std::fs::remove_dir_all(&self.0);
     }
 }
 
@@ -129,25 +147,20 @@ fn sign_ssh(cfg: &Config, data: &[u8], key: Option<&str>) -> Result<String> {
     let key = key.ok_or_else(|| Error::msg("Set user.signingkey to sign commits with an ssh key"))?;
     // The key is either a file or, like git allows, the public key itself.
     let literal = key.strip_prefix("key::").or_else(|| key.starts_with("ssh-").then_some(key));
-    let key_file;
+    let scratch = Scratch::new()?;
     let key_path: PathBuf = match literal {
-        Some(k) => {
-            key_file = Scratch::new("signkey", format!("{k}\n").as_bytes())?;
-            key_file.0.clone()
-        }
+        Some(k) => scratch.file("key.pub", format!("{k}\n").as_bytes())?,
         None => super::repo::expand_home(Path::new(key)),
     };
-    let input = Scratch::new("signdata", data)?;
+    let input = scratch.file("data", data)?;
     let out = Command::new(&program)
         .args(["-Y", "sign", "-n", "git", "-f"])
         .arg(&key_path)
-        .arg(&input.0)
+        .arg(&input)
         .stdin(Stdio::null())
         .output()
         .map_err(|e| Error::msg(format!("Couldn't run {program} to sign: {e}")))?;
-    let sig_path = PathBuf::from(format!("{}.sig", input.0.display()));
-    let sig = std::fs::read_to_string(&sig_path);
-    let _ = std::fs::remove_file(&sig_path);
+    let sig = std::fs::read_to_string(scratch.0.join("data.sig"));
     match sig {
         Ok(s) if out.status.success() => Ok(s),
         _ => Err(Error::msg(format!("Signing failed:\n{}", String::from_utf8_lossy(&out.stderr).trim()))),

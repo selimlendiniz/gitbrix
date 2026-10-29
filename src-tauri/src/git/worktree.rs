@@ -169,6 +169,14 @@ pub fn remove(repo: &Path, path: &str, force: bool) -> Result<()> {
         return Err(Error::msg("That work tree is locked"));
     }
     if dir.exists() {
+        // Like git: submodule repositories inside may hold the only copy
+        // of their commits.
+        let has_submodules = Repository::open(&dir)
+            .map(|w| w.submodules().map(|subs| subs.iter().any(|s| s.open().is_ok())).unwrap_or(false))
+            .unwrap_or(false);
+        if has_submodules {
+            return Err(Error::msg("That work tree has checked-out submodules; remove it from a terminal or delete it by hand"));
+        }
         if !force && !status_entries(&dir, false)?.is_empty() {
             return Err(Error::msg("That work tree has changes; remove it anyway to discard them"));
         }

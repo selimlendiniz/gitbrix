@@ -50,6 +50,10 @@ struct State {
     stopped_at: Option<String>,
     /// Stash commit holding the local changes from before the rebase.
     autostash: Option<String>,
+    /// Some commit of the range is on top of `onto` already; until then a
+    /// squash has nothing of ours to fold into.
+    #[serde(default)]
+    replayed: bool,
 }
 
 /// Commits that an interactive rebase onto `base` would replay, oldest
@@ -185,6 +189,7 @@ fn start(r: &Repository, onto: Oid, steps: Vec<RebaseStep>) -> Result<()> {
         current: None,
         stopped_at: None,
         autostash,
+        replayed: false,
     };
     save(r, &state)?;
     proceed(r, state)
@@ -237,6 +242,7 @@ fn proceed(r: &Repository, mut state: State) -> Result<()> {
         if step.action == "pick" && commit.parent_count() == 1 && commit.parent_id(0)? == tip.id() {
             ops::safe_checkout(r, commit.as_object())?;
             r.set_head_detached(commit.id())?;
+            state.replayed = true;
             continue;
         }
 
@@ -259,7 +265,7 @@ fn proceed(r: &Repository, mut state: State) -> Result<()> {
                 files.join(", ")
             )));
         }
-        commit_step(r, &step, &commit)?;
+        state.replayed |= commit_step(r, &step, &commit, state.replayed)?;
         save(r, &state)?;
     }
     finish(r, state)
@@ -277,7 +283,8 @@ fn conflicted(r: &Repository) -> Result<Vec<String>> {
 }
 
 /// Record the index as the result of `step` (replaying `original`).
-fn commit_step(r: &Repository, step: &RebaseStep, original: &Commit) -> Result<()> {
+/// Returns whether a commit of the range now sits on HEAD.
+fn commit_step(r: &Repository, step: &RebaseStep, original: &Commit, replayed: bool) -> Result<bool> {
     let mut index = r.index()?;
     let tree = r.find_tree(index.write_tree()?)?;
     let tip = head(r)?;
@@ -286,7 +293,8 @@ fn commit_step(r: &Repository, step: &RebaseStep, original: &Commit) -> Result<(
     let original_message = original.message().unwrap_or("");
 
     let (oid, kind) = match step.action.as_str() {
-        "squash" | "fixup" => {
+        // Folding needs one of our commits underneath, never `onto`.
+        "squash" | "fixup" if replayed => {
             // Fold into the commit before: same parents, combined message.
             let message = if step.action == "squash" {
                 format!("{}\n\n{}", tip.message().unwrap_or("").trim_end(), original_message.trim())
@@ -301,7 +309,7 @@ fn commit_step(r: &Repository, step: &RebaseStep, original: &Commit) -> Result<(
         _ => {
             if tree.id() == tip.tree_id() {
                 // Its changes are already there: drop it, as git does.
-                return Ok(());
+                return Ok(false);
             }
             let message = match step.action.as_str() {
                 "reword" => git2::message_prettify(step.message.as_deref().unwrap_or(""), None)?,
@@ -312,7 +320,13 @@ fn commit_step(r: &Repository, step: &RebaseStep, original: &Commit) -> Result<(
     };
     let new = r.find_commit(oid)?;
     r.reference("HEAD", oid, true, &format!("rebase ({kind}): {}", summary(&new)))?;
-    Ok(())
+    Ok(true)
+}
+
+/// The commit a stopped rebase step is replaying, if one is stopped.
+pub fn stopped_commit(r: &Repository) -> Option<Oid> {
+    let state = load(r).ok()?;
+    Oid::from_str(&state.current?.id).ok()
 }
 
 fn finish(r: &Repository, state: State) -> Result<()> {
@@ -358,9 +372,11 @@ pub fn sequence(r: &Repository, action: &str) -> Result<()> {
                 let moved = state.stopped_at.as_deref() != Some(head(r)?.id().to_string().as_str());
                 // If the user committed the resolution themselves, that
                 // commit stands for the step.
-                if !moved {
+                if moved {
+                    state.replayed = true;
+                } else {
                     let original = r.find_commit(Oid::from_str(&step.id).map_err(|_| Error::msg("Invalid commit id"))?)?;
-                    commit_step(r, &step, &original)?;
+                    state.replayed |= commit_step(r, &step, &original, state.replayed)?;
                 }
                 clear_pick_files(r);
             }
@@ -383,10 +399,12 @@ fn abort(r: &Repository) -> Result<()> {
     let orig = read("orig-head").map_err(|_| Error::msg("No rebase to abort"))?;
     let orig = r.find_commit(Oid::from_str(&orig).map_err(|_| Error::msg("Unreadable rebase state"))?)?;
     let autostash = load(r).ok().and_then(|s| s.autostash);
+    // Read before resetting: libgit2's reset deletes the state directory.
+    let head_name = read("head-name");
     let mut cb = CheckoutBuilder::new();
     cb.force();
     r.reset(orig.as_object(), git2::ResetType::Hard, Some(&mut cb))?;
-    match read("head-name") {
+    match head_name {
         Ok(name) if name.starts_with("refs/heads/") => {
             r.reference(&name, orig.id(), true, "rebase (abort)")?;
             r.set_head(&name)?;
