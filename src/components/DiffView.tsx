@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, DiffLine, FileDiff } from "../api";
 import { discardFiles } from "../actions";
 import { shortId, statusLetter } from "../format";
+import { diffTokens, Token } from "../diff/highlight";
 import { buildPatch, lineRange } from "../diff/patch";
 import { splitRows } from "../diff/split";
 import { useStore } from "../store";
@@ -123,6 +124,20 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
   // A new diff (after staging, or another file) invalidates line indices.
   useEffect(() => setSel(null), [diff]);
 
+  // Syntax colours and intra-line marks arrive asynchronously; until then
+  // lines render as plain text.
+  const [tokens, setTokens] = useState<Token[][][] | null>(null);
+  useEffect(() => {
+    let live = true;
+    setTokens(null);
+    if (!diff.binary && diff.hunks.length) {
+      diffTokens(diff.path, diff.hunks).then((t) => live && setTokens(t), () => {});
+    }
+    return () => {
+      live = false;
+    };
+  }, [diff]);
+
   if (diff.binary) return <div className="diff-message">Binary file — no text diff.</div>;
   if (diff.hunks.length === 0) {
     return <div className="diff-message">{diff.status === "renamed" ? "File renamed without changes." : "No content changes."}</div>;
@@ -194,16 +209,20 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
                   <UnifiedLine
                     key={j}
                     l={l}
+                    tokens={tokens?.[i]?.[j]}
                     selected={sel?.hunk === i && sel.lines.has(j)}
                     onPick={wip && l.kind !== "ctx" ? (extend) => pick(i, j, extend) : undefined}
                   />
                 ))
-              : splitRows(h.lines).map((r, j) => (
-                  <div className="split-row" key={j}>
-                    <SideLine l={r.left} side="old" />
-                    <SideLine l={r.right} side="new" />
-                  </div>
-                ))}
+              : (() => {
+                  const byLine = new Map(h.lines.map((l, j) => [l, tokens?.[i]?.[j]]));
+                  return splitRows(h.lines).map((r, j) => (
+                    <div className="split-row" key={j}>
+                      <SideLine l={r.left} side="old" tokens={r.left ? byLine.get(r.left) : undefined} />
+                      <SideLine l={r.right} side="new" tokens={r.right ? byLine.get(r.right) : undefined} />
+                    </div>
+                  ));
+                })()}
           </div>
         );
       })}
@@ -212,7 +231,32 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
   );
 }
 
-function UnifiedLine({ l, selected, onPick }: { l: DiffLine; selected: boolean; onPick?: (extend: boolean) => void }) {
+function Code({ text, tokens }: { text: string; tokens: Token[] | undefined }) {
+  if (!tokens) return <span className="code">{text || " "}</span>;
+  return (
+    <span className="code">
+      {tokens.length === 0
+        ? " "
+        : tokens.map((t, k) => (
+            <span key={k} className={`${t.cls ? t.cls.split(" ").map((c) => `hl-${c}`).join(" ") : ""}${t.mark ? " chg" : ""}`}>
+              {t.text}
+            </span>
+          ))}
+    </span>
+  );
+}
+
+function UnifiedLine({
+  l,
+  tokens,
+  selected,
+  onPick,
+}: {
+  l: DiffLine;
+  tokens: Token[] | undefined;
+  selected: boolean;
+  onPick?: (extend: boolean) => void;
+}) {
   return (
     <div
       className={`dl ${l.kind}${selected ? " picked" : ""}${onPick ? " pickable" : ""}`}
@@ -230,18 +274,18 @@ function UnifiedLine({ l, selected, onPick }: { l: DiffLine; selected: boolean; 
       <span className="ln">{l.oldNo ?? ""}</span>
       <span className="ln">{l.newNo ?? ""}</span>
       <span className="sign">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : " "}</span>
-      <span className="code">{l.text || " "}</span>
+      <Code text={l.text} tokens={tokens} />
     </div>
   );
 }
 
-function SideLine({ l, side }: { l: DiffLine | null; side: "old" | "new" }) {
+function SideLine({ l, side, tokens }: { l: DiffLine | null; side: "old" | "new"; tokens: Token[] | undefined }) {
   if (!l) return <div className="dl empty"><span className="ln" /><span className="code" /></div>;
   const kind = l.kind === "ctx" ? "ctx" : l.kind;
   return (
     <div className={`dl ${kind}`}>
       <span className="ln">{(side === "old" ? l.oldNo : l.newNo) ?? ""}</span>
-      <span className="code">{l.text || " "}</span>
+      <Code text={l.text} tokens={tokens} />
     </div>
   );
 }

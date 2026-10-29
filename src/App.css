@@ -1882,3 +1882,91 @@ kbd {
   flex-direction: column;
   gap: 4px;
 }
+
+/* ---------- syntax colours (highlight.js classes, prefixed hl-) ---------- */
+
+.hl-keyword,
+.hl-built_in,
+.hl-type,
+.hl-meta {
+  color: #c792ea;
+}
+
+.hl-string,
+.hl-regexp,
+.hl-char,
+.hl-template-tag {
+  color: #a5d98b;
+}
+
+.hl-number,
+.hl-literal {
+  color: #f5a76c;
+}
+
+.hl-comment,
+.hl-quote,
+.hl-doctag {
+  color: #6d7686;
+  font-style: italic;
+}
+
+.hl-title,
+.hl-function_,
+.hl-section {
+  color: #7fb4ff;
+}
+
+.hl-class_,
+.hl-title.class_ {
+  color: #f0c674;
+}
+
+.hl-attr,
+.hl-attribute,
+.hl-property,
+.hl-variable,
+.hl-params {
+  color: #e5b97a;
+}
+
+.hl-tag,
+.hl-name,
+.hl-selector-tag,
+.hl-selector-class,
+.hl-selector-id {
+  color: #ff8f8f;
+}
+
+.hl-symbol,
+.hl-bullet,
+.hl-link,
+.hl-subst {
+  color: #7fd7d7;
+}
+
+.hl-addition {
+  color: var(--add);
+}
+
+.hl-deletion {
+  color: var(--del);
+}
+
+.hl-emphasis {
+  font-style: italic;
+}
+
+.hl-strong {
+  font-weight: 700;
+}
+
+.dl.add .chg {
+  background: rgba(76, 195, 138, 0.35);
+  border-radius: 2px;
+}
+
+.dl.del .chg {
+  background: rgba(240, 113, 107, 0.38);
+  border-radius: 2px;
+}

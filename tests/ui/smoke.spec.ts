@@ -139,3 +139,11 @@ test("selecting a stash shows its changes and actions", async ({ page }) => {
   const cmds = await page.evaluate(() => window.__gitbrixCalls.map((c) => c.cmd));
   expect(cmds).toContain("stash_apply");
 });
+
+test("diffs are syntax highlighted with intra-line marks", async ({ page }) => {
+  await page.goto("/?open");
+  await page.getByText("Wire parser into main").click();
+  await page.locator(".commit-panel .file-row", { hasText: "main.rs" }).click();
+  await expect(page.locator(".diff-table .hl-comment").first()).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/diff-highlighted.png" });
+});
