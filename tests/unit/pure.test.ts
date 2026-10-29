@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DiffLine, RefInfo } from "../../src/api";
+import { fuzzyScore } from "../../src/components/CommandPalette";
 import { planProblems, Row } from "../../src/components/RebaseView";
 import { nameFromUrl } from "../../src/components/RepoDialogs";
 import { splitRows } from "../../src/diff/split";
@@ -116,3 +117,14 @@ describe("planProblems", () => {
   });
 });
 
+
+describe("fuzzyScore", () => {
+  it("matches subsequences and prefers tighter, word-start matches", () => {
+    expect(fuzzyScore("fx", "Checkout fix/typo")).not.toBeNull();
+    expect(fuzzyScore("zz", "Checkout main")).toBeNull();
+    const tight = fuzzyScore("push", "Action Push")!;
+    const loose = fuzzyScore("push", "Action Pull (rebase) stash")!;
+    expect(tight).toBeGreaterThan(loose);
+    expect(fuzzyScore("", "anything")).toBe(0);
+  });
+});

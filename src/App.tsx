@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import "./App.css";
 import { WIP_ID } from "./api";
+import { CommandPalette, usePalette } from "./components/CommandPalette";
 import { CommitGraph } from "./components/CommitGraph";
 import { CommitPanel } from "./components/CommitPanel";
 import { ConflictView } from "./components/ConflictView";
@@ -29,7 +30,11 @@ function useGlobalKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = useStore.getState();
-      if (e.key === "F5" || (e.key === "r" && (e.ctrlKey || e.metaKey))) {
+      const mod = e.ctrlKey || e.metaKey;
+      if ((mod && e.key.toLowerCase() === "k") || (mod && e.shiftKey && e.key.toLowerCase() === "p")) {
+        e.preventDefault();
+        usePalette.setState((p) => ({ open: !p.open }));
+      } else if (e.key === "F5" || (e.key === "r" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         void s.refresh();
       } else if (e.key === "f" && (e.ctrlKey || e.metaKey) && s.repo) {
@@ -105,6 +110,7 @@ export default function App() {
         <Welcome />
       )}
       <ContextMenu />
+      <CommandPalette />
       <RepoDialogs />
       <Dialog />
       <Toasts />

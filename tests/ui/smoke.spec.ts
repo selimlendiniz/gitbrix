@@ -159,3 +159,16 @@ test("tabs: new tab shows the welcome screen, closing returns", async ({ page })
   await expect(page.locator(".tab")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Open repository/ })).toBeVisible();
 });
+
+test("command palette checks out a branch", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".graph-row").first().waitFor();
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder(/Type a command/).fill("checkout fixtypo");
+  await expect(page.locator(".palette-item.active")).toContainText("fix/typo");
+  await page.screenshot({ path: "test-results/shots/palette.png" });
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".palette")).toBeHidden();
+  const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "checkout_branch")?.args);
+  expect(call).toMatchObject({ name: "fix/typo" });
+});
