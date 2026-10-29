@@ -119,10 +119,15 @@ fn callbacks<'a, 'p>(progress: Shared<'a, 'p>, auth: &'a RefCell<Auth>) -> Remot
         (progress.borrow_mut())(&line);
         true
     });
+    // Remote messages arrive in packets that may cut a line anywhere;
+    // pass on whole lines only.
+    let mut pending = String::new();
     cb.sideband_progress(move |data| {
-        for part in String::from_utf8_lossy(data).split(['\r', '\n']) {
-            if !part.trim().is_empty() {
-                (progress.borrow_mut())(&format!("remote: {}", part.trim()));
+        pending.push_str(&String::from_utf8_lossy(data));
+        while let Some(end) = pending.find(['\r', '\n']) {
+            let line: String = pending.drain(..=end).collect();
+            if !line.trim().is_empty() {
+                (progress.borrow_mut())(&format!("remote: {}", line.trim()));
             }
         }
         true

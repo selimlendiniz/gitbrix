@@ -1516,3 +1516,28 @@ fn amending_during_a_merge_is_refused() {
     ops::commit(&t.path, "Merge other", false).unwrap();
     assert_eq!(t.git(&["log", "-1", "--format=%p"]).split(' ').count(), 2);
 }
+
+/// Push to a real https remote with a saved account, then clone it back.
+/// Run by hand: GITBRIX_LIVE_URL=https://gitlab.com/me/test.git
+///   cargo test --lib live_push -- --ignored --nocapture
+#[test]
+#[ignore]
+fn live_push() {
+    let url = std::env::var("GITBRIX_LIVE_URL").expect("GITBRIX_LIVE_URL");
+    let home = std::env::var("HOME").unwrap();
+    crate::accounts::init(Path::new(&home).join(".config/dev.gitbrix.app"));
+    let t = TestRepo::new();
+    t.commit("README.md", "# gitbrix push test\n\nPushed by gitbrix through libgit2.\n", "Push test from gitbrix");
+    t.git(&["remote", "add", "origin", &url]);
+    let mut lines = Vec::new();
+    net::push(&t.path, false, &mut |l| lines.push(l.to_owned())).unwrap();
+    println!("push progress: {lines:?}");
+    let info = repo::info(&t.open()).unwrap();
+    println!("upstream {:?} ahead {} behind {}", info.upstream, info.ahead, info.behind);
+    assert_eq!(info.upstream.as_deref(), Some("origin/main"));
+
+    let parent = t.path.parent().unwrap();
+    let clone = net::clone(parent, &url, "roundtrip", &mut |_| {}).unwrap();
+    assert_eq!(fs::read_to_string(clone.join("README.md")).unwrap(), "# gitbrix push test\n\nPushed by gitbrix through libgit2.\n");
+    println!("clone ok: {}", clone.display());
+}
