@@ -267,6 +267,23 @@ try {
     await shot("11-undone");
   });
 
+  await step("reflog brings the undone merge back as a branch", async () => {
+    await click(".repo-btn");
+    await js(`[...document.querySelectorAll('.menu-item')].find(b => b.textContent.includes('Reflog')).click()`);
+    await waitFor("reflog rows", () => js("return document.querySelectorAll('.reflog-row').length > 3"));
+    // The merge that undo removed is no longer on a branch.
+    await js(`const row = [...document.querySelectorAll('.reflog-row')].find(r => r.textContent.includes("Merge branch 'side'") && r.classList.contains('orphan'));
+              row.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, clientX: 500, clientY: 300}))`);
+    await shot("12-reflog");
+    await js(`[...document.querySelectorAll('.menu-item')].find(b => b.textContent.includes('Create branch here')).click()`);
+    await waitFor("dialog", () => js("return !!document.querySelector('.modal input')"));
+    await type(".modal input", "recovered");
+    await js(`document.querySelector('.modal input[type=checkbox]').click()`); // don't check it out
+    await click(".modal button[type=submit]");
+    await waitFor("branch at merge", () => git("log", "-1", "--format=%s", "recovered").startsWith("Merge branch 'side'"));
+    await js(`document.querySelector('.diff-header .icon-btn[title^="Close"]').click()`);
+  });
+
   await step("clones a repository with progress and opens it", async () => {
     await click(".repo-btn");
     await js(`[...document.querySelectorAll('.menu-item')].find(b => b.textContent.includes('Clone repository')).click()`);
@@ -282,7 +299,7 @@ try {
       work,
     );
     await waitFor("name derived", () => js(`return ${inputs}[2].value === 'origin'`));
-    await shot("12-clone-dialog");
+    await shot("13-clone-dialog");
     await click(".modal.wide button[type=submit]");
     await waitFor("cloned repo opened", async () => (await text(".repo-name")) === "origin", 60000);
     await waitFor("cloned graph", () => js("return document.querySelectorAll('.graph-row').length > 3"));
@@ -292,7 +309,7 @@ try {
     await waitFor("first tab active", async () => (await text(".repo-name")) === "demo-app");
     await js(`document.querySelectorAll('.tab')[1].click()`);
     await waitFor("second tab active", async () => (await text(".repo-name")) === "origin");
-    await shot("13-cloned");
+    await shot("14-cloned");
   });
 
   await step("opens a branch in a new worktree tab", async () => {
@@ -306,7 +323,7 @@ try {
     await waitFor("worktree tab", async () => (await text(".repo-name")) === "demo-app-side", 30000);
     await waitFor("worktree listed", () => js("return [...document.querySelectorAll('.side-section')].some(s => s.textContent.includes('Worktrees'))"));
     if (!git("worktree", "list").includes("demo-app-side")) throw new Error("worktree not created");
-    await shot("14-worktree");
+    await shot("15-worktree");
   });
 
   await step("lists submodules", async () => {

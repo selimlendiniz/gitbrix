@@ -100,6 +100,11 @@ pub fn file_history(repo: String, path: String, limit: usize) -> Result<Vec<hist
 }
 
 #[tauri::command(async)]
+pub fn reflog(repo: String, limit: usize) -> Result<Vec<history::ReflogEntry>> {
+    history::reflog(&open(&repo)?, limit)
+}
+
+#[tauri::command(async)]
 pub fn blame(repo: String, path: String, rev: Option<String>) -> Result<history::Blame> {
     history::blame(&workdir(&repo)?, &path, rev.as_deref())
 }

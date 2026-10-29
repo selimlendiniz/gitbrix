@@ -51,7 +51,8 @@ export type DiffSource =
   | { kind: "conflict"; path: string }
   | { kind: "history"; path: string }
   | { kind: "blame"; path: string; rev: string | null }
-  | { kind: "rebase"; base: string };
+  | { kind: "rebase"; base: string }
+  | { kind: "reflog" };
 
 export interface Toast {
   id: number;
@@ -399,7 +400,7 @@ export const useStore = create<State>((set, get) => ({
     const seq = ++diffSeq;
     if (!sameSource(source, get().diffSource)) set({ diffSource: source, diff: null, diffError: null });
     // These views load their own data.
-    if (source.kind !== "commit" && source.kind !== "wip" && source.kind !== "compare") return;
+    if (source.kind !== "commit" && source.kind !== "wip" && source.kind !== "compare") return; // views that load their own data
     try {
       const diff =
         source.kind === "commit"

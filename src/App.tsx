@@ -13,6 +13,7 @@ import { BlameView, HistoryView } from "./components/FileViews";
 import { OperationBanner } from "./components/OperationBanner";
 import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { RebaseView } from "./components/RebaseView";
+import { ReflogView } from "./components/ReflogView";
 import { RepoDialogs } from "./components/RepoDialogs";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ShortcutsDialog, useShortcuts } from "./components/ShortcutsDialog";
@@ -150,6 +151,8 @@ export default function App() {
                 <BlameView />
               ) : diffSource?.kind === "rebase" ? (
                 <RebaseView />
+              ) : diffSource?.kind === "reflog" ? (
+                <ReflogView />
               ) : diffSource ? (
                 <DiffView />
               ) : (

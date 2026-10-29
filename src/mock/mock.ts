@@ -37,6 +37,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   get_remotes: () => fixture.remotes,
   get_worktrees: () => fixture.worktrees,
   get_submodules: () => [],
+  reflog: () => fixture.reflog,
   // Not recorded: approximate a comparison by the newer commit's own changes.
   compare_commits: (a) => ((fixture.details as Record<string, { files: unknown[] }>)[a.to as string]?.files ?? []),
   compare_file_diff: (a) =>

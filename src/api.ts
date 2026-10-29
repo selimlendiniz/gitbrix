@@ -213,6 +213,15 @@ export interface SubmoduleInfo {
   modified: boolean;
 }
 
+export interface ReflogEntry {
+  index: number;
+  id: string;
+  oldId: string;
+  message: string;
+  time: number;
+  summary: string | null;
+}
+
 export type PullMode = "ff-only" | "merge" | "rebase";
 export type ResetMode = "soft" | "mixed" | "hard" | "keep";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -235,6 +244,7 @@ export const api = {
   workdirFileDiff: (repo: string, path: string, staged: boolean) =>
     invoke<FileDiff>("workdir_file_diff", { repo, path, staged }),
   fileHistory: (repo: string, path: string, limit: number) => invoke<HistoryEntry[]>("file_history", { repo, path, limit }),
+  reflog: (repo: string, limit: number) => invoke<ReflogEntry[]>("reflog", { repo, limit }),
   blame: (repo: string, path: string, rev: string | null) => invoke<Blame>("blame", { repo, path, rev }),
   headMessage: (repo: string) => invoke<string>("head_message", { repo }),
 

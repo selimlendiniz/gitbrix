@@ -82,6 +82,7 @@ function useCommands(): Command[] {
       add("Action", "Refresh", () => void st.refresh(), "F5");
       add("Action", "Search commits", () => window.dispatchEvent(new Event("gitbrix:find")), "Ctrl+F");
       add("Action", "Show working tree changes", () => st.select(WIP_ID, true));
+      add("Action", "Reflog — recover lost commits", () => void st.openDiff({ kind: "reflog" }));
       add("Action", "Go to HEAD", () => repo.headOid && st.select(repo.headOid, true));
       for (const r of graph?.refs ?? []) {
         if (r.kind === "local" && !r.isHead) add("Checkout", r.name, () => checkoutRef(r));

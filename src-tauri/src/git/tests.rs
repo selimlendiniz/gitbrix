@@ -980,6 +980,20 @@ fn submodules_are_listed() {
     // config, so it would need a change to the global git config.
 }
 
+#[test]
+fn reflog_remembers_commits_lost_by_reset() {
+    use super::history;
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    let lost = t.commit("a.txt", "2\n", "soon lost");
+    t.git(&["reset", "-q", "--hard", "HEAD~1"]);
+    let log = history::reflog(&t.open(), 50).unwrap();
+    assert!(log[0].message.starts_with("reset:"), "{:?}", log[0].message);
+    let entry = log.iter().find(|e| e.id == lost).expect("lost commit in reflog");
+    assert_eq!(entry.summary.as_deref(), Some("soon lost"));
+    assert_eq!(history::reflog(&t.open(), 1).unwrap().len(), 1);
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.
@@ -1058,6 +1072,7 @@ fn record_ui_fixture() {
         "headMessage": head_message,
         "remotes": refs::remotes(&r).unwrap(),
         "worktrees": super::worktree::list(Path::new(&repo_path)).unwrap(),
+        "reflog": super::history::reflog(&r, 500).unwrap(),
         "histories": histories,
         "blames": blames,
         "rebaseCommits": super::rebase::commits(&r, &r.revparse_single("HEAD~2").unwrap().id().to_string()).unwrap(),

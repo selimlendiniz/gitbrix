@@ -103,6 +103,8 @@ export function Toolbar() {
               { label: "Clone repository…", onSelect: () => useRepoDialog.setState({ kind: "clone" }) },
               { label: "New repository…", onSelect: () => useRepoDialog.setState({ kind: "init" }) },
               { separator: true, label: "" },
+              { label: "Reflog (recover lost commits)…", onSelect: () => useStore.getState().openDiff({ kind: "reflog" }) },
+              { separator: true, label: "" },
               { label: "Close tab", onSelect: () => closeTab(repo.path) },
             ]);
           }}

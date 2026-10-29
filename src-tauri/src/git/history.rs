@@ -50,6 +50,42 @@ pub fn parse_history(text: &str) -> Vec<HistoryEntry> {
         .collect()
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReflogEntry {
+    pub index: usize,
+    /// Where HEAD went.
+    pub id: String,
+    /// Where it was before (all zeros for the first entry).
+    pub old_id: String,
+    pub message: String,
+    pub time: i64,
+    /// Summary of `id`, if that commit still exists.
+    pub summary: Option<String>,
+}
+
+/// HEAD's reflog, newest first: every place HEAD has been, including
+/// commits no branch points to anymore.
+pub fn reflog(repo: &git2::Repository, limit: usize) -> Result<Vec<ReflogEntry>> {
+    let log = repo.reflog("HEAD")?;
+    Ok(log
+        .iter()
+        .take(limit)
+        .enumerate()
+        .map(|(index, e)| ReflogEntry {
+            index,
+            id: e.id_new().to_string(),
+            old_id: e.id_old().to_string(),
+            message: e.message().ok().flatten().unwrap_or("").to_owned(),
+            time: e.committer().when().seconds(),
+            summary: repo
+                .find_commit(e.id_new())
+                .ok()
+                .and_then(|c| c.summary().ok().flatten().map(str::to_owned)),
+        })
+        .collect())
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlameCommit {

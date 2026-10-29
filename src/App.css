@@ -2412,3 +2412,45 @@ kbd {
   padding: 16px;
   color: var(--text-faint);
 }
+
+/* ---------- reflog ---------- */
+
+.reflog-row {
+  display: grid;
+  grid-template-columns: 90px 70px minmax(120px, 1.1fr) minmax(0, 1fr) 100px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.reflog-row:hover {
+  background: var(--bg-hover);
+}
+
+.reflog-row.active {
+  background: var(--bg-select);
+}
+
+.reflog-row.orphan .sha-inline {
+  color: var(--warn);
+}
+
+.reflog-ref {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.reflog-msg,
+.reflog-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reflog-time {
+  text-align: right;
+}
