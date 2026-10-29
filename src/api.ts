@@ -218,6 +218,7 @@ export const api = {
   conflictFile: (repo: string, path: string) => invoke<ConflictFile>("conflict_file", { repo, path }),
   resolveConflict: (repo: string, path: string, content: string | null, side: "ours" | "theirs" | null) =>
     invoke<void>("resolve_conflict", { repo, path, content, side }),
+  ignore: (repo: string, pattern: string) => invoke<void>("ignore", { repo, pattern }),
   discard: (repo: string, paths: string[]) => invoke<void>("discard", { repo, paths }),
   commit: (repo: string, message: string, amend: boolean) => invoke<void>("commit", { repo, message, amend }),
 

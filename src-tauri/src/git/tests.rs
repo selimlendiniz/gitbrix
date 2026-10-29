@@ -787,6 +787,23 @@ fn compare_two_commits() {
     assert_eq!(back.status, "deleted");
 }
 
+#[test]
+fn ignore_appends_once_and_hides_files() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    t.write("build/out.o", "bin");
+    t.write("debug.log", "log");
+    fs::write(t.path.join(".gitignore"), "target/").unwrap(); // no trailing newline
+    ops::ignore(&t.path, "*.log").unwrap();
+    ops::ignore(&t.path, "build/").unwrap();
+    ops::ignore(&t.path, "*.log").unwrap();
+    assert_eq!(fs::read_to_string(t.path.join(".gitignore")).unwrap(), "target/\n*.log\nbuild/\n");
+    let st = status::status(&t.open()).unwrap();
+    let paths: Vec<&str> = st.unstaged.iter().map(|e| e.path.as_str()).collect();
+    assert_eq!(paths, vec![".gitignore"]);
+    assert!(ops::ignore(&t.path, "a\nb").is_err());
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

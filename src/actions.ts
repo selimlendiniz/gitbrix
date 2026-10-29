@@ -2,6 +2,8 @@
 // Each one asks for input or confirmation where needed, then runs through
 // the store so errors become toasts and the view refreshes afterwards.
 
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+
 import { api, CommitRow, PullMode, RefInfo, RemoteInfo, ResetMode, StashInfo, WIP_ID } from "./api";
 import { shortId } from "./format";
 import { MenuItem, useStore } from "./store";
@@ -468,4 +470,55 @@ export function tagRemoteItems(ref: RefInfo): MenuItem[] {
       },
     },
   ]);
+}
+
+// ---------- files ----------
+
+function absolute(path: string): string | null {
+  const root = s().repo?.path;
+  return root ? `${root.replace(/\/+$/, "")}/${path}` : null;
+}
+
+export function fileItems(path: string, deleted = false): MenuItem[] {
+  return [
+    {
+      label: "Open file",
+      disabled: deleted,
+      onSelect: () => {
+        const p = absolute(path);
+        if (p) openPath(p).catch((e) => s().toast("error", String(e)));
+      },
+    },
+    {
+      label: "Show in folder",
+      disabled: deleted,
+      onSelect: () => {
+        const p = absolute(path);
+        if (p) revealItemInDir(p).catch((e) => s().toast("error", String(e)));
+      },
+    },
+    { label: "Copy path", onSelect: () => copy(path) },
+  ];
+}
+
+/** Ignore choices for an untracked path: the file, its extension, its folder. */
+export function ignoreItems(path: string): MenuItem[] {
+  const base = path.slice(path.lastIndexOf("/") + 1);
+  const dot = base.lastIndexOf(".");
+  const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : null;
+  const patterns = [`/${path}`, ...(dot > 0 ? [`*${base.slice(dot)}`] : []), ...(dir ? [`/${dir}`] : [])];
+  return patterns.map((p) => ({
+    label: `Ignore ${p}`,
+    onSelect: () => s().run("Updating .gitignore", (r) => api.ignore(r, p), `Added ${p} to .gitignore`, "status"),
+  }));
+}
+
+export async function discardAll(paths: string[]) {
+  const ok = await s().confirm({
+    title: "Discard all changes",
+    message: `Discard unstaged changes in ${paths.length} file${paths.length === 1 ? "" : "s"}? Untracked files are deleted. Staged changes are kept. This cannot be undone.`,
+    confirmLabel: "Discard all",
+    danger: true,
+  });
+  if (ok) await s().run("Discarding", (r) => api.discard(r, paths), undefined, "status");
 }

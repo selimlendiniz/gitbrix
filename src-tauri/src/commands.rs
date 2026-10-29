@@ -163,6 +163,11 @@ pub fn resolve_conflict(repo: String, path: String, content: Option<String>, sid
 }
 
 #[tauri::command(async)]
+pub fn ignore(repo: String, pattern: String) -> Result<()> {
+    ops::ignore(&workdir(&repo)?, &pattern)
+}
+
+#[tauri::command(async)]
 pub fn discard(repo: String, paths: Vec<String>) -> Result<()> {
     let r = open(&repo)?;
     let st = status::status(&r)?;

@@ -1,4 +1,4 @@
-import { stashApply, stashDrop, stashPop } from "../actions";
+import { fileItems, stashApply, stashDrop, stashPop } from "../actions";
 import { laneColor } from "../colors";
 import { fullTime, initials, shortId } from "../format";
 import { useStore } from "../store";
@@ -105,7 +105,7 @@ export function CommitPanel() {
               onSelect: () => openDiff({ kind: "blame", path: f.path, rev: details.id }),
             },
             { separator: true, label: "" },
-            { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(f.path).then(() => toast("info", "Copied path")) },
+            ...fileItems(f.path, f.status === "deleted"),
           ])
         }
       />

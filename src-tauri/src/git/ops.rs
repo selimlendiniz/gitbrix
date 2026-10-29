@@ -100,6 +100,26 @@ pub fn resolve_with_side(repo: &Path, path: &str, side: &str, side_exists: bool)
     Ok(())
 }
 
+/// Append `pattern` to the repository's top-level .gitignore.
+pub fn ignore(repo: &Path, pattern: &str) -> Result<()> {
+    let pattern = pattern.trim();
+    if pattern.is_empty() || pattern.contains('\n') {
+        return Err(Error::msg("Invalid ignore pattern"));
+    }
+    let file = repo.join(".gitignore");
+    let mut text = std::fs::read_to_string(&file).unwrap_or_default();
+    if text.lines().any(|l| l.trim() == pattern) {
+        return Ok(());
+    }
+    if !text.is_empty() && !text.ends_with('\n') {
+        text.push('\n');
+    }
+    text.push_str(pattern);
+    text.push('\n');
+    std::fs::write(file, text)?;
+    Ok(())
+}
+
 pub fn discard(repo: &Path, tracked: &[String], untracked: &[String]) -> Result<()> {
     if !tracked.is_empty() {
         run(repo, &with_paths(vec!["restore", "--worktree"], tracked))?;

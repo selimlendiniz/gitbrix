@@ -15,6 +15,7 @@ import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { RebaseView } from "./components/RebaseView";
 import { RepoDialogs } from "./components/RepoDialogs";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { ShortcutsDialog, useShortcuts } from "./components/ShortcutsDialog";
 import { Sidebar } from "./components/Sidebar";
 import { Splitter } from "./components/Splitter";
 import { TabBar } from "./components/TabBar";
@@ -48,6 +49,8 @@ function useGlobalKeys() {
       } else if (e.key === "z" && (e.ctrlKey || e.metaKey) && !e.shiftKey && s.repo && !isTyping(e)) {
         e.preventDefault();
         void undoLast();
+      } else if (e.key === "?" && !isTyping(e)) {
+        useShortcuts.setState({ open: true });
       } else if (e.key === "Escape" && s.diffSource && !s.dialog && !s.menu) {
         s.closeDiff();
       } else if (e.key === "o" && (e.ctrlKey || e.metaKey)) {
@@ -148,6 +151,7 @@ export default function App() {
       <ContextMenu />
       <CommandPalette />
       <SettingsDialog />
+      <ShortcutsDialog />
       <RepoDialogs />
       <Dialog />
       <Toasts />

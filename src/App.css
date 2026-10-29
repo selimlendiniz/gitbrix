@@ -213,6 +213,15 @@ textarea {
   opacity: 0.5;
 }
 
+.settings-grid.shortcuts {
+  grid-template-columns: 190px 1fr;
+  gap: 8px 16px;
+}
+
+.settings-grid.shortcuts kbd {
+  justify-self: start;
+}
+
 .settings-grid {
   display: grid;
   grid-template-columns: 110px 1fr;
@@ -712,6 +721,10 @@ textarea {
   color: var(--accent);
   font-size: 12px;
   padding: 0 4px;
+}
+
+.link-btn.danger {
+  color: var(--danger);
 }
 
 .primary-btn {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { create } from "zustand";
 
 import { api } from "../api";
-import { discardFiles, stashSave } from "../actions";
+import { discardAll, discardFiles, fileItems, ignoreItems, stashSave } from "../actions";
 import { useStore } from "../store";
 import { describe, trackHead } from "../undo";
 import { FileList, FileRow } from "./FileList";
@@ -25,7 +25,6 @@ export function WipPanel() {
   const run = useStore((s) => s.run);
   const showMenu = useStore((s) => s.showMenu);
   const busy = useStore((s) => s.busy);
-  const toast = useStore((s) => s.toast);
   const { summary, body, amend } = useDraft();
   const [committing, setCommitting] = useState(false);
 
@@ -72,6 +71,11 @@ export function WipPanel() {
           <span className="subhead-actions">
             {unstaged.length > 0 && (
               <>
+                {status.unstaged.length > 0 && (
+                  <button className="link-btn danger" onClick={() => discardAll(status.unstaged.map((e) => e.path))}>
+                    Discard all
+                  </button>
+                )}
                 <button className="link-btn" onClick={() => stashSave()}>
                   Stash
                 </button>
@@ -96,8 +100,9 @@ export function WipPanel() {
               { separator: true, label: "" },
               { label: "File history", disabled: f.status === "untracked", onSelect: () => openDiff({ kind: "history", path: f.path }) },
               { label: "Blame", disabled: f.status === "untracked" || f.status === "deleted", onSelect: () => openDiff({ kind: "blame", path: f.path, rev: null }) },
+              ...(f.status === "untracked" ? [{ separator: true, label: "" }, ...ignoreItems(f.path)] : []),
               { separator: true, label: "" },
-              { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(f.path).then(() => toast("info", "Copied path")) },
+              ...fileItems(f.path, f.status === "deleted"),
             ])
           }
           actions={(f) => (

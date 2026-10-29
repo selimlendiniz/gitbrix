@@ -211,3 +211,13 @@ test("ctrl+click compares two commits", async ({ page }) => {
   await page.getByRole("button", { name: "Stop comparing" }).click();
   await expect(page.getByTestId("compare")).toBeHidden();
 });
+
+test("untracked file menu offers ignore patterns", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".wip-panel .file-row", { hasText: "notes.txt" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Ignore *.txt" }).click();
+  const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "ignore")?.args);
+  expect(call).toMatchObject({ pattern: "*.txt" });
+  await page.keyboard.press("?");
+  await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+});

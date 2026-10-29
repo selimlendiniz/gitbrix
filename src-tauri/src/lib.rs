@@ -31,6 +31,7 @@ pub fn run() {
             commands::unstage,
             commands::unstage_all,
             commands::discard,
+            commands::ignore,
             commands::apply_patch,
             commands::conflict_file,
             commands::resolve_conflict,
