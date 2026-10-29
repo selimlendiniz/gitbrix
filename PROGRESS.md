@@ -17,6 +17,24 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — performance, stash view, undo, highlighting, tabs, palette
+
+- Big-repo work (generated 50k commits, `scripts/big-repo.py`): fixed a
+  watcher feedback loop (inotify *read* events triggered refreshes that
+  never finished on large repos), compact graph payload, 5k-commit pages
+  with "Load more", status-only refresh for working-tree changes,
+  responsive graph column.
+- Stashes are selectable: files, diffs, Pop/Apply/Drop.
+- Undo (toolbar, Ctrl+Z) for HEAD-moving operations (`reset --keep` or
+  switch back), branch/tag create/rename/delete, stash and stash drop.
+- Syntax highlighting (highlight.js, lazy) + intra-line change marks.
+- Repository tabs with session restore; e2e runs with isolated XDG dirs
+  (earlier runs had written test repos into ~/.local/share/dev.gitbrix.app;
+  that test-only directory was deleted).
+- Command palette (Ctrl+K / Ctrl+Shift+P).
+
+Tests: 47 Rust, 37 unit, 13 Playwright UI, 10 e2e steps — all passing.
+
 ### 2026-10-29 — steps 12–14: search, history/blame, clone/init, interactive rebase
 
 - Ctrl+F commit search (message / author / SHA prefix), Enter steps through.
