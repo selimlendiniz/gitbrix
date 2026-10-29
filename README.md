@@ -60,7 +60,9 @@ read as a fallback.
 
 **Pull / merge requests.** With an account, the sidebar lists the open pull
 requests (GitHub) or merge requests (GitLab) of the repository's remotes:
-check one out, open it in the browser or approve it. New ones you can
+check one out, open it in the browser or approve it. The Pull Requests
+button in the toolbar lists those involving you on every account (to
+review, yours, assigned). New ones you can
 approve raise a desktop notification (checked every 3 minutes for every
 open tab; Settings → Pull requests / Notifications). GitLab tokens need
 `read_api` (or `api` to approve); GitHub fine-grained tokens need "Pull

@@ -17,6 +17,20 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — Pull Requests window (every account)
+
+- Toolbar button (badge: requests waiting for your approval) and command
+  palette "Pull requests…" open a window listing, across all accounts, the
+  open requests that involve you: To review / Mine / Assigned / All.
+  GitHub: three searches in one GraphQL query (`review-requested:@me`,
+  `author:@me`, `assignee:@me`); GitLab: `/merge_requests` with
+  `reviewer_username`, `created_by_me`, `assigned_to_me` + approvals.
+  Click opens in the browser; Approve… posts the approval.
+- Approval now goes by account + project instead of remote, so it works
+  from this window too.
+- Notifications also come from this list, so requests in repositories that
+  aren't open notify too; a request seen by both lists notifies once.
+
 ### 2026-10-29 — pull / merge requests and notifications
 
 - `forge.rs`: open pull requests (GitHub, one GraphQL query) and merge

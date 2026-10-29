@@ -97,6 +97,7 @@ pub fn run() {
             commands::add_account,
             commands::remove_account,
             commands::pull_requests,
+            commands::pull_request_inbox,
             commands::approve_pull_request,
             commands::checkout_pull_request,
         ])

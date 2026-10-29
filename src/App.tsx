@@ -17,6 +17,7 @@ import { RebaseView } from "./components/RebaseView";
 import { ReflogView } from "./components/ReflogView";
 import { RepoDialogs } from "./components/RepoDialogs";
 import { DragGhost } from "./components/DragGhost";
+import { PullRequestsDialog } from "./components/PullRequestsDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ShortcutsDialog, useShortcuts } from "./components/ShortcutsDialog";
 import { Sidebar } from "./components/Sidebar";
@@ -29,7 +30,7 @@ import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
 import { undoLast } from "./undo";
 import { backgroundFetch } from "./actions";
-import { loadPrs } from "./prs";
+import { loadInbox, loadPrs } from "./prs";
 
 function isTyping(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
@@ -118,8 +119,9 @@ function useAutoFetch() {
   }, [minutes, repoPath]);
 }
 
-/** Pull/merge requests: the open repository's on switching to it, and
- * every open tab's on a timer so new ones raise a notification. */
+/** Pull/merge requests: the open repository's on switching to it, the
+ * account-wide list at start, and both (every open tab) on a timer so new
+ * ones raise a notification. */
 function usePullRequests() {
   const minutes = useSettings((s) => s.prPoll);
   const repoPath = useStore((s) => s.repo?.path);
@@ -127,8 +129,12 @@ function usePullRequests() {
     if (repoPath) void loadPrs(repoPath);
   }, [repoPath]);
   useEffect(() => {
+    void loadInbox();
+  }, []);
+  useEffect(() => {
     if (!minutes) return;
     const id = setInterval(() => {
+      void loadInbox();
       for (const tab of useStore.getState().tabs) void loadPrs(tab.path);
     }, minutes * 60_000);
     return () => clearInterval(id);
@@ -215,6 +221,7 @@ export default function App() {
       <ContextMenu />
       <CommandPalette />
       <SettingsDialog />
+      <PullRequestsDialog />
       <DragGhost />
       <ShortcutsDialog />
       <RepoDialogs />

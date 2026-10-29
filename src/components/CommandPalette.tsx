@@ -21,6 +21,7 @@ import { useStore } from "../store";
 import { undoLast } from "../undo";
 import { updateSettings } from "../settings";
 import { useRepoDialog } from "./RepoDialogs";
+import { usePrDialog } from "./PullRequestsDialog";
 import { useSettingsDialog } from "./SettingsDialog";
 import { useShortcuts } from "./ShortcutsDialog";
 import { openRepoDialog } from "./Welcome";
@@ -91,6 +92,7 @@ function useCommands(): Command[] {
       }
     }
     add("Settings", "Settings…", () => useSettingsDialog.setState({ open: true }));
+    add("Action", "Pull requests…", () => usePrDialog.setState({ open: true }));
     add("Help", "Keyboard shortcuts", () => useShortcuts.setState({ open: true }), "?");
     add("Settings", "Theme: dark", () => updateSettings({ theme: "dark" }));
     add("Settings", "Theme: light", () => updateSettings({ theme: "light" }));

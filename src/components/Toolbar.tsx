@@ -22,6 +22,7 @@ import {
 import { usePalette } from "./CommandPalette";
 import { useSettings } from "../settings";
 import { nextUndo, undoLast, useUndo } from "../undo";
+import { PullRequestsButton } from "./PullRequestsDialog";
 import { useSettingsDialog } from "./SettingsDialog";
 
 function ToolButton({
@@ -174,6 +175,7 @@ export function Toolbar() {
             {busy}…{progress && <span className="busy-progress">{progress}</span>}
           </span>
         )}
+        <PullRequestsButton />
         <button className="icon-btn" title="Command palette (Ctrl+K)" onClick={() => usePalette.setState({ open: true })}>
           <IconSearch size={15} />
         </button>

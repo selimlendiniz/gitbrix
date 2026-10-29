@@ -14,6 +14,8 @@ declare global {
     __gitbrixCalls: { cmd: string; args: Args }[];
     /** What `pull_requests` answers; tests set it. */
     __gitbrixPrs?: unknown;
+    /** What `pull_request_inbox` answers; tests set it. */
+    __gitbrixInbox?: unknown;
   }
 }
 
@@ -60,6 +62,7 @@ const READS: Record<string, (a: Args) => unknown> = {
     return account;
   },
   pull_requests: () => window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
+  pull_request_inbox: () => window.__gitbrixInbox ?? { items: [], problems: [], accounts: [] },
   remove_account: (a) => {
     accounts = accounts.filter((x) => x.id !== a.id);
     return null;

@@ -492,9 +492,15 @@ pub fn pull_requests(repo: String) -> Result<forge::PullRequests> {
     forge::list(&workdir(&repo)?)
 }
 
+/// Requests involving the user across every account.
 #[tauri::command(async)]
-pub fn approve_pull_request(repo: String, remote: String, number: u64) -> Result<()> {
-    forge::approve(&workdir(&repo)?, &remote, number)
+pub fn pull_request_inbox() -> Result<forge::Inbox> {
+    forge::inbox()
+}
+
+#[tauri::command(async)]
+pub fn approve_pull_request(account: String, project: String, number: u64) -> Result<()> {
+    forge::approve(&account, &project, number)
 }
 
 /// For requests from forks; same-repository ones check out their branch.

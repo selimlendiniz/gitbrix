@@ -69,6 +69,8 @@ Kurulabilir paket (release derlemesi):
 16. Hesabı olan bir repoda sol panelde "Pull Requests": çift tık checkout,
     sağ tık → tarayıcıda aç / Approve. Başka biri onaylayabileceğin bir
     MR açınca masaüstü bildirimi gelir (3 dakikada bir kontrol).
+17. Araç çubuğunda sağ üstteki PR simgesi: tüm hesaplarda seni ilgilendiren
+    açık MR/PR'lar (To review / Mine / Assigned / All).
 
 ## Bilerek yapmadıklarım
 

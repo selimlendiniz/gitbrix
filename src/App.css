@@ -699,6 +699,107 @@ textarea {
   border-color: var(--add);
 }
 
+.pr-button {
+  position: relative;
+}
+
+.pr-button-count {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--warn);
+  color: var(--node-text);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+.modal.pr-dialog {
+  width: min(760px, calc(100% - 32px));
+  max-height: 72vh;
+  outline: none;
+}
+
+.pr-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pr-dialog-head .modal-title {
+  flex: 1;
+}
+
+.pr-list {
+  overflow-y: auto;
+  min-height: 80px;
+  margin: 0 -8px;
+}
+
+.pr-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 100px 8px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pr-row:hover {
+  background: var(--row-hover);
+}
+
+.pr-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pr-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-row-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.pr-project {
+  color: var(--text);
+}
+
+.pr-branches {
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr-approve {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.pr-empty {
+  padding: 16px 8px;
+  color: var(--text-dim);
+}
+
 .side-note {
   padding: 2px 12px 2px 24px;
   font-size: 11px;

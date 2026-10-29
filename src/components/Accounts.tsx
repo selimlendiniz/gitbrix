@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 
 import { Account, api, errorText, Provider } from "../api";
-import { loadPrs } from "../prs";
+import { loadInbox, loadPrs } from "../prs";
 import { useStore } from "../store";
 
 const DEFAULT_URL: Record<Provider, string> = {
@@ -38,6 +38,7 @@ export function AccountsSection() {
     await load();
     const repo = useStore.getState().repo?.path;
     if (repo) void loadPrs(repo);
+    void loadInbox();
   };
 
   useEffect(() => {

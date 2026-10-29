@@ -239,8 +239,10 @@ export interface Account {
 
 export interface PullRequest {
   provider: Provider;
-  /** The remote it was found through. */
+  /** The remote it was found through; empty in the account-wide list. */
   remote: string;
+  /** Id of the account it was listed (and is approved) with. */
+  account: string;
   /** `host/owner/repo`, the same for every remote of the project. */
   project: string;
   /** GitHub PR number or GitLab MR iid. */
@@ -258,6 +260,7 @@ export interface PullRequest {
   updated: string;
   mine: boolean;
   reviewRequested: boolean;
+  assigned: boolean;
   canApprove: boolean;
   approvedByMe: boolean;
   approved: boolean;
@@ -271,6 +274,14 @@ export interface PullRequests {
   covered: boolean;
   /** Projects listed without error, empty ones too. */
   projects: string[];
+}
+
+/** Requests involving the user (to review, opened, assigned), every account. */
+export interface PullRequestInbox {
+  items: PullRequest[];
+  problems: string[];
+  /** Ids of the accounts listed without error. */
+  accounts: string[];
 }
 
 export const api = {
@@ -378,8 +389,9 @@ export const api = {
   removeAccount: (id: string) => invoke<void>("remove_account", { id }),
 
   pullRequests: (repo: string) => invoke<PullRequests>("pull_requests", { repo }),
-  approvePullRequest: (repo: string, remote: string, number: number) =>
-    invoke<void>("approve_pull_request", { repo, remote, number }),
+  pullRequestInbox: () => invoke<PullRequestInbox>("pull_request_inbox"),
+  approvePullRequest: (account: string, project: string, number: number) =>
+    invoke<void>("approve_pull_request", { account, project, number }),
   /** A fork's request on its own branch (pr/N or mr/N); returns the branch. */
   checkoutPullRequest: (repo: string, remote: string, number: number) =>
     invoke<string>("checkout_pull_request", { repo, remote, number }),

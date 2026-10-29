@@ -443,6 +443,7 @@ test("drag: a click is still a click, and Escape cancels a drag", async ({ page 
 const mr = (number: number, over: Record<string, unknown> = {}) => ({
   provider: "gitlab",
   remote: "origin",
+  account: "gitlab|https://gitlab.com|me",
   project: "gitlab.com/team/demo-app",
   number,
   title: `Merge request ${number}`,
@@ -456,6 +457,7 @@ const mr = (number: number, over: Record<string, unknown> = {}) => ({
   updated: "2026-10-29T10:00:00Z",
   mine: false,
   reviewRequested: false,
+  assigned: false,
   canApprove: true,
   approvedByMe: false,
   approved: false,
@@ -491,7 +493,11 @@ test("pull requests: listed, new ones notify, approve and check out", async ({ p
   await item("Faster parser").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Approve…" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Approve" }).click();
-  await expect.poll(() => lastCall(page, "approve_pull_request")).toMatchObject({ remote: "origin", number: 2 });
+  await expect.poll(() => lastCall(page, "approve_pull_request")).toMatchObject({
+    account: "gitlab|https://gitlab.com|me",
+    project: "gitlab.com/team/demo-app",
+    number: 2,
+  });
 
   // A fork's request checks out through the service's ref, a same-repo one tracks its branch.
   await item("Faster parser").dblclick();
@@ -510,4 +516,42 @@ test("pull requests: hidden without an account, problems shown", async ({ page }
   });
   await page.goto("/?open");
   await expect(page.locator(".side-note.error")).toContainText("add a github.com account");
+});
+
+test("pull requests window: every account's requests, by involvement", async ({ page }) => {
+  const errors = trackErrors(page);
+  const items = [
+    mr(11, { title: "Review me", project: "gitlab.com/other/service", remote: "", reviewRequested: true }),
+    mr(12, { title: "My change", project: "gitlab.com/team/demo-app", remote: "", mine: true, canApprove: false, assigned: true }),
+    mr(13, { title: "Old approval", project: "gitlab.com/other/service", remote: "", reviewRequested: true, approvedByMe: true, canApprove: false }),
+  ];
+  await page.addInitScript((list) => {
+    window.__gitbrixInbox = { items: list, problems: [], accounts: ["gitlab|https://gitlab.com|me"] };
+  }, items);
+  await page.goto("/?open");
+  // The toolbar badge counts what waits for the user's approval.
+  const button = page.locator(".pr-button");
+  await expect(button.locator(".pr-button-count")).toHaveText("1");
+  await button.click();
+  const dialog = page.getByRole("dialog", { name: "Pull requests" });
+  await expect(dialog.locator(".pr-row")).toHaveCount(2);
+  await expect(dialog.locator(".pr-row").first()).toContainText("other/service");
+  await page.screenshot({ path: "test-results/shots/pull-requests-window.png" });
+  await dialog.getByRole("button", { name: /^Mine/ }).click();
+  await expect(dialog.locator(".pr-row")).toHaveCount(1);
+  await expect(dialog.locator(".pr-row")).toContainText("My change");
+  await dialog.getByRole("button", { name: /^All/ }).click();
+  await expect(dialog.locator(".pr-row")).toHaveCount(3);
+
+  await dialog.locator(".pr-row", { hasText: "Review me" }).getByRole("button", { name: "Approve…" }).click();
+  await page.getByRole("dialog").filter({ hasText: "Approve !11" }).getByRole("button", { name: "Approve" }).click();
+  await expect.poll(() => lastCall(page, "approve_pull_request")).toMatchObject({ project: "gitlab.com/other/service", number: 11 });
+  expect(errors).toEqual([]);
+});
+
+test("pull requests window: points to Settings without accounts", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".pr-button").click();
+  await page.getByRole("dialog", { name: "Pull requests" }).getByRole("button", { name: "Open Settings" }).click();
+  await expect(page.getByTestId("accounts")).toBeVisible();
 });

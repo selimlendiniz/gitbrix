@@ -7,7 +7,7 @@ import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, CommitRow, errorText, PullMode, PullRequest, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
-import { loadPrs, prLabel } from "./prs";
+import { loadInbox, loadPrs, prLabel, usePrs } from "./prs";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
 
@@ -894,8 +894,6 @@ export async function checkoutPullRequest(pr: PullRequest) {
 }
 
 export async function approvePullRequest(pr: PullRequest) {
-  const repo = s().repo?.path;
-  if (!repo) return;
   const ok = await s().confirm({
     title: `Approve ${prLabel(pr)}`,
     message: `Approve "${pr.title}" by ${pr.author} on ${pr.project.split("/")[0]}? The approval is posted under your account.`,
@@ -903,12 +901,13 @@ export async function approvePullRequest(pr: PullRequest) {
   });
   if (!ok) return;
   try {
-    await api.approvePullRequest(repo, pr.remote, pr.number);
+    await api.approvePullRequest(pr.account, pr.project, pr.number);
     s().toast("info", `Approved ${prLabel(pr)}`);
   } catch (e) {
     s().toast("error", errorText(e));
   }
-  await loadPrs(repo);
+  const repo = s().repo?.path;
+  await Promise.all([repo ? loadPrs(repo) : null, usePrs.getState().inbox ? loadInbox() : null]);
 }
 
 /** The commit the request's branch points at, if it was fetched. */

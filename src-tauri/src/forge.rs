@@ -18,8 +18,10 @@ use crate::git::{repo as repos, ssh};
 pub struct PullRequest {
     /// `github` or `gitlab`.
     pub provider: String,
-    /// The remote it was found through.
+    /// The remote it was found through; empty in the account-wide list.
     pub remote: String,
+    /// The id of the account it was listed with (and is approved with).
+    pub account: String,
     /// `host/owner/repo`: the same project seen through several remotes or
     /// repositories has the same key.
     pub project: String,
@@ -40,6 +42,8 @@ pub struct PullRequest {
     pub mine: bool,
     /// The user is asked to review it.
     pub review_requested: bool,
+    /// Assigned to the user.
+    pub assigned: bool,
     /// The user may approve it (has write access or was asked to review,
     /// and didn't open it).
     pub can_approve: bool,
@@ -61,6 +65,18 @@ pub struct PullRequests {
     pub projects: Vec<String>,
 }
 
+/// Requests across all accounts that involve the user: asked to review,
+/// opened, or assigned.
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Inbox {
+    pub items: Vec<PullRequest>,
+    /// Accounts that couldn't be listed, with the reason.
+    pub problems: Vec<String>,
+    /// Ids of the accounts listed without error.
+    pub accounts: Vec<String>,
+}
+
 /// Where a remote's project lives and how to reach its API.
 #[derive(Debug, Clone, PartialEq)]
 struct Project {
@@ -74,6 +90,8 @@ struct Project {
     /// GitHub only.
     graphql: String,
     username: String,
+    /// The account's id.
+    account: String,
 }
 
 /// The web (https) address of a remote URL, for matching it to an account:
@@ -106,8 +124,14 @@ fn project_path(web: &str) -> Option<String> {
 fn project_for(remote_url: &str, all: &[Account]) -> Option<(Project, Account)> {
     let web = web_url(remote_url)?;
     let account = accounts::find_for(&web, all)?;
-    let path = project_path(&web)?;
-    let (scheme, host, _) = accounts::split_url(&web)?;
+    let project = project_in(&account, project_path(&web)?)?;
+    Some((project, account))
+}
+
+/// Project `path` on the account's server; the API is always reached on
+/// the account's own host.
+fn project_in(account: &Account, path: String) -> Option<Project> {
+    let (scheme, host, _) = accounts::split_url(&account.url)?;
     let root = format!("{scheme}://{host}");
     let (api, graphql) = match account.provider.as_str() {
         "github" if host == "github.com" => (
@@ -117,15 +141,15 @@ fn project_for(remote_url: &str, all: &[Account]) -> Option<(Project, Account)> 
         "github" => (format!("{root}/api/v3"), format!("{root}/api/graphql")),
         _ => (format!("{root}/api/v4"), String::new()),
     };
-    let project = Project {
+    Some(Project {
         provider: account.provider.clone(),
         path,
         host,
         api,
         graphql,
         username: account.username.clone(),
-    };
-    Some((project, account))
+        account: account.id.clone(),
+    })
 }
 
 /// Hosts everyone knows the provider of: a missing account there is worth
@@ -278,39 +302,98 @@ fn github_list(p: &Project, remote: &str, token: &str) -> Result<Vec<PullRequest
         .as_array()
         .cloned()
         .unwrap_or_default();
+    let project = format!("{}/{}", p.host, p.path);
     Ok(nodes
         .iter()
-        .map(|n| {
-            let mine = n["viewerDidAuthor"].as_bool().unwrap_or(false);
-            let review_requested = n["reviewRequests"]["nodes"].as_array().is_some_and(|r| {
-                r.iter().any(|r| {
-                    !me.is_empty() && r["requestedReviewer"]["login"].as_str() == Some(&me)
-                })
-            });
-            let approved_by_me = n["viewerLatestReview"]["state"].as_str() == Some("APPROVED");
-            PullRequest {
-                provider: "github".into(),
-                remote: remote.to_owned(),
-                project: format!("{}/{}", p.host, p.path),
-                number: n["number"].as_u64().unwrap_or(0),
-                title: text(&n["title"]),
-                // Deleted users come back as null ("ghost" on the web).
-                author: n["author"]["login"].as_str().unwrap_or("ghost").to_owned(),
-                source_branch: text(&n["headRefName"]),
-                target_branch: text(&n["baseRefName"]),
-                same_repo: !n["isCrossRepository"].as_bool().unwrap_or(false),
-                url: text(&n["url"]),
-                draft: n["isDraft"].as_bool().unwrap_or(false),
-                created: text(&n["createdAt"]),
-                updated: text(&n["updatedAt"]),
-                mine,
-                review_requested,
-                can_approve: !mine && !approved_by_me && (can_write || review_requested),
-                approved_by_me,
-                approved: n["reviewDecision"].as_str() == Some("APPROVED"),
-            }
-        })
+        .map(|n| github_pr(n, &me, can_write, &project, remote, &p.account))
         .collect())
+}
+
+fn github_pr(n: &Value, me: &str, can_write: bool, project: &str, remote: &str, account: &str) -> PullRequest {
+    let mine = n["viewerDidAuthor"].as_bool().unwrap_or(false);
+    let review_requested = n["reviewRequests"]["nodes"].as_array().is_some_and(|r| {
+        r.iter()
+            .any(|r| !me.is_empty() && r["requestedReviewer"]["login"].as_str() == Some(me))
+    });
+    let approved_by_me = n["viewerLatestReview"]["state"].as_str() == Some("APPROVED");
+    PullRequest {
+        provider: "github".into(),
+        remote: remote.to_owned(),
+        account: account.to_owned(),
+        project: project.to_owned(),
+        number: n["number"].as_u64().unwrap_or(0),
+        title: text(&n["title"]),
+        // Deleted users come back as null ("ghost" on the web).
+        author: n["author"]["login"].as_str().unwrap_or("ghost").to_owned(),
+        source_branch: text(&n["headRefName"]),
+        target_branch: text(&n["baseRefName"]),
+        same_repo: !n["isCrossRepository"].as_bool().unwrap_or(false),
+        url: text(&n["url"]),
+        draft: n["isDraft"].as_bool().unwrap_or(false),
+        created: text(&n["createdAt"]),
+        updated: text(&n["updatedAt"]),
+        mine,
+        review_requested,
+        assigned: n["assignees"]["nodes"]
+            .as_array()
+            .is_some_and(|a| a.iter().any(|a| !me.is_empty() && a["login"].as_str() == Some(me))),
+        can_approve: !mine && !approved_by_me && (can_write || review_requested),
+        approved_by_me,
+        approved: n["reviewDecision"].as_str() == Some("APPROVED"),
+    }
+}
+
+/// The searches behind the account-wide list. `review-requested` includes
+/// requests to the user's teams and drops a request once it's reviewed.
+const GITHUB_INBOX: &str = "query {
+  viewer { login }
+  review: search(query: \"is:pr is:open archived:false review-requested:@me\", type: ISSUE, first: 50) { nodes { ...pr } }
+  mine: search(query: \"is:pr is:open archived:false author:@me\", type: ISSUE, first: 50) { nodes { ...pr } }
+  assigned: search(query: \"is:pr is:open archived:false assignee:@me\", type: ISSUE, first: 50) { nodes { ...pr } }
+}
+fragment pr on PullRequest {
+  number title url isDraft createdAt updatedAt
+  headRefName baseRefName isCrossRepository
+  author { login }
+  viewerDidAuthor
+  reviewDecision
+  viewerLatestReview { state }
+  reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } }
+  assignees(first: 20) { nodes { login } }
+  repository { nameWithOwner viewerPermission }
+}";
+
+fn github_inbox(p: &Project, token: &str) -> Result<Vec<PullRequest>> {
+    let data = request("POST", &p.graphql, token, Some(&json!({ "query": GITHUB_INBOX })))?;
+    if let Some(err) = data["errors"].as_array().and_then(|e| e.first()) {
+        return Err(Error::msg(format!("{}: {}", p.host, text(&err["message"]))));
+    }
+    let me = text(&data["data"]["viewer"]["login"]);
+    let mut out: Vec<PullRequest> = Vec::new();
+    for search in ["review", "mine", "assigned"] {
+        for n in data["data"][search]["nodes"].as_array().into_iter().flatten() {
+            // Search results can be issues; those have no head branch.
+            if n["number"].is_null() || n["headRefName"].is_null() {
+                continue;
+            }
+            let repo = &n["repository"];
+            let can_write = matches!(repo["viewerPermission"].as_str(), Some("ADMIN" | "MAINTAIN" | "WRITE"));
+            let project = format!("{}/{}", p.host, text(&repo["nameWithOwner"]));
+            let mut pr = github_pr(n, &me, can_write, &project, "", &p.account);
+            if search == "review" && !pr.approved_by_me {
+                pr.review_requested = true;
+                pr.can_approve = !pr.mine;
+            }
+            match out.iter_mut().find(|o| o.url == pr.url) {
+                Some(o) => {
+                    o.review_requested |= pr.review_requested;
+                    o.can_approve |= pr.can_approve;
+                }
+                None => out.push(pr),
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn github_approve(p: &Project, token: &str, number: u64) -> Result<()> {
@@ -340,69 +423,109 @@ fn gitlab_list(p: &Project, remote: &str, token: &str) -> Result<Vec<PullRequest
     )?;
     let me = gitlab_me(p, token);
     let mrs = list.as_array().cloned().unwrap_or_default();
-    // Whether the user may approve is only in each MR's approvals; ask for
-    // those side by side rather than one after another.
-    let approvals: Vec<Option<Value>> = std::thread::scope(|scope| {
+    let project = format!("{}/{}", p.host, p.path);
+    let approvals = gitlab_approvals(p, &mrs, me.as_deref(), token);
+    Ok(mrs
+        .iter()
+        .zip(approvals)
+        .map(|(mr, approval)| gitlab_pr(mr, approval.as_ref(), me.as_deref(), &project, remote, &p.account))
+        .collect())
+}
+
+/// Each MR's approvals (the only place that says whether the user may
+/// approve), asked for side by side rather than one after another. None
+/// for the user's own MRs and on errors.
+fn gitlab_approvals(p: &Project, mrs: &[Value], me: Option<&str>, token: &str) -> Vec<Option<Value>> {
+    std::thread::scope(|scope| {
         let handles: Vec<_> = mrs
             .iter()
             .map(|mr| {
                 let url = format!(
-                    "{base}/merge_requests/{}/approvals",
+                    "{}/projects/{}/merge_requests/{}/approvals",
+                    p.api,
+                    mr["project_id"].as_u64().map_or_else(|| encode(&p.path), |id| id.to_string()),
                     mr["iid"].as_u64().unwrap_or(0)
                 );
-                let mine = me.is_some() && mr["author"]["username"].as_str() == me.as_deref();
+                let mine = me.is_some() && mr["author"]["username"].as_str() == me;
                 scope.spawn(move || if mine { None } else { get(&url, token).ok() })
             })
             .collect();
-        handles
-            .into_iter()
-            .map(|h| h.join().ok().flatten())
-            .collect()
-    });
+        handles.into_iter().map(|h| h.join().ok().flatten()).collect()
+    })
+}
+
+fn gitlab_pr(mr: &Value, approval: Option<&Value>, me: Option<&str>, project: &str, remote: &str, account: &str) -> PullRequest {
+    let author = mr["author"]["username"].as_str().unwrap_or("").to_owned();
+    let mine = me == Some(author.as_str());
+    let listed = |field: &str| {
+        me.is_some_and(|me| mr[field].as_array().is_some_and(|r| r.iter().any(|r| r["username"].as_str() == Some(me))))
+    };
+    let review_requested = listed("reviewers");
+    let (can_approve, approved_by_me, approved) = match approval {
+        Some(a) => (
+            a["user_can_approve"].as_bool().unwrap_or(false),
+            a["user_has_approved"].as_bool().unwrap_or(false),
+            a["approved"].as_bool().unwrap_or(false),
+        ),
+        None => (!mine && review_requested, false, false),
+    };
+    PullRequest {
+        provider: "gitlab".into(),
+        remote: remote.to_owned(),
+        account: account.to_owned(),
+        project: project.to_owned(),
+        number: mr["iid"].as_u64().unwrap_or(0),
+        title: text(&mr["title"]),
+        author,
+        source_branch: text(&mr["source_branch"]),
+        target_branch: text(&mr["target_branch"]),
+        same_repo: mr["source_project_id"] == mr["target_project_id"],
+        url: text(&mr["web_url"]),
+        draft: mr["draft"]
+            .as_bool()
+            .or_else(|| mr["work_in_progress"].as_bool())
+            .unwrap_or(false),
+        created: text(&mr["created_at"]),
+        updated: text(&mr["updated_at"]),
+        mine,
+        review_requested,
+        assigned: listed("assignees"),
+        // GitLab says the user may approve their own MR when the
+        // project allows it; that's not a request for their review.
+        can_approve: can_approve && !mine && !approved_by_me,
+        approved_by_me,
+        approved,
+    }
+}
+
+/// `group/sub/app` from an MR's web address (`.../group/sub/app/-/merge_requests/3`).
+fn gitlab_project_of(web_url: &str) -> Option<String> {
+    let (_, _, path) = accounts::split_url(web_url)?;
+    let (project, _) = path.split_once("/-/")?;
+    Some(project.trim_matches('/').to_owned())
+}
+
+fn gitlab_inbox(p: &Project, token: &str) -> Result<Vec<PullRequest>> {
+    let me = gitlab_me(p, token).ok_or_else(|| Error::msg(format!("{}: the token can't read who it belongs to (needs read_api)", p.host)))?;
+    let list = |filter: &str| -> Result<Vec<Value>> {
+        let url = format!("{}/merge_requests?state=opened&per_page=50&order_by=created_at&sort=desc&{filter}", p.api);
+        Ok(get(&url, token)?.as_array().cloned().unwrap_or_default())
+    };
+    let mut mrs: Vec<Value> = Vec::new();
+    for filter in [format!("scope=all&reviewer_username={}", encode(&me)), "scope=created_by_me".into(), "scope=assigned_to_me".into()] {
+        for mr in list(&filter)? {
+            if !mrs.iter().any(|m| m["id"] == mr["id"]) {
+                mrs.push(mr);
+            }
+        }
+    }
+    let approvals = gitlab_approvals(p, &mrs, Some(&me), token);
     Ok(mrs
         .iter()
         .zip(approvals)
-        .map(|(mr, approval)| {
-            let author = mr["author"]["username"].as_str().unwrap_or("").to_owned();
-            let mine = me.as_deref() == Some(author.as_str());
-            let review_requested = me.as_ref().is_some_and(|me| {
-                mr["reviewers"]
-                    .as_array()
-                    .is_some_and(|r| r.iter().any(|r| r["username"].as_str() == Some(me)))
-            });
-            let (can_approve, approved_by_me, approved) = match &approval {
-                Some(a) => (
-                    a["user_can_approve"].as_bool().unwrap_or(false),
-                    a["user_has_approved"].as_bool().unwrap_or(false),
-                    a["approved"].as_bool().unwrap_or(false),
-                ),
-                None => (!mine && review_requested, false, false),
-            };
-            PullRequest {
-                provider: "gitlab".into(),
-                remote: remote.to_owned(),
-                project: format!("{}/{}", p.host, p.path),
-                number: mr["iid"].as_u64().unwrap_or(0),
-                title: text(&mr["title"]),
-                author,
-                source_branch: text(&mr["source_branch"]),
-                target_branch: text(&mr["target_branch"]),
-                same_repo: mr["source_project_id"] == mr["target_project_id"],
-                url: text(&mr["web_url"]),
-                draft: mr["draft"]
-                    .as_bool()
-                    .or_else(|| mr["work_in_progress"].as_bool())
-                    .unwrap_or(false),
-                created: text(&mr["created_at"]),
-                updated: text(&mr["updated_at"]),
-                mine,
-                review_requested,
-                // GitLab says the user may approve their own MR when the
-                // project allows it; that's not a request for their review.
-                can_approve: can_approve && !mine && !approved_by_me,
-                approved_by_me,
-                approved,
-            }
+        .filter_map(|(mr, approval)| {
+            let project = format!("{}/{}", p.host, gitlab_project_of(mr["web_url"].as_str()?)?);
+            Some(gitlab_pr(mr, approval.as_ref(), Some(&me), &project, "", &p.account))
         })
         .collect())
 }
@@ -502,9 +625,55 @@ fn project_of_remote(repo: &Path, remote: &str) -> Result<(Project, String)> {
     Ok((project, token))
 }
 
-/// Approve a pull/merge request as the account's user.
-pub fn approve(repo: &Path, remote: &str, number: u64) -> Result<()> {
-    let (project, token) = project_of_remote(repo, remote)?;
+/// Requests involving the user, across every account.
+pub fn inbox() -> Result<Inbox> {
+    let all = accounts::list()?;
+    let results: Vec<(Account, Result<Vec<PullRequest>>)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = all
+            .iter()
+            .map(|account| {
+                scope.spawn(move || {
+                    let project = project_in(account, String::new())
+                        .ok_or_else(|| Error::msg(format!("Invalid address {}", account.url)))?;
+                    let token = accounts::token(account)
+                        .ok_or_else(|| Error::msg("the token isn't in the system keyring"))?;
+                    match account.provider.as_str() {
+                        "github" => github_inbox(&project, &token),
+                        _ => gitlab_inbox(&project, &token),
+                    }
+                })
+            })
+            .collect();
+        all.iter().cloned().zip(handles.into_iter().map(|h| h.join().unwrap_or_else(|_| Err(Error::msg("crashed"))))).collect()
+    });
+    let mut out = Inbox::default();
+    for (account, result) in results {
+        match result {
+            Ok(items) => {
+                out.accounts.push(account.id.clone());
+                out.items.extend(items);
+            }
+            Err(e) => out.problems.push(format!("{} ({}): {e}", account.username, account.url)),
+        }
+    }
+    out.items.sort_by(|a, b| b.created.cmp(&a.created));
+    Ok(out)
+}
+
+/// Approve a pull/merge request as the account's user. `project` is the
+/// request's `host/owner/repo` key and must be on the account's host.
+pub fn approve(account_id: &str, project: &str, number: u64) -> Result<()> {
+    let account = accounts::list()?
+        .into_iter()
+        .find(|a| a.id == account_id)
+        .ok_or_else(|| Error::msg("That account was removed"))?;
+    let (_, host, _) = accounts::split_url(&account.url).ok_or_else(|| Error::msg("Invalid account address"))?;
+    let path = project
+        .strip_prefix(&format!("{host}/"))
+        .filter(|p| p.contains('/'))
+        .ok_or_else(|| Error::msg(format!("{project} isn't on {host}")))?;
+    let project = project_in(&account, path.to_owned()).ok_or_else(|| Error::msg("Invalid account address"))?;
+    let token = accounts::token(&account).ok_or_else(|| Error::msg("The account's token isn't in the system keyring"))?;
     match project.provider.as_str() {
         "github" => github_approve(&project, &token, number),
         _ => gitlab_approve(&project, &token, number),
@@ -645,7 +814,59 @@ mod tests {
             api: api.into(),
             graphql: format!("{api}/graphql"),
             username: username.into(),
+            account: "acct".into(),
         }
+    }
+
+    #[test]
+    fn gitlab_inbox_merges_the_three_lists() {
+        let mr = |id: u64, iid: u64, author: &str, reviewers: Value, assignees: Value| {
+            json!({ "id": id, "iid": iid, "project_id": 40 + id, "title": format!("MR {iid}"), "author": { "username": author },
+                    "reviewers": reviewers, "assignees": assignees, "source_branch": "f", "target_branch": "main",
+                    "source_project_id": 1, "target_project_id": 1, "draft": false,
+                    "web_url": format!("https://git.test/grp/app{id}/-/merge_requests/{iid}"),
+                    "created_at": format!("2026-10-2{id}T10:00:00Z"), "updated_at": "2026-10-29T10:00:00Z" })
+        };
+        let list = "GET /api/v4/merge_requests?state=opened&per_page=50&order_by=created_at&sort=desc&";
+        let review = mr(1, 5, "ada", json!([{ "username": "me" }]), json!([]));
+        let mine = mr(2, 6, "me", json!([]), json!([{ "username": "me" }]));
+        let (addr, log) = serve(vec![
+            (Box::leak(format!("{list}scope=all&reviewer_username=me").into_boxed_str()), json!([review.clone()])),
+            (Box::leak(format!("{list}scope=created_by_me").into_boxed_str()), json!([mine.clone()])),
+            // Assigned and created overlap: listed once.
+            (Box::leak(format!("{list}scope=assigned_to_me").into_boxed_str()), json!([mine])),
+            ("GET /api/v4/projects/41/merge_requests/5/approvals", json!({ "user_can_approve": true, "user_has_approved": false, "approved": false })),
+        ]);
+        let items = gitlab_inbox(&project("gitlab", &format!("{addr}/api/v4"), "me"), "tok").unwrap();
+        assert_eq!(items.len(), 2);
+        let by = |n: u64| items.iter().find(|i| i.number == n).unwrap();
+        assert!(by(5).review_requested && by(5).can_approve && !by(5).mine);
+        assert_eq!(by(5).project, "git.test/grp/app1");
+        assert_eq!((by(5).account.as_str(), by(5).remote.as_str()), ("acct", ""));
+        assert!(by(6).mine && by(6).assigned && !by(6).can_approve);
+        assert!(!log.lock().unwrap().iter().any(|l| l.contains("/6/approvals")));
+    }
+
+    #[test]
+    fn github_inbox_flags_requests_from_the_review_search() {
+        let pr = |n: u64, repo: &str, permission: &str, did_author: bool| {
+            json!({ "number": n, "title": format!("PR {n}"), "url": format!("https://github.com/{repo}/pull/{n}"),
+                    "isDraft": false, "createdAt": format!("2026-10-2{n}T10:00:00Z"), "updatedAt": "2026-10-29T10:00:00Z",
+                    "headRefName": "f", "baseRefName": "main", "isCrossRepository": false, "author": { "login": "ada" },
+                    "viewerDidAuthor": did_author, "reviewDecision": null, "viewerLatestReview": null,
+                    "reviewRequests": { "nodes": [] }, "assignees": { "nodes": [{ "login": "me" }] },
+                    "repository": { "nameWithOwner": repo, "viewerPermission": permission } })
+        };
+        let data = json!({ "data": { "viewer": { "login": "me" },
+            // Requested through a team: not in reviewRequests by name.
+            "review": { "nodes": [pr(1, "org/api", "READ", false)] },
+            "mine": { "nodes": [pr(2, "me/tool", "ADMIN", true)] },
+            "assigned": { "nodes": [pr(2, "me/tool", "ADMIN", true), pr(3, "org/web", "WRITE", false), { "number": 9 }] } } });
+        let (addr, _) = serve(vec![("POST /graphql", data)]);
+        let items = github_inbox(&project("github", &addr, "me"), "tok").unwrap();
+        assert_eq!(items.iter().map(|i| (i.number, i.can_approve)).collect::<Vec<_>>(), vec![(1, true), (2, false), (3, true)]);
+        assert!(items[0].review_requested && items[2].assigned);
+        assert_eq!(items[0].project, "git.test/org/api");
     }
 
     #[test]
@@ -782,5 +1003,17 @@ fn live_pull_requests() {
     let res = list(dir.path()).unwrap();
     println!("{res:#?}");
     assert!(res.covered, "no account covers {url}");
+    assert!(res.problems.is_empty(), "{:?}", res.problems);
+}
+
+/// `cargo test live_inbox -- --ignored --nocapture`, with this machine's accounts. Only reads.
+#[cfg(test)]
+#[test]
+#[ignore]
+fn live_inbox() {
+    let home = std::env::var("HOME").unwrap();
+    accounts::init(Path::new(&home).join(".config/dev.gitbrix.app"));
+    let res = inbox().unwrap();
+    println!("{res:#?}");
     assert!(res.problems.is_empty(), "{:?}", res.problems);
 }
