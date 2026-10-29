@@ -5,6 +5,7 @@ import "./App.css";
 import { WIP_ID } from "./api";
 import { CommitGraph } from "./components/CommitGraph";
 import { CommitPanel } from "./components/CommitPanel";
+import { ConflictView } from "./components/ConflictView";
 import { DiffView } from "./components/DiffView";
 import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { Sidebar } from "./components/Sidebar";
@@ -20,6 +21,8 @@ function useGlobalKeys() {
       if (e.key === "F5" || (e.key === "r" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         void s.refresh();
+      } else if (e.key === "Escape" && s.diffSource && !s.dialog && !s.menu) {
+        s.closeDiff();
       } else if (e.key === "o" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         void openRepoDialog();
@@ -56,7 +59,9 @@ export default function App() {
           <Toolbar />
           <div className="main">
             <Sidebar />
-            <section className="center">{diffSource ? <DiffView /> : <CommitGraph />}</section>
+            <section className="center">
+              {diffSource?.kind === "conflict" ? <ConflictView /> : diffSource ? <DiffView /> : <CommitGraph />}
+            </section>
             <aside className="details">
               {selectedId === WIP_ID ? <WipPanel /> : selectedId ? <CommitPanel /> : <div className="panel-loading">Select a commit</div>}
             </aside>

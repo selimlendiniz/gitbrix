@@ -177,6 +177,46 @@ try {
     await shot("06-external-change");
   });
 
+  await step("resolves a merge conflict and continues the merge", async () => {
+    git("add", "-A");
+    git("commit", "-q", "-m", "Save work before conflict");
+    writeFileSync(join(repo, "conflict.txt"), "base\n");
+    git("add", "conflict.txt");
+    git("commit", "-q", "-m", "Add conflict.txt");
+    git("switch", "-q", "-c", "side");
+    writeFileSync(join(repo, "conflict.txt"), "theirs\n");
+    git("commit", "-q", "-am", "Side change");
+    git("switch", "-q", "-");
+    writeFileSync(join(repo, "conflict.txt"), "ours\n");
+    git("commit", "-q", "-am", "Our change");
+    try {
+      git("merge", "side");
+    } catch {
+      // expected: conflict
+    }
+    await waitFor("merge banner", () => js("return !!document.querySelector('.op-banner.conflict')"));
+    await js(`document.querySelector('.graph-row.wip')?.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}))`);
+    await waitFor("conflicted file", () =>
+      js(`return [...document.querySelectorAll('.wip-panel .file-row')].some(r => r.textContent.includes('conflict.txt'))`),
+    );
+    await js(`[...document.querySelectorAll('.wip-panel .file-row')].find(r => r.textContent.includes('conflict.txt')).click()`);
+    await waitFor("conflict view", () => js("return !!document.querySelector('.conflict-block')"));
+    await shot("07-conflict");
+    await js(`[...document.querySelectorAll('.conflict-choices button')].find(b => b.textContent === 'Both').click()`);
+    await shot("08-conflict-chosen");
+    await js(`[...document.querySelectorAll('.diff-header button')].find(b => b.textContent.includes('Save')).click()`);
+    await waitFor("resolved", () => !git("diff", "--name-only", "--diff-filter=U"));
+    await waitFor("continue enabled", () =>
+      js(`const b = [...document.querySelectorAll('.op-banner button')].find(b => b.textContent === 'Continue'); return b && !b.disabled`),
+    );
+    await js(`[...document.querySelectorAll('.op-banner button')].find(b => b.textContent === 'Continue').click()`);
+    await waitFor("merge committed", () => git("log", "-1", "--format=%p").split(" ").length === 2);
+    const content = git("show", "HEAD:conflict.txt");
+    if (content !== "ours\ntheirs") throw new Error(`unexpected content: ${JSON.stringify(content)}`);
+    await waitFor("banner gone", () => js("return !document.querySelector('.op-banner')"));
+    await shot("09-merged");
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

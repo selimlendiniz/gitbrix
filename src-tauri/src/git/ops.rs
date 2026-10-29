@@ -76,6 +76,30 @@ pub fn intent_to_add(repo: &Path, path: &str) -> Result<()> {
     Ok(())
 }
 
+/// Resolve a conflicted file by writing `content` to it and staging it.
+pub fn resolve_with_content(repo: &Path, path: &str, content: &str) -> Result<()> {
+    std::fs::write(repo.join(path), content)?;
+    run(repo, &["add", "--", path])?;
+    Ok(())
+}
+
+/// Resolve a conflicted file by taking one side whole. If that side
+/// deleted the file, the resolution is the deletion.
+pub fn resolve_with_side(repo: &Path, path: &str, side: &str, side_exists: bool) -> Result<()> {
+    let flag = match side {
+        "ours" => "--ours",
+        "theirs" => "--theirs",
+        other => return Err(Error::msg(format!("Unknown side {other}"))),
+    };
+    if side_exists {
+        run(repo, &["checkout", flag, "--", path])?;
+        run(repo, &["add", "--", path])?;
+    } else {
+        run(repo, &["rm", "-q", "--", path])?;
+    }
+    Ok(())
+}
+
 pub fn discard(repo: &Path, tracked: &[String], untracked: &[String]) -> Result<()> {
     if !tracked.is_empty() {
         run(repo, &with_paths(vec!["restore", "--worktree"], tracked))?;

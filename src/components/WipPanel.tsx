@@ -83,8 +83,10 @@ export function WipPanel() {
         <FileList
           files={unstaged}
           empty="No unstaged changes"
-          activePath={active && !active.staged ? active.path : null}
-          onOpen={(f) => openDiff({ kind: "wip", path: f.path, staged: false })}
+          activePath={active && !active.staged ? active.path : diffSource?.kind === "conflict" ? diffSource.path : null}
+          onOpen={(f) =>
+            openDiff(f.status === "conflicted" ? { kind: "conflict", path: f.path } : { kind: "wip", path: f.path, staged: false })
+          }
           onMenu={(f, x, y) =>
             showMenu(x, y, [
               { label: "Stage file", onSelect: () => stage([f.path]) },

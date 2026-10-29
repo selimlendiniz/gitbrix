@@ -86,3 +86,51 @@ pub fn status(repo: &Repository) -> Result<WorkingStatus> {
     }
     Ok(out)
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConflictFile {
+    pub path: String,
+    /// Content on the current branch (`None` if deleted there).
+    pub ours: Option<String>,
+    /// Content on the branch being merged in (`None` if deleted there).
+    pub theirs: Option<String>,
+    /// Common ancestor content, if there is one.
+    pub base: Option<String>,
+    /// Work tree file with conflict markers (`None` if missing).
+    pub working: Option<String>,
+    pub binary: bool,
+}
+
+pub fn conflict_file(repo: &Repository, path: &str) -> Result<ConflictFile> {
+    let index = repo.index()?;
+    let mut entry = None;
+    for c in index.conflicts()? {
+        let c = c?;
+        let p = c
+            .our
+            .as_ref()
+            .or(c.their.as_ref())
+            .or(c.ancestor.as_ref())
+            .map(|e| String::from_utf8_lossy(&e.path).into_owned());
+        if p.as_deref() == Some(path) {
+            entry = Some(c);
+            break;
+        }
+    }
+    let c = entry.ok_or_else(|| crate::error::Error::msg(format!("{path} is not in conflict")))?;
+
+    let mut binary = false;
+    let mut blob = |e: &Option<git2::IndexEntry>| -> Result<Option<String>> {
+        let Some(e) = e else { return Ok(None) };
+        let b = repo.find_blob(e.id)?;
+        binary |= b.is_binary();
+        Ok(Some(String::from_utf8_lossy(b.content()).into_owned()))
+    };
+    let ours = blob(&c.our)?;
+    let theirs = blob(&c.their)?;
+    let base = blob(&c.ancestor)?;
+    let wd = repo.workdir().expect("non-bare").join(path);
+    let working = std::fs::read(&wd).ok().map(|b| String::from_utf8_lossy(&b).into_owned());
+    Ok(ConflictFile { path: path.to_owned(), ours, theirs, base, working, binary })
+}

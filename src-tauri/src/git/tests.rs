@@ -488,6 +488,65 @@ fn missing_final_newline_is_marked_and_patchable() {
     assert_eq!(t.git(&["diff"]), "");
 }
 
+fn conflicted_repo() -> TestRepo {
+    let t = TestRepo::new();
+    t.commit("a.txt", "top\nbase\nbottom\n", "base");
+    t.git(&["switch", "-q", "-c", "other"]);
+    t.commit("a.txt", "top\ntheirs\nbottom\n", "other");
+    t.git(&["switch", "-q", "main"]);
+    t.commit("a.txt", "top\nours\nbottom\n", "main");
+    assert!(ops::merge(&t.path, "other").is_err());
+    t
+}
+
+#[test]
+fn conflict_file_has_all_three_sides() {
+    let t = conflicted_repo();
+    let c = status::conflict_file(&t.open(), "a.txt").unwrap();
+    assert_eq!(c.ours.as_deref(), Some("top\nours\nbottom\n"));
+    assert_eq!(c.theirs.as_deref(), Some("top\ntheirs\nbottom\n"));
+    assert_eq!(c.base.as_deref(), Some("top\nbase\nbottom\n"));
+    let w = c.working.unwrap();
+    assert!(w.contains("<<<<<<< HEAD") && w.contains(">>>>>>> other"), "{w}");
+    assert!(status::conflict_file(&t.open(), "nope.txt").is_err());
+}
+
+#[test]
+fn resolve_conflict_with_content_then_continue() {
+    let t = conflicted_repo();
+    ops::resolve_with_content(&t.path, "a.txt", "top\nours\ntheirs\nbottom\n").unwrap();
+    let st = status::status(&t.open()).unwrap();
+    assert!(st.conflicted.is_empty());
+    ops::sequencer(&t.path, "merge", "continue").unwrap();
+    assert_eq!(t.git(&["log", "-1", "--format=%p"]).split(' ').count(), 2, "merge commit created");
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "top\nours\ntheirs\nbottom\n");
+}
+
+#[test]
+fn resolve_conflict_by_side() {
+    let t = conflicted_repo();
+    ops::resolve_with_side(&t.path, "a.txt", "theirs", true).unwrap();
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "top\ntheirs\nbottom\n");
+    assert!(status::status(&t.open()).unwrap().conflicted.is_empty());
+}
+
+#[test]
+fn resolve_delete_modify_conflict_by_deleting() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "x\n", "base");
+    t.git(&["switch", "-q", "-c", "other"]);
+    t.git(&["rm", "-q", "a.txt"]);
+    t.git(&["commit", "-q", "-m", "delete"]);
+    t.git(&["switch", "-q", "main"]);
+    t.commit("a.txt", "changed\n", "modify");
+    assert!(ops::merge(&t.path, "other").is_err());
+    let c = status::conflict_file(&t.open(), "a.txt").unwrap();
+    assert!(c.theirs.is_none() && c.ours.is_some());
+    ops::resolve_with_side(&t.path, "a.txt", "theirs", false).unwrap();
+    assert!(!t.path.join("a.txt").exists());
+    assert!(status::status(&t.open()).unwrap().conflicted.is_empty());
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

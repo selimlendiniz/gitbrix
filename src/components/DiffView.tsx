@@ -27,15 +27,7 @@ export function DiffView() {
   const run = useStore((s) => s.run);
   const [mode, setMode] = useState<Mode>(loadMode);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !useStore.getState().dialog && !useStore.getState().menu) close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [close]);
-
-  if (!source) return null;
+  if (!source || source.kind === "conflict") return null;
 
   function changeMode(m: Mode) {
     setMode(m);

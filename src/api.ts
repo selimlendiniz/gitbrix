@@ -136,6 +136,15 @@ export interface FileDiff {
   hunks: Hunk[];
 }
 
+export interface ConflictFile {
+  path: string;
+  ours: string | null;
+  theirs: string | null;
+  base: string | null;
+  working: string | null;
+  binary: boolean;
+}
+
 export type PullMode = "ff-only" | "merge" | "rebase";
 export type ResetMode = "soft" | "mixed" | "hard";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -162,6 +171,9 @@ export const api = {
   unstageAll: (repo: string) => invoke<void>("unstage_all", { repo }),
   applyPatch: (repo: string, patch: string, target: "index" | "worktree", reverse: boolean, intentToAdd: string | null) =>
     invoke<void>("apply_patch", { repo, patch, target, reverse, intentToAdd }),
+  conflictFile: (repo: string, path: string) => invoke<ConflictFile>("conflict_file", { repo, path }),
+  resolveConflict: (repo: string, path: string, content: string | null, side: "ours" | "theirs" | null) =>
+    invoke<void>("resolve_conflict", { repo, path, content, side }),
   discard: (repo: string, paths: string[]) => invoke<void>("discard", { repo, paths }),
   commit: (repo: string, message: string, amend: boolean) => invoke<void>("commit", { repo, message, amend }),
 

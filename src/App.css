@@ -1440,3 +1440,74 @@ textarea {
   max-height: 240px;
   overflow: auto;
 }
+
+/* ---------- conflicts ---------- */
+
+.conflict-table .dl .code {
+  padding-left: 14px;
+}
+
+.conflict-block {
+  margin: 8px 10px;
+  border: 1px solid rgba(255, 95, 138, 0.45);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.conflict-block.chosen {
+  border-color: rgba(76, 195, 138, 0.45);
+}
+
+.conflict-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px 5px 12px;
+  font-family: var(--sans);
+  font-size: 12px;
+  background: rgba(255, 95, 138, 0.1);
+  color: var(--text-dim);
+}
+
+.conflict-block.chosen .conflict-bar {
+  background: rgba(76, 195, 138, 0.08);
+}
+
+.conflict-choices {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.conflict-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.conflict-side {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.conflict-side + .conflict-side {
+  border-left: 1px solid var(--border);
+}
+
+.conflict-side.ours {
+  background: rgba(90, 169, 255, 0.07);
+}
+
+.conflict-side.theirs {
+  background: rgba(242, 166, 90, 0.07);
+}
+
+.conflict-side-title {
+  font-family: var(--sans);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  padding: 4px 14px;
+  border-bottom: 1px solid var(--border);
+}

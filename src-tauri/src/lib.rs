@@ -28,6 +28,8 @@ pub fn run() {
             commands::unstage_all,
             commands::discard,
             commands::apply_patch,
+            commands::conflict_file,
+            commands::resolve_conflict,
             commands::commit,
             commands::checkout_branch,
             commands::checkout_remote,

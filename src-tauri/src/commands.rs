@@ -123,6 +123,26 @@ pub fn apply_patch(repo: String, patch: String, target: String, reverse: bool, i
 }
 
 #[tauri::command(async)]
+pub fn conflict_file(repo: String, path: String) -> Result<status::ConflictFile> {
+    status::conflict_file(&open(&repo)?, &path)
+}
+
+#[tauri::command(async)]
+pub fn resolve_conflict(repo: String, path: String, content: Option<String>, side: Option<String>) -> Result<()> {
+    let r = open(&repo)?;
+    let wd = repo::workdir(&r);
+    match (content, side) {
+        (Some(c), None) => ops::resolve_with_content(&wd, &path, &c),
+        (None, Some(side)) => {
+            let cf = status::conflict_file(&r, &path)?;
+            let exists = if side == "ours" { cf.ours.is_some() } else { cf.theirs.is_some() };
+            ops::resolve_with_side(&wd, &path, &side, exists)
+        }
+        _ => Err(Error::msg("Give either content or a side")),
+    }
+}
+
+#[tauri::command(async)]
 pub fn discard(repo: String, paths: Vec<String>) -> Result<()> {
     let r = open(&repo)?;
     let st = status::status(&r)?;

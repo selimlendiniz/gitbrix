@@ -17,7 +17,8 @@ const GRAPH_LIMIT = 20_000;
 
 export type DiffSource =
   | { kind: "commit"; id: string; path: string; oldPath: string | null }
-  | { kind: "wip"; path: string; staged: boolean };
+  | { kind: "wip"; path: string; staged: boolean }
+  | { kind: "conflict"; path: string };
 
 export interface Toast {
   id: number;
@@ -188,7 +189,9 @@ export const useStore = create<State>((set, get) => ({
 
       // A working-tree diff may be stale now; reload it or close it.
       const src = get().diffSource;
-      if (src?.kind === "wip") {
+      if (src?.kind === "conflict" && !status.conflicted.some((e) => e.path === src.path)) {
+        get().closeDiff();
+      } else if (src?.kind === "wip") {
         const list = src.staged ? status.staged : [...status.unstaged, ...status.conflicted];
         if (list.some((e) => e.path === src.path)) {
           void get().openDiff(src);
@@ -229,6 +232,8 @@ export const useStore = create<State>((set, get) => ({
     if (!repo) return;
     const seq = ++diffSeq;
     if (!sameSource(source, get().diffSource)) set({ diffSource: source, diff: null, diffError: null });
+    // The conflict view loads its own data.
+    if (source.kind === "conflict") return;
     try {
       const diff =
         source.kind === "commit"
