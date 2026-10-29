@@ -25,7 +25,12 @@ export function CommitPanel() {
   const row = graph?.commits.find((c) => c.id === details.id);
   const stash = stashes.find((st) => st.id === details.id);
   const [summary, ...bodyLines] = details.message.split("\n");
-  const body = bodyLines.join("\n").trim();
+  const coAuthors = coAuthorsOf(details.message);
+  // Trailers shown as people below, not repeated in the body.
+  const body = bodyLines
+    .filter((l) => !/^co-authored-by:/i.test(l.trim()))
+    .join("\n")
+    .trim();
   const sameCommitter =
     details.author.email === details.committer.email && details.author.time === details.committer.time;
   const adds = details.files.reduce((n, f) => n + f.additions, 0);
@@ -64,6 +69,14 @@ export function CommitPanel() {
           {!sameCommitter && (
             <div className="dim">
               committed by {details.committer.name} {fullTime(details.committer.time)}
+            </div>
+          )}
+          {coAuthors.length > 0 && <div className="dim">with {coAuthors.map((c) => c.name).join(", ")}</div>}
+          {details.signed && (
+            <div>
+              <span className="signed-badge" title="The commit carries a signature (not verified here)">
+                signed
+              </span>
             </div>
           )}
         </div>
@@ -137,7 +150,7 @@ function CommitRefs({ id }: { id: string }) {
             e.preventDefault();
             showMenu(e.clientX, e.clientY, refMenu(r));
           }}
-          title={r.upstream ? `tracks ${r.upstream}` : undefined}
+          title={r.message ?? (r.upstream ? `tracks ${r.upstream}` : undefined)}
         >
           {r.kind === "tag" ? <IconTag size={11} /> : r.kind === "remote" ? <IconCloud size={11} /> : <IconBranch size={11} />}
           {r.name}
@@ -145,4 +158,13 @@ function CommitRefs({ id }: { id: string }) {
       ))}
     </div>
   );
+}
+
+/** People from "Co-authored-by: Name <email>" trailers. */
+export function coAuthorsOf(message: string): { name: string; email: string }[] {
+  const out: { name: string; email: string }[] = [];
+  for (const m of message.matchAll(/^\s*co-authored-by:\s*(.+?)\s*<([^>]*)>\s*$/gim)) {
+    out.push({ name: m[1], email: m[2] });
+  }
+  return out;
 }

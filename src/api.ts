@@ -46,6 +46,8 @@ export interface RefInfo {
   upstream: string | null;
   ahead: number;
   behind: number;
+  /** Annotated tags only. */
+  message?: string;
 }
 
 export interface Graph {
@@ -112,6 +114,7 @@ export interface CommitDetails {
   committer: Signature;
   parents: string[];
   files: FileChange[];
+  signed: boolean;
 }
 
 export interface DiffLine {

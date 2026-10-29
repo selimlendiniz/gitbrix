@@ -25,6 +25,9 @@ pub struct RefInfo {
     pub upstream: Option<String>,
     pub ahead: usize,
     pub behind: usize,
+    /// Annotated tag message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -60,6 +63,7 @@ pub fn list(repo: &Repository) -> Result<Vec<RefInfo>> {
             upstream,
             ahead,
             behind,
+            message: None,
         });
     }
 
@@ -80,6 +84,7 @@ pub fn list(repo: &Repository) -> Result<Vec<RefInfo>> {
             upstream: None,
             ahead: 0,
             behind: 0,
+            message: None,
         });
     }
 
@@ -87,6 +92,10 @@ pub fn list(repo: &Repository) -> Result<Vec<RefInfo>> {
         let full = format!("refs/tags/{name}");
         let Ok(r) = repo.find_reference(&full) else { continue };
         let Ok(commit) = r.peel_to_commit() else { continue };
+        let message = r
+            .peel_to_tag()
+            .ok()
+            .and_then(|t| t.message().ok().flatten().map(|m| m.trim().to_owned()));
         out.push(RefInfo {
             full_name: full,
             name: name.to_owned(),
@@ -96,6 +105,7 @@ pub fn list(repo: &Repository) -> Result<Vec<RefInfo>> {
             upstream: None,
             ahead: 0,
             behind: 0,
+            message,
         });
     }
 

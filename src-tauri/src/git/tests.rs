@@ -212,6 +212,7 @@ fn commit_details_and_file_diff() {
 
     let d = diff::commit_details(&r, oid).unwrap();
     assert_eq!(d.message.trim(), "edit");
+    assert!(!d.signed);
     assert_eq!(d.author.name, "Test User");
     assert_eq!(d.files.len(), 1);
     let f = &d.files[0];
@@ -286,6 +287,8 @@ fn branches_tags_and_checkout() {
     // Annotated tags are peeled to the commit they tag.
     let v1 = all.iter().find(|r| r.name == "v1").unwrap();
     assert_eq!(v1.target, first);
+    assert_eq!(v1.message.as_deref(), Some("release one"));
+    assert_eq!(all.iter().find(|r| r.name == "light").unwrap().message, None);
 
     ops::checkout_branch(&t.path, "topic").unwrap();
     assert_eq!(repo::info(&t.open()).unwrap().head_branch.as_deref(), Some("topic"));

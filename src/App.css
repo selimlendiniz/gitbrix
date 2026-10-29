@@ -1189,6 +1189,16 @@ textarea {
   color: var(--warn);
 }
 
+.signed-badge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  color: var(--add);
+  border: 1px solid var(--add);
+}
+
 .commit-ids {
   display: flex;
   flex-wrap: wrap;

@@ -72,6 +72,8 @@ pub struct CommitDetails {
     pub committer: Signature,
     pub parents: Vec<String>,
     pub files: Vec<FileChange>,
+    /// Has a GPG/SSH signature (not verified).
+    pub signed: bool,
 }
 
 pub fn status_name(d: Delta) -> &'static str {
@@ -247,6 +249,7 @@ pub fn commit_details(repo: &Repository, oid: Oid) -> Result<CommitDetails> {
         committer: sig(commit.committer()),
         parents: commit.parent_ids().map(|p| p.to_string()).collect(),
         files: changes(&diff)?,
+        signed: commit.header_field_bytes("gpgsig").is_ok(),
     })
 }
 

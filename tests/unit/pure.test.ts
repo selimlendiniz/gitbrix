@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { DiffLine, RefInfo } from "../../src/api";
 import { fuzzyScore } from "../../src/components/CommandPalette";
+import { coAuthorsOf } from "../../src/components/CommitPanel";
 import { planProblems, Row } from "../../src/components/RebaseView";
 import { buildTree, countLeaves } from "../../src/components/RefTree";
 import { nameFromUrl } from "../../src/components/RepoDialogs";
@@ -139,5 +140,16 @@ describe("buildTree", () => {
     expect(t.folders[0].leaves.map((l) => l.label)).toEqual(["a", "b"]);
     expect(t.folders[1].folders[0].path).toBe("fix/deep");
     expect(countLeaves(t)).toBe(4);
+  });
+});
+
+describe("coAuthorsOf", () => {
+  it("reads Co-authored-by trailers, case-insensitively", () => {
+    const msg = "Fix it\n\nBody\n\nCo-authored-by: Grace Hopper <grace@x>\nco-authored-by:Ada <ada@y>\n";
+    expect(coAuthorsOf(msg)).toEqual([
+      { name: "Grace Hopper", email: "grace@x" },
+      { name: "Ada", email: "ada@y" },
+    ]);
+    expect(coAuthorsOf("nothing here")).toEqual([]);
   });
 });
