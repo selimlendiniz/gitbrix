@@ -329,3 +329,27 @@ test("ignore whitespace and edit the last commit's message", async ({ page }) =>
   await page.getByRole("button", { name: "Save message" }).click();
   await expect.poll(() => page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "reword_head")?.args.message)).toBe("Tidy up main.rs\n");
 });
+
+test("settings: add a self-hosted GitLab account with a token", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await page.getByTitle("Settings").click();
+  const accounts = page.getByTestId("accounts");
+  await expect(accounts).toContainText("No accounts");
+  await accounts.getByRole("button", { name: "Add account…" }).click();
+  await accounts.getByRole("button", { name: "GitLab" }).click();
+  const address = accounts.locator("input").first();
+  await expect(address).toHaveValue("https://gitlab.com");
+  await address.fill("https://git.example.com");
+  await accounts.locator("input[type=password]").fill("glpat-secret");
+  await accounts.getByRole("button", { name: "Add account" }).click();
+  await expect(accounts.locator(".account-row")).toContainText("mock-user");
+  await expect(accounts.locator(".account-row")).toContainText("git.example.com");
+  await page.screenshot({ path: "test-results/shots/accounts.png" });
+  const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "add_account")?.args);
+  expect(call).toMatchObject({ provider: "gitlab", url: "https://git.example.com", token: "glpat-secret" });
+
+  await accounts.getByRole("button", { name: "Remove" }).click();
+  await expect(accounts).toContainText("No accounts");
+  expect(errors).toEqual([]);
+});

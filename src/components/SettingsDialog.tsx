@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { PullMode } from "../api";
 import { DEFAULTS, Settings, updateSettings, useSettings } from "../settings";
+import { AccountsSection } from "./Accounts";
 
 export const useSettingsDialog = create<{ open: boolean }>(() => ({ open: false }));
 
@@ -103,6 +104,7 @@ export function SettingsDialog() {
             </button>
           </span>
         </div>
+        <AccountsSection />
         <div className="modal-actions">
           <button type="button" className="small-btn primary" onClick={close} autoFocus>
             Done

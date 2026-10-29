@@ -226,6 +226,17 @@ export type PullMode = "ff-only" | "merge" | "rebase";
 export type ResetMode = "soft" | "mixed" | "hard" | "keep";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
 
+export type Provider = "github" | "gitlab";
+
+export interface Account {
+  id: string;
+  provider: Provider;
+  /** e.g. https://github.com or a self-hosted https://gitlab.example.com */
+  url: string;
+  username: string;
+  name: string | null;
+}
+
 export const api = {
   initialRepo: () => invoke<string | null>("initial_repo"),
   openRepo: (path: string) => invoke<RepoInfo>("open_repo", { path }),
@@ -323,6 +334,11 @@ export const api = {
     invoke<void>("interactive_rebase", { repo, base, steps }),
   sequencer: (repo: string, op: SequencerOp, action: "continue" | "abort" | "skip") =>
     invoke<void>("sequencer", { repo, op, action }),
+
+  accounts: () => invoke<Account[]>("get_accounts"),
+  /** Checks the token with the service, then keeps it in the system keyring. */
+  addAccount: (provider: Provider, url: string, token: string) => invoke<Account>("add_account", { provider, url, token }),
+  removeAccount: (id: string) => invoke<void>("remove_account", { id }),
 };
 
 export function errorText(e: unknown): string {

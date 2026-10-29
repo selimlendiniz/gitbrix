@@ -39,8 +39,19 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
 - Tabs for several repositories, command palette (Ctrl+K), dark and light
   themes, resizable panels, keyboard shortcuts (press `?`)
 
-All writes and network operations run the real `git` executable, so your
-hooks, credential helpers, signing and ssh configuration apply as usual.
+Everything runs on libgit2; the `git` program is not needed. What git
+would do around an operation is done here too: hooks (`pre-commit`,
+`commit-msg`, `pre-push`, `post-*`) run, commits and tags are signed when
+`commit.gpgsign` / `tag.gpgsign` say so (gpg, gpgsm or ssh keys), ssh
+remotes go through the system's `ssh` (so `~/.ssh/config`, the agent and
+`known_hosts` apply), and rebases, cherry-picks and merges stop on
+conflicts and continue the same way.
+
+**Accounts.** For https remotes add a GitHub or GitLab account (self-hosted
+GitLab too) with a personal access token in Settings → Accounts. The token
+is checked with the service, kept in the system keyring (KWallet, GNOME
+Keyring) and sent only to that host over https. `~/.git-credentials` is
+read as a fallback.
 
 ## Development
 
@@ -62,8 +73,10 @@ pnpm tauri build --bundles rpm
 ```
 
 Linux build dependencies (Fedora): `webkit2gtk4.1-devel openssl-devel
-libappindicator-gtk3-devel librsvg2-devel libxdo-devel`; for e2e also
-`webkitgtk6.0` (provides `WebKitWebDriver`) and `xorg-x11-server-Xvfb`.
+libappindicator-gtk3-devel librsvg2-devel libxdo-devel dbus-devel`; for
+e2e also `webkitgtk6.0` (provides `WebKitWebDriver`) and
+`xorg-x11-server-Xvfb`. The tests build their scratch repositories with
+the `git` CLI; the app itself doesn't use it.
 
 ## Layout
 
@@ -75,8 +88,11 @@ src-tauri/src/
     graph.rs         lane layout
     log.rs refs.rs   graph walk, branches, tags, stashes, remotes
     diff.rs status.rs history.rs
-    ops.rs cli.rs    every write, through the git CLI
-    rebase.rs        interactive rebase from a UI plan
+    ops.rs           index, commits, branches, stashes, merges
+    net.rs ssh.rs    fetch / pull / push / clone; ssh through `ssh`
+    rebase.rs        plain and interactive rebases, stop and continue
+    hooks.rs sign.rs hooks and commit / tag signing
+  accounts.rs        GitHub / GitLab tokens in the system keyring
 src/
   store.ts           app state (Zustand)
   actions.ts undo.ts user-level operations, undo stack

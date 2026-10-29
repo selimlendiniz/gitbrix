@@ -15,6 +15,9 @@ declare global {
   }
 }
 
+// Accounts added in this page session (the real ones live in the keyring).
+let accounts: { id: string }[] = [];
+
 // `?open` in the URL plays the role of a path on the command line.
 const READS: Record<string, (a: Args) => unknown> = {
   initial_repo: () => (new URLSearchParams(location.search).has("open") ? fixture.info.path : null),
@@ -48,6 +51,16 @@ const READS: Record<string, (a: Args) => unknown> = {
   compare_file_diff: (a) =>
     (fixture.commitDiffs as Record<string, unknown>)[`${a.to}:${a.path}`] ?? fail(`No fixture diff for ${a.path}`),
   "plugin:dialog|open": () => fixture.info.path,
+  get_accounts: () => accounts,
+  add_account: (a) => {
+    const account = { id: `${a.provider}|${a.url}|mock-user`, provider: a.provider, url: a.url, username: "mock-user", name: "Mock User" };
+    accounts = [...accounts.filter((x) => x.id !== account.id), account];
+    return account;
+  },
+  remove_account: (a) => {
+    accounts = accounts.filter((x) => x.id !== a.id);
+    return null;
+  },
 };
 
 function fail(msg: string): never {

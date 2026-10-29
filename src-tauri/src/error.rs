@@ -6,9 +6,6 @@ pub enum Error {
     Git(#[from] git2::Error),
     #[error("{0}")]
     Io(#[from] std::io::Error),
-    /// A `git` CLI invocation exited non-zero; holds its stderr.
-    #[error("{0}")]
-    Cli(String),
     #[error("{0}")]
     Msg(String),
 }

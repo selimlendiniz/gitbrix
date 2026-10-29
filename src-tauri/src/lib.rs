@@ -1,3 +1,4 @@
+mod accounts;
 mod commands;
 mod error;
 mod git;
@@ -9,6 +10,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(watch::WatchState::default())
+        .setup(|app| {
+            use tauri::Manager;
+            if let Ok(dir) = app.path().app_config_dir() {
+                accounts::init(dir);
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::initial_repo,
             commands::open_repo,
@@ -82,6 +90,9 @@ pub fn run() {
             commands::sequencer,
             commands::rebase_commits,
             commands::interactive_rebase,
+            commands::get_accounts,
+            commands::add_account,
+            commands::remove_account,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

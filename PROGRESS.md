@@ -17,6 +17,42 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — no more git CLI: everything on libgit2; accounts
+
+Selim asked for the app to work without `git` installed and to log in to
+GitHub / GitLab (including self-hosted) with access tokens.
+
+- Every write and network operation moved from the `git` CLI to libgit2;
+  `cli.rs` is gone and nothing in the app runs `git` any more.
+- What git does around operations is done by us: hooks (`hooks.rs`:
+  pre-commit, prepare-commit-msg, commit-msg, post-commit, post-checkout,
+  post-merge, pre-push), signing (`sign.rs`: gpg / gpgsm / ssh-keygen,
+  commits and annotated tags), message cleanup, `GIT_AUTHOR_*` identity.
+- ssh remotes use our own libgit2 transport (`ssh.rs`) that runs the
+  system's `ssh` like git does, so `~/.ssh/config`, the agent, FIDO keys,
+  `known_hosts` and `core.sshCommand` keep working (libgit2's libssh2 would
+  ignore them). https uses libgit2 + OpenSSL.
+- Rebases are our own engine (`rebase.rs`): state in `.git/rebase-merge/`,
+  autostash in the stash list, conflicts stop it, continue / skip / abort.
+  Gotcha found: libgit2's `reset` and `cleanup_state` delete the rebase
+  directory, so skipping a step checks out HEAD instead of resetting.
+- Other libgit2 gaps covered: stash pop drops the stash even on conflicts
+  (now kept), force push "with lease" (checks the remote ref first),
+  deleting a remote branch leaves the tracking ref (removed), merge
+  messages say "into <branch>", merge/cherry-pick abort keeps unrelated
+  local edits.
+- Accounts (Settings → Accounts): GitHub or GitLab + address + token. The
+  token is checked against the API, stored in the Secret Service keyring
+  (KWallet here), and offered only to https remotes on the same host (and
+  path, for several accounts on one GitLab). `~/.git-credentials` is a
+  fallback. A GitLab token without `read_user` is stored as user `oauth2`.
+- Packaging: the RPM no longer depends on `git`.
+
+Tests: 82 Rust (new: hooks, ssh signing verified by git, rebase
+continue/skip, cherry-pick author, merge abort, lease, remote branch delete
+and tag push, ssh transport through a fake `ssh`, submodule update, stash
+conflicts), 44 unit, 31 Playwright UI, 16 e2e steps — all passing.
+
 ### 2026-10-29 — image diffs, whitespace, edit message, branch hover
 
 - Changed images show before/after side by side (commits, comparisons,

@@ -40,15 +40,7 @@
     "publisher": "Selim Arda Çevik",
     "linux": {
       "rpm": {
-        "release": "1",
-        "depends": [
-          "git"
-        ]
-      },
-      "deb": {
-        "depends": [
-          "git"
-        ]
+        "release": "1"
       }
     }
   }

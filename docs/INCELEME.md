@@ -56,6 +56,8 @@ Kurulabilir paket (release derlemesi):
     yana. Commit diff'lerinde "Ignore whitespace" kutusu.
 13. En üstteki commit'e sağ tık → "Edit commit message…".
 14. Bir branch etiketinin üzerine gel → o dalın commit'leri öne çıkar.
+15. Ayarlar → Accounts → "Add account…": GitHub/GitLab token'ını ekle,
+    sonra https remote'lu bir repoda push/pull dene.
 
 ## Bilerek yapmadıklarım
 
@@ -69,8 +71,13 @@ Kurulabilir paket (release derlemesi):
 
 ## Bilmen gerekenler
 
-- Bütün yazma işlemleri gerçek `git` komutuyla yapılıyor; hook'ların,
-  credential helper'ın, imzalama ayarların aynen geçerli.
+- Uygulama `git` programına ihtiyaç duymuyor; her şey libgit2 ile. Yine
+  de hook'ların çalışıyor, `commit.gpgsign` açıksa commit'ler imzalanıyor,
+  ssh remote'lar sistemdeki `ssh` ile bağlanıyor (`~/.ssh/config`, agent,
+  known_hosts geçerli).
+- https için Ayarlar → Accounts: GitHub ya da GitLab (self-hosted ise
+  sunucu adresi) ve access token. Token eklenirken API'den doğrulanıyor,
+  KWallet'ta saklanıyor ve yalnızca o sunucuya https ile gönderiliyor.
 - Otomatik fetch varsayılan olarak kapalı (ssh anahtarın agent'ta değilse
   her seferinde parola penceresi açılırdı).
 - Testler: `pnpm test:rust`, `pnpm test:unit`, `pnpm test:ui`,

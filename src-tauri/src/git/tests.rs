@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{diff, log, ops, rebase, refs, repo, status};
+use super::{diff, log, net, ops, rebase, refs, repo, status};
 
 struct TestRepo {
     _dir: TempDir,
@@ -384,7 +384,7 @@ fn push_sets_upstream_then_tracks_ahead_behind() {
     t.commit("a.txt", "1\n", "first");
     t.add_origin();
 
-    ops::push(&t.path, false, &mut |_| {}).unwrap();
+    net::push(&t.path, false, &mut |_| {}).unwrap();
     let info = repo::info(&t.open()).unwrap();
     assert_eq!(info.upstream.as_deref(), Some("origin/main"));
     assert_eq!((info.ahead, info.behind), (0, 0));
@@ -393,8 +393,8 @@ fn push_sets_upstream_then_tracks_ahead_behind() {
     let info = repo::info(&t.open()).unwrap();
     assert_eq!((info.ahead, info.behind), (1, 0));
 
-    ops::push(&t.path, false, &mut |_| {}).unwrap();
-    ops::fetch(&t.path, &mut |_| {}).unwrap();
+    net::push(&t.path, false, &mut |_| {}).unwrap();
+    net::fetch(&t.path, &mut |_| {}).unwrap();
     let main = refs::list(&t.open()).unwrap().into_iter().find(|r| r.name == "main").unwrap();
     assert_eq!((main.ahead, main.behind), (0, 0));
     assert_eq!(main.upstream.as_deref(), Some("origin/main"));
@@ -409,7 +409,7 @@ fn pull_fast_forwards_from_clone() {
     let t = TestRepo::new();
     t.commit("a.txt", "1\n", "first");
     let bare = t.add_origin();
-    ops::push(&t.path, false, &mut |_| {}).unwrap();
+    net::push(&t.path, false, &mut |_| {}).unwrap();
 
     // Someone else pushes a commit.
     let other = t.path.parent().unwrap().join("other");
@@ -420,11 +420,11 @@ fn pull_fast_forwards_from_clone() {
     git_in(&other, &["commit", "-q", "-m", "from other"]);
     git_in(&other, &["push", "-q"]);
 
-    ops::fetch(&t.path, &mut |_| {}).unwrap();
+    net::fetch(&t.path, &mut |_| {}).unwrap();
     assert_eq!(repo::info(&t.open()).unwrap().behind, 1);
-    ops::pull(&t.path, "ff-only", &mut |_| {}).unwrap();
+    net::pull(&t.path, "ff-only", &mut |_| {}).unwrap();
     assert!(t.path.join("b.txt").exists());
-    assert!(ops::pull(&t.path, "sideways", &mut |_| {}).is_err());
+    assert!(net::pull(&t.path, "sideways", &mut |_| {}).is_err());
 }
 
 #[test]
@@ -590,17 +590,17 @@ fn clone_reports_progress_and_init_creates_repo() {
         t.commit("f.txt", &format!("{i}\n"), &format!("c{i}"));
     }
     let bare = t.add_origin();
-    ops::push(&t.path, false, &mut |_| {}).unwrap();
+    net::push(&t.path, false, &mut |_| {}).unwrap();
 
     let parent = t.path.parent().unwrap();
     let mut lines = Vec::new();
-    let dest = ops::clone(parent, bare.to_str().unwrap(), "cloned", &mut |l| lines.push(l.to_owned())).unwrap();
+    let dest = net::clone(parent, bare.to_str().unwrap(), "cloned", &mut |l| lines.push(l.to_owned())).unwrap();
     assert!(dest.join("f.txt").exists());
     assert!(lines.iter().any(|l| l.starts_with("Cloning into")), "{lines:?}");
-    assert!(ops::clone(parent, bare.to_str().unwrap(), "cloned", &mut |_| {}).is_err(), "destination exists");
-    assert!(ops::clone(parent, "--upload-pack=evil", "x", &mut |_| {}).is_err());
+    assert!(net::clone(parent, bare.to_str().unwrap(), "cloned", &mut |_| {}).is_err(), "destination exists");
+    assert!(net::clone(parent, "--upload-pack=evil", "x", &mut |_| {}).is_err());
 
-    let err = ops::clone(parent, "/nonexistent/repo.git", "nothing", &mut |_| {}).unwrap_err().to_string();
+    let err = net::clone(parent, "/nonexistent/repo.git", "nothing", &mut |_| {}).unwrap_err().to_string();
     assert!(err.contains("does not exist") || err.contains("not appear to be a git repository"), "{err}");
 
     let fresh = parent.join("fresh/nested");
@@ -651,7 +651,7 @@ fn interactive_rebase_reorders_drops_rewords_and_squashes() {
         step("fixup", &ids[1], None),                          // b folded into a
         step("drop", &ids[3], None),                           // d gone
     ];
-    rebase::run(&t.open(), &t.path, &base, &plan).unwrap();
+    rebase::run(&t.open(), &base, &plan).unwrap();
     assert_eq!(subjects(&t, &base), vec!["add c", "A, reworded"]);
     assert_eq!(t.git(&["log", "-1", "--format=%b"]), "with body");
     assert!(t.path.join("b.txt").exists(), "fixup keeps b's change");
@@ -668,7 +668,7 @@ fn interactive_rebase_squash_keeps_both_messages() {
         step("pick", &ids[2], None),
         step("pick", &ids[3], None),
     ];
-    rebase::run(&t.open(), &t.path, &base, &plan).unwrap();
+    rebase::run(&t.open(), &base, &plan).unwrap();
     assert_eq!(subjects(&t, &base), vec!["add a", "add c", "add d"]);
     let msg = t.git(&["log", "-1", "--format=%B", "HEAD~2"]);
     assert!(msg.contains("add a") && msg.contains("add b"), "{msg}");
@@ -679,7 +679,7 @@ fn interactive_rebase_rejects_stale_plan_and_stops_on_conflict() {
     let (t, base, ids) = rebase_fixture();
     // Plan that leaves a commit out.
     let partial = vec![step("pick", &ids[0], None)];
-    assert!(rebase::run(&t.open(), &t.path, &base, &partial).is_err());
+    assert!(rebase::run(&t.open(), &base, &partial).is_err());
 
     // Two commits touching the same line, swapped: conflict.
     let c1 = t.commit("same.txt", "one\n", "one");
@@ -687,7 +687,7 @@ fn interactive_rebase_rejects_stale_plan_and_stops_on_conflict() {
     let mut plan: Vec<_> = ids.iter().map(|id| step("pick", id, None)).collect();
     plan.push(step("pick", &c2, None));
     plan.push(step("pick", &c1, None));
-    assert!(rebase::run(&t.open(), &t.path, &base, &plan).is_err());
+    assert!(rebase::run(&t.open(), &base, &plan).is_err());
     assert_eq!(repo::info(&t.open()).unwrap().state, "rebase");
     ops::sequencer(&t.path, "rebase", "abort").unwrap();
     assert_eq!(repo::info(&t.open()).unwrap().state, "clean");
@@ -699,7 +699,7 @@ fn interactive_rebase_autostashes_local_changes() {
     let (t, base, ids) = rebase_fixture();
     t.write("base.txt", "dirty\n");
     let plan: Vec<_> = ids.iter().rev().map(|id| step("pick", id, None)).collect();
-    rebase::run(&t.open(), &t.path, &base, &plan).unwrap();
+    rebase::run(&t.open(), &base, &plan).unwrap();
     assert_eq!(subjects(&t, &base), vec!["add d", "add c", "add b", "add a"]);
     assert_eq!(fs::read_to_string(t.path.join("base.txt")).unwrap(), "dirty\n");
 }
@@ -747,7 +747,7 @@ fn remote_management_and_targeted_push() {
     ops::add_remote(&t.path, "backup", backup.to_str().unwrap()).unwrap();
     assert!(ops::add_remote(&t.path, "backup", "x").is_err(), "duplicate");
     ops::create_branch(&t.path, "topic", None, false).unwrap();
-    ops::push_branch(&t.path, "backup", "topic", false, none).unwrap();
+    net::push_branch(&t.path, "backup", "topic", false, none).unwrap();
     assert_eq!(git_in(&backup, &["branch", "--list", "topic"]).trim(), "topic");
     let topic = refs::list(&t.open()).unwrap().into_iter().find(|r| r.name == "topic").unwrap();
     assert_eq!(topic.upstream.as_deref(), Some("backup/topic"));
@@ -757,7 +757,7 @@ fn remote_management_and_targeted_push() {
     assert_eq!(topic.upstream, None);
     ops::set_upstream(&t.path, "topic", Some("backup/topic")).unwrap();
 
-    ops::fetch_remote(&t.path, "backup", none).unwrap();
+    net::fetch_remote(&t.path, "backup", none).unwrap();
     ops::rename_remote(&t.path, "backup", "mirror").unwrap();
     ops::set_remote_url(&t.path, "mirror", "/somewhere/else.git").unwrap();
     let list = refs::remotes(&t.open()).unwrap();
@@ -768,9 +768,9 @@ fn remote_management_and_targeted_push() {
 
     // Tags: push and delete on the remote.
     ops::create_tag(&t.path, "v1", "HEAD", None).unwrap();
-    ops::push_tag(&t.path, "origin", "v1", false, none).unwrap();
+    net::push_tag(&t.path, "origin", "v1", false, none).unwrap();
     assert_eq!(git_in(&bare, &["tag"]).trim(), "v1");
-    ops::push_tag(&t.path, "origin", "v1", true, none).unwrap();
+    net::push_tag(&t.path, "origin", "v1", true, none).unwrap();
     assert_eq!(git_in(&bare, &["tag"]).trim(), "");
 }
 
@@ -862,8 +862,8 @@ fn rebase_refuses_while_another_is_stopped() {
     let mut plan: Vec<_> = ids.iter().map(|id| step("pick", id, None)).collect();
     plan.push(step("pick", &c2, None));
     plan.push(step("pick", &c1, None));
-    assert!(rebase::run(&t.open(), &t.path, &base, &plan).is_err());
-    let err = rebase::run(&t.open(), &t.path, &base, &plan).unwrap_err().to_string();
+    assert!(rebase::run(&t.open(), &base, &plan).is_err());
+    let err = rebase::run(&t.open(), &base, &plan).unwrap_err().to_string();
     assert!(err.contains("in progress"), "{err}");
     ops::sequencer(&t.path, "rebase", "abort").unwrap();
 }
@@ -877,7 +877,7 @@ fn reword_then_squash_keeps_the_new_message() {
         step("pick", &ids[2], None),
         step("pick", &ids[3], None),
     ];
-    rebase::run(&t.open(), &t.path, &base, &plan).unwrap();
+    rebase::run(&t.open(), &base, &plan).unwrap();
     let msg = t.git(&["log", "-1", "--format=%B", "HEAD~2"]);
     assert!(msg.contains("Renamed A") && msg.contains("add b") && !msg.contains("add a"), "{msg}");
 }
@@ -1182,4 +1182,248 @@ fn bench_graph() {
     let t0 = Instant::now();
     let st = status::status(&r).unwrap();
     println!("status: {:?} ({} entries)", t0.elapsed(), st.unstaged.len());
+}
+
+// --- libgit2 replacements for what the git CLI used to do -----------------
+
+/// A hooks directory for `t` with one executable hook.
+fn hook(t: &TestRepo, name: &str, script: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = t.path.parent().unwrap().join("hooks");
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join(name);
+    fs::write(&file, format!("#!/bin/sh\n{script}\n")).unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o755)).unwrap();
+    t.git(&["config", "core.hooksPath", dir.to_str().unwrap()]);
+}
+
+#[test]
+fn commit_runs_hooks() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    hook(&t, "pre-commit", "echo 'no tabs allowed' >&2; exit 1");
+    t.write("a.txt", "2\n");
+    ops::stage(&t.path, &["a.txt".into()]).unwrap();
+    let err = ops::commit(&t.path, "blocked", false).unwrap_err().to_string();
+    assert!(err.contains("pre-commit") && err.contains("no tabs allowed"), "{err}");
+    assert_eq!(t.git(&["log", "-1", "--format=%s"]), "first");
+
+    fs::remove_file(t.path.parent().unwrap().join("hooks/pre-commit")).unwrap();
+    hook(&t, "commit-msg", r#"printf '\nTicket: GB-1\n' >> "$1""#);
+    hook(&t, "post-commit", "touch \"$GIT_INDEX_FILE.post\"");
+    ops::commit(&t.path, "allowed", false).unwrap();
+    assert_eq!(t.git(&["log", "-1", "--format=%B"]), "allowed\n\nTicket: GB-1");
+    assert!(t.path.join(".git/index.post").exists(), "post-commit ran");
+}
+
+#[test]
+fn commits_are_signed_when_configured() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    let key = t.path.parent().unwrap().join("signing-key");
+    let out = Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "test", "-f"])
+        .arg(&key)
+        .output()
+        .expect("ssh-keygen runs");
+    assert!(out.status.success());
+    t.git(&["config", "gpg.format", "ssh"]);
+    t.git(&["config", "user.signingkey", key.to_str().unwrap()]);
+    t.git(&["config", "commit.gpgsign", "true"]);
+    t.write("a.txt", "2\n");
+    ops::stage_all(&t.path).unwrap();
+    ops::commit(&t.path, "signed", false).unwrap();
+    let r = t.open();
+    let head = r.head().unwrap().target().unwrap();
+    let (sig, _) = r.extract_signature(&head, None).unwrap();
+    assert!(sig.as_str().unwrap().contains("BEGIN SSH SIGNATURE"));
+    // git itself accepts the signature.
+    let allowed = t.path.parent().unwrap().join("allowed");
+    let public = fs::read_to_string(key.with_extension("pub")).unwrap();
+    fs::write(&allowed, format!("test@example.com {public}")).unwrap();
+    t.git(&["config", "gpg.ssh.allowedSignersFile", allowed.to_str().unwrap()]);
+    t.git(&["verify-commit", "HEAD"]);
+}
+
+#[test]
+fn rebase_stops_on_conflict_then_continues_or_skips() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "base\n", "base");
+    t.git(&["switch", "-q", "-c", "feature"]);
+    t.commit("a.txt", "feature\n", "feature edit");
+    t.commit("b.txt", "b\n", "feature b");
+    t.git(&["switch", "-q", "main"]);
+    t.commit("a.txt", "main\n", "main edit");
+    t.git(&["switch", "-q", "feature"]);
+
+    let err = ops::sequencer(&t.path, "rebase", "continue");
+    assert!(err.is_err(), "nothing to continue yet");
+    assert!(rebase::onto(&t.open(), "main").is_err(), "conflict stops the rebase");
+    assert_eq!(repo::info(&t.open()).unwrap().state, "rebase");
+    assert!(ops::sequencer(&t.path, "rebase", "continue").is_err(), "conflicts unresolved");
+    ops::resolve_with_content(&t.path, "a.txt", "main+feature\n").unwrap();
+    ops::sequencer(&t.path, "rebase", "continue").unwrap();
+    assert_eq!(repo::info(&t.open()).unwrap().state, "clean");
+    assert_eq!(t.git(&["log", "--format=%s", "-3"]), "feature b\nfeature edit\nmain edit");
+    assert_eq!(t.git(&["rev-parse", "--abbrev-ref", "HEAD"]), "feature");
+
+    // Again, but skip the conflicting commit.
+    let t = TestRepo::new();
+    t.commit("a.txt", "base\n", "base");
+    t.git(&["switch", "-q", "-c", "feature"]);
+    t.commit("a.txt", "feature\n", "feature edit");
+    t.commit("b.txt", "b\n", "feature b");
+    t.git(&["switch", "-q", "main"]);
+    t.commit("a.txt", "main\n", "main edit");
+    t.git(&["switch", "-q", "feature"]);
+    assert!(rebase::onto(&t.open(), "main").is_err());
+    ops::sequencer(&t.path, "rebase", "skip").unwrap();
+    assert_eq!(t.git(&["log", "--format=%s", "-2"]), "feature b\nmain edit");
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "main\n");
+}
+
+#[test]
+fn cherry_pick_conflict_keeps_original_author() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "base\n", "base");
+    t.git(&["switch", "-q", "-c", "other"]);
+    t.git(&["-c", "user.name=Grace", "-c", "user.email=grace@x", "commit", "-q", "--allow-empty", "-m", "noop"]);
+    t.write("a.txt", "theirs\n");
+    t.git(&["add", "-A"]);
+    t.git(&["-c", "user.name=Grace", "-c", "user.email=grace@x", "commit", "-q", "-m", "grace's change"]);
+    let pick = t.git(&["rev-parse", "HEAD"]);
+    t.git(&["switch", "-q", "main"]);
+    t.commit("a.txt", "ours\n", "ours");
+
+    assert!(ops::cherry_pick(&t.path, &pick).is_err());
+    assert_eq!(repo::info(&t.open()).unwrap().state, "cherry-pick");
+    ops::resolve_with_side(&t.path, "a.txt", "theirs", true).unwrap();
+    ops::sequencer(&t.path, "cherry-pick", "continue").unwrap();
+    assert_eq!(t.git(&["log", "-1", "--format=%an|%s"]), "Grace|grace's change");
+    assert_eq!(repo::info(&t.open()).unwrap().state, "clean");
+}
+
+#[test]
+fn aborting_a_merge_keeps_unrelated_local_changes() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "base\n", "base");
+    t.commit("notes.txt", "notes\n", "notes");
+    t.git(&["switch", "-q", "-c", "other"]);
+    t.commit("a.txt", "other\n", "other");
+    t.commit("new.txt", "new\n", "adds a file");
+    t.git(&["switch", "-q", "main"]);
+    t.commit("a.txt", "main\n", "main");
+    t.write("notes.txt", "my local notes\n");
+
+    assert!(ops::merge(&t.path, "other").is_err());
+    assert!(t.path.join("new.txt").exists());
+    ops::sequencer(&t.path, "merge", "abort").unwrap();
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "main\n");
+    assert!(!t.path.join("new.txt").exists(), "files the merge added are gone");
+    assert_eq!(fs::read_to_string(t.path.join("notes.txt")).unwrap(), "my local notes\n");
+    assert_eq!(t.git(&["status", "--porcelain"]), "M notes.txt");
+}
+
+#[test]
+fn force_push_is_with_lease() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    let bare = t.add_origin();
+    net::push(&t.path, false, &mut |_| {}).unwrap();
+
+    // Someone else pushes; we rewrite our commit without fetching.
+    let other = t.path.parent().unwrap().join("other");
+    git_in(t.path.parent().unwrap(), &["clone", "-q", bare.to_str().unwrap(), "other"]);
+    isolate(&other);
+    fs::write(other.join("b.txt"), "b\n").unwrap();
+    git_in(&other, &["add", "-A"]);
+    git_in(&other, &["commit", "-q", "-m", "theirs"]);
+    git_in(&other, &["push", "-q"]);
+    t.write("a.txt", "rewritten\n");
+    ops::stage_all(&t.path).unwrap();
+    ops::commit(&t.path, "first, rewritten", true).unwrap();
+
+    let err = net::push(&t.path, false, &mut |_| {}).unwrap_err().to_string();
+    assert!(err.contains("Pull first"), "{err}");
+    let err = net::push(&t.path, true, &mut |_| {}).unwrap_err().to_string();
+    assert!(err.contains("since you last fetched"), "{err}");
+    // After a fetch we have seen their work and may overwrite it.
+    net::fetch(&t.path, &mut |_| {}).unwrap();
+    net::push(&t.path, true, &mut |_| {}).unwrap();
+    assert_eq!(git_in(&bare, &["log", "-1", "--format=%s", "main"]), "first, rewritten");
+}
+
+#[test]
+fn deleting_remote_branches_and_pushing_tags() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    let bare = t.add_origin();
+    ops::create_branch(&t.path, "topic", None, false).unwrap();
+    net::push_branch(&t.path, "origin", "topic", false, &mut |_| {}).unwrap();
+    assert!(t.open().find_reference("refs/remotes/origin/topic").is_ok());
+    net::delete_remote_branch(&t.path, "origin", "topic").unwrap();
+    assert!(t.open().find_reference("refs/remotes/origin/topic").is_err());
+    assert_eq!(git_in(&bare, &["branch", "--list", "topic"]), "");
+
+    ops::create_tag(&t.path, "v1", "HEAD", Some("Release one")).unwrap();
+    net::push_tag(&t.path, "origin", "v1", false, &mut |_| {}).unwrap();
+    assert_eq!(git_in(&bare, &["tag"]), "v1");
+    net::push_tag(&t.path, "origin", "v1", true, &mut |_| {}).unwrap();
+    assert_eq!(git_in(&bare, &["tag"]), "");
+}
+
+#[test]
+fn ssh_remotes_go_through_the_ssh_command() {
+    use std::os::unix::fs::PermissionsExt;
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    let bare = t.path.parent().unwrap().join("origin.git");
+    git_in(t.path.parent().unwrap(), &["init", "-q", "--bare", "-b", "main", "origin.git"]);
+    // A stand-in for ssh: check the host, run the remote command locally.
+    let fake = t.path.parent().unwrap().join("fake-ssh");
+    fs::write(
+        &fake,
+        "#!/bin/sh\n[ \"$1\" = git@example.test ] || { echo \"bad host $1\" >&2; exit 255; }\neval \"exec git ${2#git-}\"\n",
+    )
+    .unwrap();
+    fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
+    t.git(&["config", "core.sshCommand", fake.to_str().unwrap()]);
+    t.git(&["remote", "add", "origin", &format!("git@example.test:{}", bare.display())]);
+
+    net::push(&t.path, false, &mut |_| {}).unwrap();
+    assert_eq!(git_in(&bare, &["log", "-1", "--format=%s", "main"]), "first");
+    net::fetch(&t.path, &mut |_| {}).unwrap();
+    assert_eq!(repo::info(&t.open()).unwrap().upstream.as_deref(), Some("origin/main"));
+
+    t.git(&["remote", "set-url", "origin", &format!("ssh://nobody@example.test{}", bare.display())]);
+    let err = net::fetch(&t.path, &mut |_| {}).unwrap_err().to_string();
+    assert!(err.contains("bad host nobody@example.test"), "{err}");
+}
+
+#[test]
+fn submodule_update_checks_out_submodules() {
+    let lib = TestRepo::new();
+    lib.commit("lib.txt", "lib\n", "lib");
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    t.git(&["-c", "protocol.file.allow=always", "submodule", "add", "-q", lib.path.to_str().unwrap(), "vendor/lib"]);
+    t.git(&["commit", "-q", "-m", "add submodule"]);
+    let parent = t.path.parent().unwrap();
+    let clone = net::clone(parent, t.path.to_str().unwrap(), "clone", &mut |_| {}).unwrap();
+    assert!(!clone.join("vendor/lib/lib.txt").exists());
+    net::submodule_update(&clone, &mut |_| {}).unwrap();
+    assert!(clone.join("vendor/lib/lib.txt").exists());
+    assert!(refs::submodules(&repo::open(&clone).unwrap()).unwrap()[0].initialized);
+}
+
+#[test]
+fn stash_pop_with_conflicts_keeps_the_stash() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "base\n", "base");
+    t.write("a.txt", "stashed\n");
+    ops::stash_save(&t.path, Some("mine"), false).unwrap();
+    t.commit("a.txt", "committed\n", "moved on");
+    let res = ops::stash_apply(&t.path, 0, true);
+    assert!(res.is_err());
+    assert_eq!(refs::stashes(&mut t.open()).unwrap().len(), 1, "stash kept");
 }

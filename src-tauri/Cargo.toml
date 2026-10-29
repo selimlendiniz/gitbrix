@@ -22,11 +22,13 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-git2 = { version = "0.21", default-features = false }
+git2 = { version = "0.21", default-features = false, features = ["https"] }
 tauri-plugin-dialog = "2"
 thiserror = "2"
 notify = "8"
 base64 = "0.22"
+ureq = { version = "3.5.0", features = ["json"] }
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

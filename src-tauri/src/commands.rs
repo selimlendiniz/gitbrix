@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 use git2::Oid;
 
 use crate::error::{Error, Result};
-use crate::git::{diff, history, log, ops, rebase, refs, repo, status, worktree};
+use crate::accounts;
+use crate::git::{diff, history, log, net, ops, rebase, refs, repo, status, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -256,7 +257,7 @@ pub fn rename_branch(repo: String, old: String, new: String) -> Result<()> {
 
 #[tauri::command(async)]
 pub fn delete_remote_branch(repo: String, remote: String, branch: String) -> Result<()> {
-    ops::delete_remote_branch(&workdir(&repo)?, &remote, &branch)
+    net::delete_remote_branch(&workdir(&repo)?, &remote, &branch)
 }
 
 #[tauri::command(async)]
@@ -269,7 +270,7 @@ pub fn delete_tag(repo: String, name: String) -> Result<()> {
     ops::delete_tag(&workdir(&repo)?, &name)
 }
 
-/// Emits `git-progress` events with git's progress lines.
+/// Emits `git-progress` events with progress lines.
 fn progress(app: &tauri::AppHandle) -> impl FnMut(&str) + '_ {
     use tauri::Emitter;
     let mut last = std::time::Instant::now() - std::time::Duration::from_secs(1);
@@ -284,17 +285,17 @@ fn progress(app: &tauri::AppHandle) -> impl FnMut(&str) + '_ {
 
 #[tauri::command(async)]
 pub fn fetch(app: tauri::AppHandle, repo: String) -> Result<()> {
-    ops::fetch(&workdir(&repo)?, &mut progress(&app))
+    net::fetch(&workdir(&repo)?, &mut progress(&app))
 }
 
 #[tauri::command(async)]
 pub fn pull(app: tauri::AppHandle, repo: String, mode: String) -> Result<()> {
-    ops::pull(&workdir(&repo)?, &mode, &mut progress(&app))
+    net::pull(&workdir(&repo)?, &mode, &mut progress(&app))
 }
 
 #[tauri::command(async)]
 pub fn push(app: tauri::AppHandle, repo: String, force: bool) -> Result<()> {
-    ops::push(&workdir(&repo)?, force, &mut progress(&app))
+    net::push(&workdir(&repo)?, force, &mut progress(&app))
 }
 
 #[tauri::command(async)]
@@ -324,12 +325,12 @@ pub fn set_remote_url(repo: String, name: String, url: String) -> Result<()> {
 
 #[tauri::command(async)]
 pub fn fetch_remote(app: tauri::AppHandle, repo: String, remote: String) -> Result<()> {
-    ops::fetch_remote(&workdir(&repo)?, &remote, &mut progress(&app))
+    net::fetch_remote(&workdir(&repo)?, &remote, &mut progress(&app))
 }
 
 #[tauri::command(async)]
 pub fn push_branch(app: tauri::AppHandle, repo: String, remote: String, branch: String, force: bool) -> Result<()> {
-    ops::push_branch(&workdir(&repo)?, &remote, &branch, force, &mut progress(&app))
+    net::push_branch(&workdir(&repo)?, &remote, &branch, force, &mut progress(&app))
 }
 
 #[tauri::command(async)]
@@ -339,7 +340,7 @@ pub fn set_upstream(repo: String, branch: String, upstream: Option<String>) -> R
 
 #[tauri::command(async)]
 pub fn push_tag(app: tauri::AppHandle, repo: String, remote: String, tag: String, delete: bool) -> Result<()> {
-    ops::push_tag(&workdir(&repo)?, &remote, &tag, delete, &mut progress(&app))
+    net::push_tag(&workdir(&repo)?, &remote, &tag, delete, &mut progress(&app))
 }
 
 #[tauri::command(async)]
@@ -349,7 +350,7 @@ pub fn get_submodules(repo: String) -> Result<Vec<refs::SubmoduleInfo>> {
 
 #[tauri::command(async)]
 pub fn submodule_update(app: tauri::AppHandle, repo: String) -> Result<()> {
-    ops::submodule_update(&workdir(&repo)?, &mut progress(&app))
+    net::submodule_update(&workdir(&repo)?, &mut progress(&app))
 }
 
 #[tauri::command(async)]
@@ -380,7 +381,7 @@ pub fn prune_worktrees(repo: String) -> Result<()> {
 #[tauri::command(async)]
 pub fn clone_repo(app: tauri::AppHandle, url: String, parent: String, name: String) -> Result<String> {
     let parent = repo::expand_home(Path::new(parent.trim()));
-    let dest = ops::clone(&parent, url.trim(), name.trim(), &mut progress(&app))?;
+    let dest = net::clone(&parent, url.trim(), name.trim(), &mut progress(&app))?;
     Ok(dest.to_string_lossy().into_owned())
 }
 
@@ -446,7 +447,7 @@ pub fn merge(repo: String, rev: String) -> Result<()> {
 
 #[tauri::command(async)]
 pub fn rebase(repo: String, onto: String) -> Result<()> {
-    ops::rebase(&workdir(&repo)?, &onto)
+    rebase::onto(&open(&repo)?, &onto)
 }
 
 #[tauri::command(async)]
@@ -456,11 +457,26 @@ pub fn rebase_commits(repo: String, base: String) -> Result<Vec<rebase::RebaseCo
 
 #[tauri::command(async)]
 pub fn interactive_rebase(repo: String, base: String, steps: Vec<rebase::RebaseStep>) -> Result<()> {
-    let r = open(&repo)?;
-    rebase::run(&r, &repo::workdir(&r), &base, &steps)
+    rebase::run(&open(&repo)?, &base, &steps)
 }
 
 #[tauri::command(async)]
 pub fn sequencer(repo: String, op: String, action: String) -> Result<()> {
     ops::sequencer(&workdir(&repo)?, &op, &action)
+}
+
+#[tauri::command(async)]
+pub fn get_accounts() -> Result<Vec<accounts::Account>> {
+    accounts::list()
+}
+
+/// Checks the token with the service before saving it.
+#[tauri::command(async)]
+pub fn add_account(provider: String, url: String, token: String) -> Result<accounts::Account> {
+    accounts::add(&provider, &url, &token)
+}
+
+#[tauri::command(async)]
+pub fn remove_account(id: String) -> Result<()> {
+    accounts::remove(&id)
 }
