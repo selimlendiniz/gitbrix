@@ -372,6 +372,24 @@ try {
     await shot("17-first-commit");
   });
 
+  await step("pushes a new branch and sets its upstream", async () => {
+    await js(`[...document.querySelectorAll('.tab')].find(t => t.textContent === 'origin').click()`);
+    await waitFor("clone tab", async () => (await text(".repo-name")) === "origin");
+    await js(`[...document.querySelectorAll('.tool-btn')].find(b => b.textContent.includes('Branch')).click()`);
+    await waitFor("dialog", () => js("return !!document.querySelector('.modal input')"));
+    await type(".modal input", "pushed-from-app");
+    await click(".modal button[type=submit]");
+    await waitFor("on new branch", async () => (await text(".branch-name")).includes("pushed-from-app"));
+    await js(`[...document.querySelectorAll('.tool-btn')].find(b => b.textContent.includes('Push')).click()`);
+    const bare = join(demo, "origin.git");
+    await waitFor("branch on remote", () =>
+      execFileSync("git", ["-C", bare, "branch", "--list", "pushed-from-app"], { encoding: "utf8" }).includes("pushed-from-app"),
+    );
+    await waitFor("upstream shown", () =>
+      js("return [...document.querySelectorAll('.side-item')].some(e => e.textContent.includes('pushed-from-app')) && document.querySelector('.branch-name').title.includes('origin/pushed-from-app')"),
+    );
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {
