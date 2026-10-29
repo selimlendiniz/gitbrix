@@ -193,6 +193,15 @@ export interface RemoteInfo {
   pushUrl: string | null;
 }
 
+export interface Worktree {
+  path: string;
+  head: string | null;
+  branch: string | null;
+  main: boolean;
+  locked: boolean;
+  prunable: boolean;
+}
+
 export type PullMode = "ff-only" | "merge" | "rebase";
 export type ResetMode = "soft" | "mixed" | "hard" | "keep";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -260,6 +269,11 @@ export const api = {
     invoke<void>("push_branch", { repo, remote, branch, force }),
   setUpstream: (repo: string, branch: string, upstream: string | null) => invoke<void>("set_upstream", { repo, branch, upstream }),
   pushTag: (repo: string, remote: string, tag: string, del: boolean) => invoke<void>("push_tag", { repo, remote, tag, delete: del }),
+  worktrees: (repo: string) => invoke<Worktree[]>("get_worktrees", { repo }),
+  addWorktree: (repo: string, path: string, branch: string, newBranch: boolean, start: string | null) =>
+    invoke<void>("add_worktree", { repo, path, branch, newBranch, start }),
+  removeWorktree: (repo: string, path: string, force: boolean) => invoke<void>("remove_worktree", { repo, path, force }),
+  pruneWorktrees: (repo: string) => invoke<void>("prune_worktrees", { repo }),
   cloneRepo: (url: string, parent: string, name: string) => invoke<string>("clone_repo", { url, parent, name }),
   initRepo: (path: string) => invoke<string>("init_repo", { path }),
 

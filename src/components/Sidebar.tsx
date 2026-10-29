@@ -1,10 +1,10 @@
 import { ReactNode, useMemo, useState } from "react";
 
 import { RefInfo, RemoteInfo } from "../api";
-import { addRemote, checkoutRef, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
+import { addRemote, addWorktree, checkoutRef, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
-import { IconEye, IconEyeOff, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
+import { IconEye, IconEyeOff, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
 
 function Section({
   title,
@@ -107,6 +107,9 @@ export function Sidebar() {
 
   const remoteCount = [...remotes.values()].reduce((n, l) => n + l.length, 0);
   const allRemotes = useStore((s) => s.remotes);
+  const worktrees = useStore((s) => s.worktrees);
+  const openRepo = useStore((s) => s.openRepo);
+  const repoPath = useStore((s) => s.repo?.path.replace(/\/+$/, ""));
 
   return (
     <aside className="sidebar">
@@ -150,6 +153,39 @@ export function Sidebar() {
             <RefItem key={r.fullName} r={r} label={r.name} />
           ))}
         </Section>
+        {worktrees.length > 1 && (
+          <Section
+            title="Worktrees"
+            icon={<IconFolder size={13} />}
+            count={worktrees.length}
+            action={
+              <button className="icon-btn" title="New worktree" onClick={() => addWorktree()}>
+                <IconPlus size={12} />
+              </button>
+            }
+          >
+            {worktrees.map((wt) => {
+              const current = repoPath === wt.path.replace(/\/+$/, "");
+              return (
+                <div
+                  key={wt.path}
+                  className={`side-item${current ? " head" : ""}${wt.prunable ? " hidden-ref" : ""}`}
+                  style={{ paddingLeft: 24 }}
+                  title={wt.path}
+                  onDoubleClick={() => !current && !wt.prunable && openRepo(wt.path)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    showMenu(e.clientX, e.clientY, worktreeMenu(wt));
+                  }}
+                >
+                  {current && <span className="side-head-dot" />}
+                  <span className="side-item-label">{wt.path.split("/").pop()}</span>
+                  <span className="side-count">{wt.main ? "main" : (wt.branch ?? "detached")}</span>
+                </div>
+              );
+            })}
+          </Section>
+        )}
         <Section title="Stashes" icon={<IconStash size={13} />} count={stashes.length}>
           {stashes.map((st) => (
             <div

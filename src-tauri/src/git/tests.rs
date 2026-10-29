@@ -920,6 +920,38 @@ fn graph_can_hide_or_solo_branches() {
     assert_eq!(summaries(solo), vec!["base", "side work"]);
 }
 
+#[test]
+fn worktrees_add_list_open_remove() {
+    use super::worktree;
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    ops::create_branch(&t.path, "existing", None, false).unwrap();
+    let parent = t.path.parent().unwrap();
+    let wt1 = parent.join("wt-existing");
+    let wt2 = parent.join("wt-new");
+    worktree::add(&t.path, wt1.to_str().unwrap(), "existing", false, None).unwrap();
+    worktree::add(&t.path, wt2.to_str().unwrap(), "fresh", true, Some("HEAD")).unwrap();
+
+    let list = worktree::list(&t.path).unwrap();
+    assert_eq!(list.len(), 3);
+    assert!(list[0].main);
+    let branches: Vec<Option<&str>> = list.iter().map(|w| w.branch.as_deref()).collect();
+    assert_eq!(branches, vec![Some("main"), Some("existing"), Some("fresh")]);
+    // A linked work tree opens like any repository.
+    let info = repo::info(&repo::open(&wt2).unwrap()).unwrap();
+    assert_eq!(info.head_branch.as_deref(), Some("fresh"));
+    // Its branch can't be checked out in the main tree.
+    assert!(ops::checkout_branch(&t.path, "existing").is_err());
+
+    fs::write(wt1.join("dirty.txt"), "x").unwrap();
+    assert!(worktree::remove(&t.path, wt1.to_str().unwrap(), false).is_err(), "dirty tree needs force");
+    worktree::remove(&t.path, wt1.to_str().unwrap(), true).unwrap();
+    fs::remove_dir_all(&wt2).unwrap();
+    assert!(worktree::list(&t.path).unwrap()[1].prunable);
+    worktree::prune(&t.path).unwrap();
+    assert_eq!(worktree::list(&t.path).unwrap().len(), 1);
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.
@@ -997,6 +1029,7 @@ fn record_ui_fixture() {
         "wipDiffs": wip_diffs,
         "headMessage": head_message,
         "remotes": refs::remotes(&r).unwrap(),
+        "worktrees": super::worktree::list(Path::new(&repo_path)).unwrap(),
         "histories": histories,
         "blames": blames,
         "rebaseCommits": super::rebase::commits(&r, &r.revparse_single("HEAD~2").unwrap().id().to_string()).unwrap(),

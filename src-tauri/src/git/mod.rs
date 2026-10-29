@@ -8,6 +8,7 @@ pub mod rebase;
 pub mod refs;
 pub mod repo;
 pub mod status;
+pub mod worktree;
 
 #[cfg(test)]
 mod tests;

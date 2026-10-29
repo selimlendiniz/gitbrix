@@ -4,7 +4,7 @@
 
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 
-import { api, CommitRow, PullMode, RefInfo, RemoteInfo, ResetMode, StashInfo, WIP_ID } from "./api";
+import { api, CommitRow, PullMode, RefInfo, RemoteInfo, ResetMode, StashInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
@@ -311,6 +311,7 @@ function refMenuItems(ref: RefInfo): MenuItem[] {
       { separator: true, label: "" },
       ...branchRemoteItems(ref),
       { separator: true, label: "" },
+      { label: "Open in new worktree…", disabled: ref.isHead, onSelect: () => addWorktree(ref) },
       { label: "Rename…", onSelect: () => renameBranch(ref) },
       { label: "Delete…", danger: true, disabled: ref.isHead, onSelect: () => deleteBranch(ref) },
       { separator: true, label: "" },
@@ -592,5 +593,78 @@ export function graphItems(ref: RefInfo): MenuItem[] {
   return [
     { label: f.hidden.includes(ref.fullName) ? "Show in graph" : "Hide in graph", onSelect: () => toggleHidden(ref) },
     { label: f.solo.includes(ref.fullName) ? "Unsolo" : "Solo (show only this)", onSelect: () => toggleSolo(ref) },
+  ];
+}
+
+// ---------- worktrees ----------
+
+function baseName(path: string): string {
+  return path.replace(/\/+$/, "").split("/").pop() ?? path;
+}
+
+/** Suggested location: next to the repository, named after the branch. */
+export function worktreePath(repoPath: string, branch: string): string {
+  const root = repoPath.replace(/\/+$/, "");
+  const parent = root.slice(0, root.lastIndexOf("/"));
+  return `${parent}/${baseName(root)}-${branch.replace(/[^\w.-]+/g, "-")}`;
+}
+
+export async function addWorktree(branch?: RefInfo) {
+  const repo = s().repo;
+  if (!repo) return;
+  const res = await s().prompt({
+    title: branch ? `Open ${branch.name} in a new worktree` : "New worktree",
+    label: "Branch",
+    initial: branch?.name ?? "",
+    placeholder: "feature/x",
+    confirmLabel: "Create worktree",
+    checkbox: branch ? undefined : { label: "Create this branch from HEAD", initial: true },
+    textarea: { label: "Folder (leave empty for the suggested one)", placeholder: worktreePath(repo.path, branch?.name ?? "branch") },
+  });
+  const name = res?.value.trim();
+  if (!res || !name) return;
+  const path = res.text.trim() || worktreePath(repo.path, name);
+  const isNew = !branch && res.checked;
+  const ok = await s().run(`Creating worktree`, (r) => api.addWorktree(r, path, name, isNew, isNew ? "HEAD" : null), `Worktree created at ${path}`);
+  if (ok) await s().openRepo(path);
+}
+
+export function worktreeMenu(wt: Worktree): MenuItem[] {
+  const current = s().repo?.path.replace(/\/+$/, "") === wt.path.replace(/\/+$/, "");
+  return [
+    { label: "Open", disabled: current || wt.prunable, onSelect: () => void s().openRepo(wt.path) },
+    ...fileItemsAbs(wt.path),
+    { separator: true, label: "" },
+    {
+      label: "Remove worktree…",
+      danger: true,
+      disabled: wt.main || current,
+      onSelect: async () => {
+        const ok = await s().confirm({
+          title: "Remove worktree",
+          message: `Remove the worktree at ${wt.path}? Its folder is deleted; the branch${wt.branch ? ` ${wt.branch}` : ""} stays. Uncommitted changes there are lost.`,
+          confirmLabel: "Remove",
+          danger: true,
+        });
+        if (!ok) return;
+        const done = await s().run("Removing worktree", (r) => api.removeWorktree(r, wt.path, false), "Worktree removed");
+        if (done) return;
+        const force = await s().confirm({
+          title: "Worktree has changes",
+          message: "It has modified or untracked files. Remove it anyway?",
+          confirmLabel: "Force remove",
+          danger: true,
+        });
+        if (force) await s().run("Removing worktree", (r) => api.removeWorktree(r, wt.path, true), "Worktree removed");
+      },
+    },
+    ...(wt.prunable ? [{ label: "Prune missing worktrees", onSelect: () => s().run("Pruning", (r) => api.pruneWorktrees(r)) }] : []),
+  ];
+}
+
+function fileItemsAbs(path: string): MenuItem[] {
+  return [
+    { label: "Show in folder", onSelect: () => revealItemInDir(path).catch((e) => s().toast("error", String(e))) },
+    { label: "Copy path", onSelect: () => copy(path) },
   ];
 }

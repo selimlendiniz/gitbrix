@@ -10,6 +10,7 @@ import {
   RemoteInfo,
   RepoInfo,
   StashInfo,
+  Worktree,
   WIP_ID,
   WorkingStatus,
 } from "./api";
@@ -109,6 +110,7 @@ interface State {
   status: WorkingStatus | null;
   stashes: StashInfo[];
   remotes: RemoteInfo[];
+  worktrees: Worktree[];
   selectedId: string | null;
   /** Second commit picked with Ctrl/Shift+click to compare against. */
   compareId: string | null;
@@ -180,6 +182,7 @@ export const useStore = create<State>((set, get) => ({
   status: null,
   stashes: [],
   remotes: [],
+  worktrees: [],
   selectedId: null,
   compareId: null,
   details: null,
@@ -286,16 +289,17 @@ export const useStore = create<State>((set, get) => ({
       // Also a status load: if a status-only refresh starts after this one,
       // its newer result must win over ours.
       const sseq = ++statusSeq;
-      const [info, graph, status, stashes, remotes] = await Promise.all([
+      const [info, graph, status, stashes, remotes, worktrees] = await Promise.all([
         api.repoInfo(repo.path),
         api.graph(repo.path, get().graphLimit, get().graphFilter),
         api.status(repo.path),
         api.stashes(repo.path),
         api.remotes(repo.path),
+        api.worktrees(repo.path).catch(() => [] as Worktree[]),
       ]);
       if (seq !== refreshSeq || get().repo?.path !== repo.path) return;
       const stopped = get().repo?.state === "clean" && info.state !== "clean" && status.conflicted.length > 0;
-      set(sseq === statusSeq ? { repo: info, graph, status, stashes, remotes } : { repo: info, graph, stashes, remotes });
+      set(sseq === statusSeq ? { repo: info, graph, status, stashes, remotes, worktrees } : { repo: info, graph, stashes, remotes, worktrees });
       // An operation just stopped on conflicts: show them.
       if (stopped) get().select(WIP_ID, true);
 

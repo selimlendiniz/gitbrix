@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use git2::Oid;
 
 use crate::error::{Error, Result};
-use crate::git::{diff, history, log, ops, rebase, refs, repo, status};
+use crate::git::{diff, history, log, ops, rebase, refs, repo, status, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -298,6 +298,26 @@ pub fn set_upstream(repo: String, branch: String, upstream: Option<String>) -> R
 #[tauri::command(async)]
 pub fn push_tag(app: tauri::AppHandle, repo: String, remote: String, tag: String, delete: bool) -> Result<()> {
     ops::push_tag(&workdir(&repo)?, &remote, &tag, delete, &mut progress(&app))
+}
+
+#[tauri::command(async)]
+pub fn get_worktrees(repo: String) -> Result<Vec<worktree::Worktree>> {
+    worktree::list(&workdir(&repo)?)
+}
+
+#[tauri::command(async)]
+pub fn add_worktree(repo: String, path: String, branch: String, new_branch: bool, start: Option<String>) -> Result<()> {
+    worktree::add(&workdir(&repo)?, path.trim(), branch.trim(), new_branch, start.as_deref())
+}
+
+#[tauri::command(async)]
+pub fn remove_worktree(repo: String, path: String, force: bool) -> Result<()> {
+    worktree::remove(&workdir(&repo)?, &path, force)
+}
+
+#[tauri::command(async)]
+pub fn prune_worktrees(repo: String) -> Result<()> {
+    worktree::prune(&workdir(&repo)?)
 }
 
 #[tauri::command(async)]

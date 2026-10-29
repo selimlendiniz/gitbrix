@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 
 import {
+  addWorktree,
   checkoutRef,
   createBranch,
   fetchAll,
@@ -74,6 +75,7 @@ function useCommands(): Command[] {
       add("Action", "Push", () => push(false));
       add("Action", "Force push (with lease)", () => push(true));
       add("Action", "New branch at HEAD", () => createBranch(null));
+      add("Action", "New worktree…", () => addWorktree());
       add("Action", "Stash changes", stashSave);
       if (stashes.length) add("Action", "Pop latest stash", () => stashPop(0));
       add("Action", "Undo", () => void undoLast(), "Ctrl+Z");

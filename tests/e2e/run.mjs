@@ -295,6 +295,20 @@ try {
     await shot("13-cloned");
   });
 
+  await step("opens a branch in a new worktree tab", async () => {
+    await js(`[...document.querySelectorAll('.tab')].find(t => t.textContent.includes('demo-app')).click()`);
+    await waitFor("demo tab", async () => (await text(".repo-name")) === "demo-app");
+    await js(`const item = [...document.querySelectorAll('.side-item')].find(e => e.textContent.trim().startsWith('side'));
+              item.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, clientX: 100, clientY: 300}))`);
+    await js(`[...document.querySelectorAll('.menu-item')].find(b => b.textContent.includes('new worktree')).click()`);
+    await waitFor("dialog", () => js("return !!document.querySelector('.modal input')"));
+    await click(".modal button[type=submit]");
+    await waitFor("worktree tab", async () => (await text(".repo-name")) === "demo-app-side", 30000);
+    await waitFor("worktree listed", () => js("return [...document.querySelectorAll('.side-section')].some(s => s.textContent.includes('Worktrees'))"));
+    if (!git("worktree", "list").includes("demo-app-side")) throw new Error("worktree not created");
+    await shot("14-worktree");
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {
