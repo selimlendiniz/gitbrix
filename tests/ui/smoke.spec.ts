@@ -221,3 +221,13 @@ test("untracked file menu offers ignore patterns", async ({ page }) => {
   await page.keyboard.press("?");
   await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
 });
+
+test("dragging a branch onto HEAD offers merge and rebase", async ({ page }) => {
+  await page.goto("/?open");
+  const source = page.locator(".pill", { hasText: /^feature\/ui/ });
+  const target = page.locator(".pill.head");
+  await source.dragTo(target);
+  await expect(page.getByRole("menuitem", { name: "Merge feature/ui into main" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Rebase main onto feature/ui" })).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/drag-drop.png" });
+});

@@ -522,3 +522,42 @@ export async function discardAll(paths: string[]) {
   });
   if (ok) await s().run("Discarding", (r) => api.discard(r, paths), undefined, "status");
 }
+
+// ---------- drag and drop ----------
+
+/** What dropping branch/tag `source` onto `target` can do. */
+export function dropMenu(source: RefInfo, target: RefInfo): MenuItem[] {
+  const items: MenuItem[] = [];
+  const head = currentBranch();
+  const targetIsHead = target.kind === "local" && target.name === head;
+  const sourceIsHead = source.kind === "local" && source.name === head;
+
+  if (targetIsHead) {
+    items.push(
+      { label: `Merge ${source.name} into ${target.name}`, onSelect: () => mergeInto(source.name, source.name) },
+      { label: `Rebase ${target.name} onto ${source.name}`, onSelect: () => rebaseOnto(source.name, source.name) },
+    );
+  } else if (sourceIsHead) {
+    items.push(
+      { label: `Rebase ${source.name} onto ${target.name}`, onSelect: () => rebaseOnto(target.name, target.name) },
+      { label: `Merge ${target.name} into ${source.name}`, onSelect: () => mergeInto(target.name, target.name) },
+    );
+  }
+  if (target.kind === "local" && !targetIsHead) {
+    items.push({
+      label: `Check out ${target.name} and merge ${source.name} into it`,
+      onSelect: async () => {
+        await checkoutRef(target);
+        if (currentBranch() === target.name) await mergeInto(source.name, source.name);
+      },
+    });
+  }
+  if (source.kind === "local" && target.kind === "remote") {
+    const { remote } = remoteOf(target);
+    items.push({
+      label: `Push ${source.name} to ${remote}`,
+      onSelect: () => s().run(`Pushing ${source.name}`, (r) => api.pushBranch(r, remote, source.name, false), `Pushed ${source.name} to ${remote}`),
+    });
+  }
+  return items;
+}

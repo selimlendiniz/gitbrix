@@ -984,6 +984,11 @@ textarea {
   flex-shrink: 1;
 }
 
+.pill.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: 1px;
+}
+
 .pill.head {
   background: color-mix(in srgb, var(--pill) 38%, transparent);
   font-weight: 600;

@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CommitRow, WIP_ID } from "../api";
-import { checkoutRef, commitMenu, refMenu } from "../actions";
+import { checkoutRef, commitMenu, dropMenu, refMenu } from "../actions";
 import { laneColor } from "../colors";
 import { fullTime, relativeTime, shortTime } from "../format";
 import { useSettings } from "../settings";
@@ -355,13 +355,35 @@ function Pills({ pills, color }: { pills: RefPill[]; color: string }) {
   );
 }
 
+const DRAG_TYPE = "application/x-gitbrix-ref";
+
 function Pill({ pill, color }: { pill: RefPill; color: string }) {
   const showMenu = useStore((s) => s.showMenu);
+  const [dropping, setDropping] = useState(false);
   const ref = primaryRef(pill);
   return (
     <span
-      className={`pill${pill.isHead ? " head" : ""}${pill.kind === "tag" ? " tag" : ""}`}
+      className={`pill${pill.isHead ? " head" : ""}${pill.kind === "tag" ? " tag" : ""}${dropping ? " drop-target" : ""}`}
       style={{ ["--pill" as string]: color }}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(DRAG_TYPE, ref.fullName);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={() => setDropping(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDropping(false);
+        const source = useStore.getState().graph?.refs.find((r) => r.fullName === e.dataTransfer.getData(DRAG_TYPE));
+        if (!source || source.fullName === ref.fullName) return;
+        const items = dropMenu(source, ref);
+        if (items.length) showMenu(e.clientX, e.clientY, items);
+      }}
       title={[pill.local?.name, ...pill.remotes.map((r) => r.name), pill.tag?.name].filter(Boolean).join(" · ")}
       onDoubleClick={() => checkoutRef(ref)}
       onContextMenu={(e) => {
