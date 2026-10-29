@@ -17,6 +17,19 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — stashes in graph, hide/solo, worktrees, submodules, polish
+
+- Stashes drawn in the graph above their base commit.
+- Hide or solo branches in the graph (eye icon / branch menu), per repo.
+- Worktrees: list, open in tab, create (branch menu "Open in new
+  worktree…"), remove, prune. Submodules: list, open, update --init.
+- Toolbar branch switcher; diverged ff-only pull offers a rebase;
+  optional background auto-fetch (off by default — a locked ssh key would
+  prompt every time); signed badge, co-authors, annotated tag messages.
+- Narrow windows: graph drops author/date columns, side panels shrink.
+
+Tests: 59 Rust, 43 unit, 23 Playwright UI, 12 e2e steps — all passing.
+
 ### 2026-10-29 — settings, remotes, compare, drag & drop, packaging, review
 
 - Settings: dark / light / system theme, Pull button mode, date format;
