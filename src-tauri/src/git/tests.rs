@@ -810,6 +810,17 @@ fn ignore_appends_once_and_hides_files() {
     let paths: Vec<&str> = st.unstaged.iter().map(|e| e.path.as_str()).collect();
     assert_eq!(paths, vec![".gitignore"]);
     assert!(ops::ignore(&t.path, "a\nb").is_err());
+    assert!(ops::ignore(&t.path, "x\u{1b}[31m").is_err());
+}
+
+#[test]
+fn never_writes_through_committed_symlinks() {
+    let t = TestRepo::new();
+    let outside = t.path.parent().unwrap().join("bashrc");
+    fs::write(&outside, "original\n").unwrap();
+    std::os::unix::fs::symlink(&outside, t.path.join(".gitignore")).unwrap();
+    assert!(ops::ignore(&t.path, "*.log").is_err());
+    assert_eq!(fs::read_to_string(&outside).unwrap(), "original\n");
 }
 
 #[test]
@@ -951,6 +962,9 @@ fn worktrees_add_list_open_remove() {
     // Its branch can't be checked out in the main tree.
     assert!(ops::checkout_branch(&t.path, "existing").is_err());
 
+    fs::write(wt1.join(".gitignore"), ".env\n").unwrap();
+    fs::write(wt1.join(".env"), "SECRET=1").unwrap();
+    assert_eq!(worktree::ignored(&wt1).unwrap(), vec![".env"]);
     fs::write(wt1.join("dirty.txt"), "x").unwrap();
     assert!(worktree::remove(&t.path, wt1.to_str().unwrap(), false).is_err(), "dirty tree needs force");
     worktree::remove(&t.path, wt1.to_str().unwrap(), true).unwrap();

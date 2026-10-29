@@ -69,6 +69,13 @@ pub fn add(repo: &Path, path: &str, branch: &str, new_branch: bool, start: Optio
     Ok(())
 }
 
+/// Ignored files in a work tree (`.env`, `node_modules`, build output):
+/// `git worktree remove` deletes them without counting them as changes.
+pub fn ignored(path: &Path) -> Result<Vec<String>> {
+    let out = run(path, &["status", "--ignored", "--porcelain", "--untracked-files=normal"])?;
+    Ok(out.stdout.lines().filter_map(|l| l.strip_prefix("!! ")).map(str::to_owned).collect())
+}
+
 pub fn remove(repo: &Path, path: &str, force: bool) -> Result<()> {
     let mut args = vec!["worktree", "remove"];
     if force {

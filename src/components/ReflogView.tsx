@@ -56,7 +56,11 @@ export function ReflogView() {
     };
   }, [repo?.path, repo?.headOid]);
 
+  // With hidden or soloed branches the graph doesn't show everything, so
+  // "not in the graph" no longer means "lost": don't flag anything then.
+  const filtered = useStore((s) => s.graphFilter.hidden.length + s.graphFilter.solo.length > 0);
   const inGraph = new Set(graph?.commits.map((c) => c.id));
+  const orphan = (id: string) => !filtered && !inGraph.has(id);
   return (
     <div className="diff-view" data-testid="reflog">
       <div className="diff-header">
@@ -74,14 +78,14 @@ export function ReflogView() {
         {entries?.map((e) => (
           <div
             key={e.index}
-            className={`reflog-row${selectedId === e.id ? " active" : ""}${inGraph.has(e.id) ? "" : " orphan"}`}
+            className={`reflog-row${selectedId === e.id ? " active" : ""}${orphan(e.id) ? " orphan" : ""}`}
             onClick={() => select(e.id)}
             onContextMenu={(ev) => {
               ev.preventDefault();
               select(e.id);
               showMenu(ev.clientX, ev.clientY, entryMenu(e));
             }}
-            title={inGraph.has(e.id) ? fullTime(e.time) : `${fullTime(e.time)}\nNot reachable from any branch`}
+            title={orphan(e.id) ? `${fullTime(e.time)}\nNot reachable from any branch` : fullTime(e.time)}
           >
             <span className="reflog-ref">HEAD@{"{"}{e.index}{"}"}</span>
             <span className="sha-inline">{shortId(e.id)}</span>

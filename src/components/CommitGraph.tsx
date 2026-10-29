@@ -67,8 +67,11 @@ export function CommitGraph() {
   const pills = useMemo(() => refsByCommit(graph?.refs ?? []), [graph]);
   const q = searchOpen ? query.trim().toLowerCase() : "";
 
+  // Whole-history searches get the text as typed: `git log -S` is
+  // case-sensitive (the Files mode is made case-insensitive in Rust).
+  const rawQ = searchOpen ? query.trim() : "";
   useEffect(() => {
-    if (mode === "message" || !q || !repo) {
+    if (mode === "message" || !rawQ || !repo) {
       setRemote(null);
       return;
     }
@@ -76,26 +79,32 @@ export function CommitGraph() {
     const t = setTimeout(() => {
       setSearching(true);
       api
-        .searchHistory(repo.path, mode, q, 2000)
-        .then((ids) => live && setRemote({ q, ids: new Set(ids) }))
-        .catch((e) => live && useStore.getState().toast("error", errorText(e)))
+        .searchHistory(repo.path, mode, rawQ, 2000)
+        .then((ids) => live && setRemote({ q: `${mode}:${rawQ}`, ids: new Set(ids) }))
+        .catch((e) => {
+          if (!live) return;
+          setRemote(null);
+          useStore.getState().toast("error", errorText(e));
+        })
         .finally(() => live && setSearching(false));
     }, 300);
     return () => {
       live = false;
       clearTimeout(t);
     };
-  }, [mode, q, repo?.path, repo?.headOid]);
+  }, [mode, rawQ, repo?.path, repo?.headOid]);
+  // Results of an earlier query (still debouncing, or failed) don't count.
+  const hits = remote?.q === `${mode}:${rawQ}` ? remote : null;
 
   const matches = useMemo(() => {
     if (!q) return null;
     const out: number[] = [];
     if (mode === "message") commits.forEach((c, i) => commitMatches(c, q) && out.push(i));
-    else if (remote) commits.forEach((c, i) => remote.ids.has(c.id) && out.push(i));
+    else if (hits) commits.forEach((c, i) => hits.ids.has(c.id) && out.push(i));
     else return null;
     return out;
-  }, [commits, q, mode, remote]);
-  const notLoaded = mode !== "message" && remote && matches ? remote.ids.size - matches.length : 0;
+  }, [commits, q, mode, hits]);
+  const notLoaded = mode !== "message" && hits && matches ? hits.ids.size - matches.length : 0;
   const matchSet = useMemo(() => (matches ? new Set(matches) : null), [matches]);
   const selectedIndex = commits.findIndex((c) => c.id === selectedId);
   const matchPos = matches ? matches.indexOf(selectedIndex) : -1;
@@ -497,7 +506,9 @@ function FilterBanner() {
   const names = (filter.solo.length ? filter.solo : filter.hidden).map((f) => f.replace(/^refs\/(heads|remotes|tags)\//, ""));
   return (
     <div className="filter-banner" title={names.join("\n")}>
-      {filter.solo.length ? `Showing only ${names.join(", ")}` : `${n} branch${n === 1 ? "" : "es"} hidden`}
+      {filter.solo.length
+        ? `Showing only ${names.join(", ")} and the checked-out branch`
+        : `${n} branch${n === 1 ? "" : "es"} hidden (the checked-out branch always shows)`}
       <button className="link-btn" onClick={() => setGraphFilter({ hidden: [], solo: [] })}>
         Show all
       </button>

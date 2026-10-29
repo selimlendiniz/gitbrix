@@ -57,6 +57,7 @@ pub fn run() {
             commands::add_worktree,
             commands::remove_worktree,
             commands::prune_worktrees,
+            commands::worktree_ignored,
             commands::get_remotes,
             commands::add_remote,
             commands::remove_remote,

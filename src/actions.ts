@@ -76,7 +76,9 @@ export async function createBranch(start: string | null, startLabel?: string) {
           if (prevBranch) await api.checkoutBranch(r, prevBranch);
           else if (prevOid) await api.checkoutDetached(r, prevOid);
         }
-        await api.deleteBranch(r, name, true);
+        // Plain -d: if commits were added to it since (e.g. from a
+        // terminal), git refuses instead of losing them.
+        await api.deleteBranch(r, name, false);
       },
     });
   }
@@ -218,17 +220,22 @@ export async function pull(mode: PullMode) {
   }
 }
 
-/** Fetch in the background: no busy state, no success toast. */
+/** Fetch in the background: no success toast, errors stay quiet. Holds
+ *  the busy lock like any operation, so a merge or rebase can't start
+ *  while git is fetching into the same repository. */
 export async function backgroundFetch() {
   const st = s();
   const repo = st.repo;
   if (!repo || st.busy || st.remotes.length === 0) return;
+  useStore.setState({ busy: "Auto-fetching", progress: null });
   try {
     await api.fetch(repo.path);
-    if (s().repo?.path === repo.path && !s().busy) await s().refresh();
   } catch {
     // Offline or no credentials: stay quiet; a manual fetch shows errors.
+  } finally {
+    useStore.setState({ busy: null, progress: null });
   }
+  if (s().repo?.path === repo.path) await s().refresh();
 }
 
 export function branchSwitchMenu(): MenuItem[] {
@@ -677,9 +684,15 @@ export function worktreeMenu(wt: Worktree): MenuItem[] {
       danger: true,
       disabled: wt.main || current,
       onSelect: async () => {
+        // Ignored files (.env, build output) are deleted too, and git does
+        // not count them as changes: name them.
+        const ignored = await api.worktreeIgnored(wt.path).catch(() => [] as string[]);
+        const extra = ignored.length
+          ? ` It also deletes ${ignored.length} ignored item${ignored.length === 1 ? "" : "s"}: ${ignored.slice(0, 5).join(", ")}${ignored.length > 5 ? ", …" : ""}.`
+          : "";
         const ok = await s().confirm({
           title: "Remove worktree",
-          message: `Remove the worktree at ${wt.path}? Its folder is deleted; the branch${wt.branch ? ` ${wt.branch}` : ""} stays. Uncommitted changes there are lost.`,
+          message: `Remove the worktree at ${wt.path}? Its folder is deleted; the branch${wt.branch ? ` ${wt.branch}` : ""} stays. Uncommitted changes there are lost.${extra}`,
           confirmLabel: "Remove",
           danger: true,
         });

@@ -87,6 +87,15 @@ pub fn check_path(path: &str) -> Result<()> {
     Ok(())
 }
 
+/// Don't write through a symlink committed into the repository: it could
+/// point anywhere (e.g. `.gitignore -> ~/.bashrc`).
+fn refuse_symlink(file: &Path) -> Result<()> {
+    if std::fs::symlink_metadata(file).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
+        return Err(Error::msg(format!("{} is a symbolic link; not writing through it", file.display())));
+    }
+    Ok(())
+}
+
 pub fn intent_to_add(repo: &Path, path: &str) -> Result<()> {
     check_path(path)?;
     run(repo, &["add", "-N", "--", &literal(path)])?;
@@ -96,6 +105,7 @@ pub fn intent_to_add(repo: &Path, path: &str) -> Result<()> {
 /// Resolve a conflicted file by writing `content` to it and staging it.
 pub fn resolve_with_content(repo: &Path, path: &str, content: &str) -> Result<()> {
     check_path(path)?;
+    refuse_symlink(&repo.join(path))?;
     std::fs::write(repo.join(path), content)?;
     run(repo, &["add", "--", &literal(path)])?;
     Ok(())
@@ -123,10 +133,11 @@ pub fn resolve_with_side(repo: &Path, path: &str, side: &str, side_exists: bool)
 /// Append `pattern` to the repository's top-level .gitignore.
 pub fn ignore(repo: &Path, pattern: &str) -> Result<()> {
     let pattern = pattern.trim();
-    if pattern.is_empty() || pattern.contains('\n') {
+    if pattern.is_empty() || pattern.chars().any(char::is_control) {
         return Err(Error::msg("Invalid ignore pattern"));
     }
     let file = repo.join(".gitignore");
+    refuse_symlink(&file)?;
     let mut text = std::fs::read_to_string(&file).unwrap_or_default();
     if text.lines().any(|l| l.trim() == pattern) {
         return Ok(());

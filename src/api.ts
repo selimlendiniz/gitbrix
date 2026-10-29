@@ -298,6 +298,7 @@ export const api = {
   addWorktree: (repo: string, path: string, branch: string, newBranch: boolean, start: string | null) =>
     invoke<void>("add_worktree", { repo, path, branch, newBranch, start }),
   removeWorktree: (repo: string, path: string, force: boolean) => invoke<void>("remove_worktree", { repo, path, force }),
+  worktreeIgnored: (path: string) => invoke<string[]>("worktree_ignored", { path }),
   pruneWorktrees: (repo: string) => invoke<void>("prune_worktrees", { repo }),
   cloneRepo: (url: string, parent: string, name: string) => invoke<string>("clone_repo", { url, parent, name }),
   initRepo: (path: string) => invoke<string>("init_repo", { path }),

@@ -336,6 +336,11 @@ pub fn remove_worktree(repo: String, path: String, force: bool) -> Result<()> {
 }
 
 #[tauri::command(async)]
+pub fn worktree_ignored(path: String) -> Result<Vec<String>> {
+    worktree::ignored(Path::new(&path))
+}
+
+#[tauri::command(async)]
 pub fn prune_worktrees(repo: String) -> Result<()> {
     worktree::prune(&workdir(&repo)?)
 }

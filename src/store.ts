@@ -310,6 +310,12 @@ export const useStore = create<State>((set, get) => ({
 
       // Keep the selection if it still exists; otherwise fall back to HEAD.
       const { selectedId } = get();
+      // Forget filter entries for refs that no longer exist.
+      const names = new Set(graph.refs.map((r) => r.fullName));
+      const f = get().graphFilter;
+      if (f.hidden.some((h) => !names.has(h)) || f.solo.some((x) => !names.has(x))) {
+        void get().setGraphFilter({ hidden: f.hidden.filter((h) => names.has(h)), solo: f.solo.filter((x) => names.has(x)) });
+      }
       // Nothing selected (e.g. a fresh repository) and changes appeared.
       if (!selectedId && graph.commits[0]?.id === WIP_ID) get().select(WIP_ID);
       // Stashes aren't graph rows but can be selected from the sidebar.

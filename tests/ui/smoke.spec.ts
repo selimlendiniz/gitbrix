@@ -295,3 +295,12 @@ test("arrow keys move through files, space stages", async ({ page }) => {
   const call = await page.evaluate(() => window.__gitbrixCalls.filter((c) => c.cmd === "stage").pop()?.args);
   expect(call).toMatchObject({ paths: ["src/main.rs"] });
 });
+
+test("code search keeps the query's case", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".graph-row").first().waitFor();
+  await page.keyboard.press("Control+f");
+  await page.locator(".search-mode").getByRole("button", { name: "Code" }).click();
+  await page.getByPlaceholder(/Text added or removed/).fill("ParseConfig");
+  await expect.poll(() => page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "search_history")?.args.query)).toBe("ParseConfig");
+});
