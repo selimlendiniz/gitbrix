@@ -244,6 +244,18 @@ try {
     await shot("10-merged");
   });
 
+  await step("undo takes the merge back", async () => {
+    await waitFor("undo enabled", () =>
+      js(`const b = [...document.querySelectorAll('.tool-btn')].find(b => b.textContent.includes('Undo')); return b && !b.disabled && b.title.includes('merge')`),
+    );
+    await js(`[...document.querySelectorAll('.tool-btn')].find(b => b.textContent.includes('Undo')).click()`);
+    await waitFor("merge undone", () => git("log", "-1", "--format=%s") === "Our change");
+    await waitFor("graph without merge", () =>
+      js("return ![...document.querySelectorAll('.graph-row')].some(r => r.textContent.includes(\"Merge branch 'side'\"))"),
+    );
+    await shot("11-undone");
+  });
+
   await step("clones a repository with progress and opens it", async () => {
     await click(".repo-btn");
     await js(`[...document.querySelectorAll('.menu-item')].find(b => b.textContent.includes('Clone repository')).click()`);
@@ -259,11 +271,11 @@ try {
       work,
     );
     await waitFor("name derived", () => js(`return ${inputs}[2].value === 'origin'`));
-    await shot("11-clone-dialog");
+    await shot("12-clone-dialog");
     await click(".modal.wide button[type=submit]");
     await waitFor("cloned repo opened", async () => (await text(".repo-name")) === "origin", 60000);
     await waitFor("cloned graph", () => js("return document.querySelectorAll('.graph-row').length > 3"));
-    await shot("12-cloned");
+    await shot("13-cloned");
   });
 
   await wd("DELETE", `/session/${session}`);

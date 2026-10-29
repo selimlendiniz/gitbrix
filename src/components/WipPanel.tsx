@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { api } from "../api";
 import { discardFiles, stashSave } from "../actions";
 import { useStore } from "../store";
+import { describe, trackHead } from "../undo";
 import { FileList, FileRow } from "./FileList";
 import { IconMinus, IconPlus, IconTrash } from "./Icons";
 
@@ -53,7 +54,9 @@ export function WipPanel() {
   async function commit() {
     const message = body.trim() ? `${summary.trim()}\n\n${body.trim()}\n` : `${summary.trim()}\n`;
     setCommitting(true);
-    const ok = await run(amend ? "Amending" : "Committing", (r) => api.commit(r, message, amend), amend ? "Commit amended" : "Committed");
+    const ok = await trackHead(amend ? "amend" : describe.commit(summary.trim()), () =>
+      run(amend ? "Amending" : "Committing", (r) => api.commit(r, message, amend), amend ? "Commit amended" : "Committed"),
+    );
     setCommitting(false);
     if (ok) useDraft.setState({ summary: "", body: "", amend: false });
   }

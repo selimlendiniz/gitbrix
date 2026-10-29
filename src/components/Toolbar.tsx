@@ -14,8 +14,10 @@ import {
   IconPush,
   IconRefresh,
   IconStash,
+  IconPop,
   IconUndo,
 } from "./Icons";
+import { nextUndo, undoLast, useUndo } from "../undo";
 
 function ToolButton({
   icon,
@@ -75,7 +77,9 @@ export function Toolbar() {
   const refresh = useStore((s) => s.refresh);
   const showMenu = useStore((s) => s.showMenu);
   const closeRepo = useStore((s) => s.closeRepo);
+  const undoStack = useUndo((s) => s.stack);
   if (!repo) return null;
+  const undoEntry = nextUndo(undoStack, repo.path);
 
   const dirty = !!status && (status.staged.length > 0 || status.unstaged.length > 0);
   const disabled = !!busy;
@@ -108,6 +112,13 @@ export function Toolbar() {
       </div>
 
       <div className="toolbar-center">
+        <ToolButton
+          icon={<IconUndo />}
+          label="Undo"
+          title={undoEntry ? `Undo ${undoEntry.label} (Ctrl+Z)` : "Nothing to undo"}
+          onClick={() => undoLast()}
+          disabled={disabled || !undoEntry}
+        />
         <ToolButton icon={<IconRefresh />} label="Refresh" title="Refresh (F5)" onClick={() => refresh()} disabled={disabled} />
         <span className="tool-gap" />
         <ToolButton
@@ -135,7 +146,7 @@ export function Toolbar() {
         <span className="tool-gap" />
         <ToolButton icon={<IconBranch />} label="Branch" disabled={disabled} onClick={() => createBranch(null)} />
         <ToolButton icon={<IconStash />} label="Stash" disabled={disabled || !dirty} onClick={() => stashSave()} />
-        <ToolButton icon={<IconUndo />} label="Pop" disabled={disabled || stashes.length === 0} onClick={() => stashPop(0)} />
+        <ToolButton icon={<IconPop />} label="Pop" disabled={disabled || stashes.length === 0} onClick={() => stashPop(0)} />
       </div>
 
       <div className="toolbar-right">

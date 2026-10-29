@@ -288,6 +288,13 @@ pub fn stash_drop(repo: &Path, index: usize) -> Result<()> {
     Ok(())
 }
 
+/// Put a dropped stash commit back on the stash list (undo of drop).
+pub fn stash_store(repo: &Path, id: &str, message: &str) -> Result<()> {
+    check_name(id)?;
+    run(repo, &["stash", "store", "-m", message, id])?;
+    Ok(())
+}
+
 pub fn cherry_pick(repo: &Path, oid: &str) -> Result<()> {
     check_name(oid)?;
     run(repo, &["cherry-pick", oid])?;
@@ -306,6 +313,8 @@ pub fn reset(repo: &Path, oid: &str, mode: &str) -> Result<()> {
         "soft" => "--soft",
         "mixed" => "--mixed",
         "hard" => "--hard",
+        // Moves HEAD but refuses to overwrite local changes: used by undo.
+        "keep" => "--keep",
         other => return Err(Error::msg(format!("Unknown reset mode {other}"))),
     };
     run(repo, &["reset", flag, oid])?;

@@ -1,5 +1,6 @@
 import { api, SequencerOp, WIP_ID } from "../api";
 import { useStore } from "../store";
+import { trackHead } from "../undo";
 
 // Shown above the center view while a merge, rebase, cherry-pick or
 // revert is in progress, whatever is selected.
@@ -40,7 +41,7 @@ export function OperationBanner() {
           <button
             className="small-btn primary"
             disabled={conflicts > 0}
-            onClick={() => run(`Continuing ${op}`, (r) => api.sequencer(r, seqOp, "continue"))}
+            onClick={() => trackHead(`${op}`, () => run(`Continuing ${op}`, (r) => api.sequencer(r, seqOp, "continue")))}
           >
             Continue
           </button>

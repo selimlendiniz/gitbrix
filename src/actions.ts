@@ -5,6 +5,7 @@
 import { api, CommitRow, PullMode, RefInfo, ResetMode, StashInfo, WIP_ID } from "./api";
 import { shortId } from "./format";
 import { MenuItem, useStore } from "./store";
+import { pushUndo, trackHead } from "./undo";
 
 const s = () => useStore.getState();
 
@@ -27,13 +28,13 @@ export function remoteOf(ref: RefInfo): { remote: string; branch: string } {
 export async function checkoutRef(ref: RefInfo) {
   if (ref.kind === "local") {
     if (ref.isHead) return;
-    await s().run(`Checking out ${ref.name}`, (r) => api.checkoutBranch(r, ref.name), `Switched to ${ref.name}`);
+    await trackHead(`checkout ${ref.name}`, () =>
+      s().run(`Checking out ${ref.name}`, (r) => api.checkoutBranch(r, ref.name), `Switched to ${ref.name}`),
+    );
   } else if (ref.kind === "remote") {
     const { branch } = remoteOf(ref);
-    await s().run(
-      `Checking out ${ref.name}`,
-      (r) => api.checkoutRemote(r, ref.name, branch),
-      `Switched to ${branch} tracking ${ref.name}`,
+    await trackHead(`checkout ${branch}`, () =>
+      s().run(`Checking out ${ref.name}`, (r) => api.checkoutRemote(r, ref.name, branch), `Switched to ${branch} tracking ${ref.name}`),
     );
   } else {
     await checkoutDetached(ref.target, ref.name);
@@ -47,7 +48,7 @@ export async function checkoutDetached(rev: string, label = shortId(rev)) {
     confirmLabel: "Check out",
   });
   if (!ok) return;
-  await s().run(`Checking out ${label}`, (r) => api.checkoutDetached(r, rev));
+  await trackHead(`checkout ${label}`, () => s().run(`Checking out ${label}`, (r) => api.checkoutDetached(r, rev)));
 }
 
 export async function createBranch(start: string | null, startLabel?: string) {
@@ -60,7 +61,23 @@ export async function createBranch(start: string | null, startLabel?: string) {
   });
   const name = res?.value.trim();
   if (!res || !name) return;
-  await s().run(`Creating ${name}`, (r) => api.createBranch(r, name, start, res.checked), `Created branch ${name}`);
+  const repo = s().repo;
+  const prevBranch = repo?.headBranch ?? null;
+  const prevOid = repo?.headOid ?? null;
+  const ok = await s().run(`Creating ${name}`, (r) => api.createBranch(r, name, start, res.checked), `Created branch ${name}`);
+  if (ok && repo) {
+    pushUndo({
+      label: `create branch ${name}`,
+      repo: repo.path,
+      run: async (r) => {
+        if (res.checked) {
+          if (prevBranch) await api.checkoutBranch(r, prevBranch);
+          else if (prevOid) await api.checkoutDetached(r, prevOid);
+        }
+        await api.deleteBranch(r, name, true);
+      },
+    });
+  }
 }
 
 export async function createTag(target: string, targetLabel: string) {
@@ -73,14 +90,18 @@ export async function createTag(target: string, targetLabel: string) {
   });
   const name = res?.value.trim();
   if (!res || !name) return;
-  await s().run(`Tagging ${name}`, (r) => api.createTag(r, name, target, res.text || null), `Created tag ${name}`);
+  const ok = await s().run(`Tagging ${name}`, (r) => api.createTag(r, name, target, res.text || null), `Created tag ${name}`);
+  const repo = s().repo?.path;
+  if (ok && repo) pushUndo({ label: `create tag ${name}`, repo, run: (r) => api.deleteTag(r, name) });
 }
 
 export async function renameBranch(ref: RefInfo) {
   const res = await s().prompt({ title: `Rename ${ref.name}`, label: "New name", initial: ref.name, confirmLabel: "Rename" });
   const name = res?.value.trim();
   if (!res || !name || name === ref.name) return;
-  await s().run(`Renaming ${ref.name}`, (r) => api.renameBranch(r, ref.name, name));
+  const ok = await s().run(`Renaming ${ref.name}`, (r) => api.renameBranch(r, ref.name, name));
+  const repo = s().repo?.path;
+  if (ok && repo) pushUndo({ label: `rename ${ref.name}`, repo, run: (r) => api.renameBranch(r, name, ref.name) });
 }
 
 export async function deleteBranch(ref: RefInfo) {
@@ -102,8 +123,14 @@ export async function deleteBranch(ref: RefInfo) {
     danger: true,
   });
   if (!ok) return;
+  const repo = s().repo?.path;
+  const restore = () =>
+    repo && pushUndo({ label: `delete branch ${ref.name}`, repo, run: (r) => api.createBranch(r, ref.name, ref.target, false) });
   const done = await s().run(`Deleting ${ref.name}`, (r) => api.deleteBranch(r, ref.name, false), `Deleted ${ref.name}`);
-  if (done) return;
+  if (done) {
+    restore();
+    return;
+  }
   // `git branch -d` refuses unmerged branches; offer the forced delete.
   const force = await s().confirm({
     title: "Branch is not fully merged",
@@ -111,18 +138,22 @@ export async function deleteBranch(ref: RefInfo) {
     confirmLabel: "Force delete",
     danger: true,
   });
-  if (force) await s().run(`Deleting ${ref.name}`, (r) => api.deleteBranch(r, ref.name, true), `Deleted ${ref.name}`);
+  if (force && (await s().run(`Deleting ${ref.name}`, (r) => api.deleteBranch(r, ref.name, true), `Deleted ${ref.name}`))) restore();
 }
 
 export async function deleteTag(ref: RefInfo) {
   const ok = await s().confirm({ title: "Delete tag", message: `Delete local tag ${ref.name}?`, confirmLabel: "Delete", danger: true });
-  if (ok) await s().run(`Deleting ${ref.name}`, (r) => api.deleteTag(r, ref.name), `Deleted tag ${ref.name}`);
+  if (!ok) return;
+  const done = await s().run(`Deleting ${ref.name}`, (r) => api.deleteTag(r, ref.name), `Deleted tag ${ref.name}`);
+  const repo = s().repo?.path;
+  // Recreated as a lightweight tag; an annotated tag's message is not kept.
+  if (done && repo) pushUndo({ label: `delete tag ${ref.name}`, repo, run: (r) => api.createTag(r, ref.name, ref.target, null) });
 }
 
 export async function mergeInto(rev: string, label: string) {
   const head = currentBranch() ?? "HEAD";
   const ok = await s().confirm({ title: "Merge", message: `Merge ${label} into ${head}?`, confirmLabel: "Merge" });
-  if (ok) await s().run(`Merging ${label}`, (r) => api.merge(r, rev), `Merged ${label} into ${head}`);
+  if (ok) await trackHead(`merge ${label}`, () => s().run(`Merging ${label}`, (r) => api.merge(r, rev), `Merged ${label} into ${head}`));
 }
 
 export async function rebaseOnto(rev: string, label: string) {
@@ -132,11 +163,13 @@ export async function rebaseOnto(rev: string, label: string) {
     message: `Rebase ${head} onto ${label}? Commits on ${head} will be rewritten.`,
     confirmLabel: "Rebase",
   });
-  if (ok) await s().run(`Rebasing onto ${label}`, (r) => api.rebase(r, rev), `Rebased ${head} onto ${label}`);
+  if (ok) await trackHead(`rebase onto ${label}`, () => s().run(`Rebasing onto ${label}`, (r) => api.rebase(r, rev), `Rebased ${head} onto ${label}`));
 }
 
 export async function cherryPick(c: CommitRow) {
-  await s().run(`Cherry-picking ${shortId(c.id)}`, (r) => api.cherryPick(r, c.id), `Cherry-picked ${shortId(c.id)}`);
+  await trackHead(`cherry-pick ${shortId(c.id)}`, () =>
+    s().run(`Cherry-picking ${shortId(c.id)}`, (r) => api.cherryPick(r, c.id), `Cherry-picked ${shortId(c.id)}`),
+  );
 }
 
 export async function revertCommit(c: CommitRow) {
@@ -145,7 +178,7 @@ export async function revertCommit(c: CommitRow) {
     message: `Create a new commit that undoes ${shortId(c.id)} “${c.summary}”?`,
     confirmLabel: "Revert",
   });
-  if (ok) await s().run(`Reverting ${shortId(c.id)}`, (r) => api.revert(r, c.id), `Reverted ${shortId(c.id)}`);
+  if (ok) await trackHead(`revert ${shortId(c.id)}`, () => s().run(`Reverting ${shortId(c.id)}`, (r) => api.revert(r, c.id), `Reverted ${shortId(c.id)}`));
 }
 
 export async function resetTo(c: CommitRow, mode: ResetMode) {
@@ -154,6 +187,7 @@ export async function resetTo(c: CommitRow, mode: ResetMode) {
     soft: "keep all changes staged",
     mixed: "keep all changes in the working tree, unstaged",
     hard: "DISCARD all uncommitted changes and commits after it",
+    keep: "keep local changes, refusing if they would be overwritten",
   }[mode];
   const ok = await s().confirm({
     title: `Reset ${head} (${mode})`,
@@ -161,7 +195,7 @@ export async function resetTo(c: CommitRow, mode: ResetMode) {
     confirmLabel: `Reset ${mode}`,
     danger: mode === "hard",
   });
-  if (ok) await s().run(`Resetting to ${shortId(c.id)}`, (r) => api.reset(r, c.id, mode));
+  if (ok) await trackHead(`reset to ${shortId(c.id)}`, () => s().run(`Resetting to ${shortId(c.id)}`, (r) => api.reset(r, c.id, mode)));
 }
 
 export async function fetchAll() {
@@ -169,7 +203,7 @@ export async function fetchAll() {
 }
 
 export async function pull(mode: PullMode) {
-  await s().run("Pulling", (r) => api.pull(r, mode), "Pulled");
+  await trackHead("pull", () => s().run("Pulling", (r) => api.pull(r, mode), "Pulled"));
 }
 
 export async function push(force = false) {
@@ -205,7 +239,9 @@ export async function stashSave() {
     checkbox: { label: "Include untracked files", initial: true },
   });
   if (!res) return;
-  await s().run("Stashing", (r) => api.stashSave(r, res.value.trim() || null, res.checked), "Changes stashed");
+  const ok = await s().run("Stashing", (r) => api.stashSave(r, res.value.trim() || null, res.checked), "Changes stashed");
+  const repo = s().repo?.path;
+  if (ok && repo) pushUndo({ label: "stash", repo, run: (r) => api.stashApply(r, 0, true) });
 }
 
 export async function stashPop(index = 0) {
@@ -219,11 +255,14 @@ export async function stashApply(index: number) {
 export async function stashDrop(st: StashInfo) {
   const ok = await s().confirm({
     title: "Drop stash",
-    message: `Delete stash@{${st.index}} “${st.message}”? This cannot be undone.`,
+    message: `Delete stash@{${st.index}} “${st.message}”?`,
     confirmLabel: "Drop",
     danger: true,
   });
-  if (ok) await s().run("Dropping stash", (r) => api.stashDrop(r, st.index), "Stash dropped");
+  if (!ok) return;
+  const done = await s().run("Dropping stash", (r) => api.stashDrop(r, st.index), "Stash dropped");
+  const repo = s().repo?.path;
+  if (done && repo) pushUndo({ label: "drop stash", repo, run: (r) => api.stashStore(r, st.id, st.message) });
 }
 
 export async function discardFiles(paths: string[]) {

@@ -147,3 +147,10 @@ export const IconFile = (p: P) => (
     <path d="M4 1.5h5l3 3v10H4z M9 1.5v3h3" />
   </Svg>
 );
+
+export const IconPop = (p: P) => (
+  <Svg {...p}>
+    <rect x="2.5" y="9" width="11" height="4.5" rx="0.8" />
+    <path d="M8 7.5V1.5M5.5 4L8 1.5 10.5 4" />
+  </Svg>
+);

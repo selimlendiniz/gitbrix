@@ -179,7 +179,7 @@ export interface RebaseStep {
 }
 
 export type PullMode = "ff-only" | "merge" | "rebase";
-export type ResetMode = "soft" | "mixed" | "hard";
+export type ResetMode = "soft" | "mixed" | "hard" | "keep";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
 
 export const api = {
@@ -238,6 +238,7 @@ export const api = {
     invoke<void>("stash_save", { repo, message, includeUntracked }),
   stashApply: (repo: string, index: number, pop: boolean) => invoke<void>("stash_apply", { repo, index, pop }),
   stashDrop: (repo: string, index: number) => invoke<void>("stash_drop", { repo, index }),
+  stashStore: (repo: string, id: string, message: string) => invoke<void>("stash_store", { repo, id, message }),
 
   cherryPick: (repo: string, id: string) => invoke<void>("cherry_pick", { repo, id }),
   revert: (repo: string, id: string) => invoke<void>("revert", { repo, id }),

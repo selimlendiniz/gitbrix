@@ -17,6 +17,12 @@ import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
 import { openRepoDialog, Welcome } from "./components/Welcome";
 import { useStore } from "./store";
+import { undoLast } from "./undo";
+
+function isTyping(e: KeyboardEvent): boolean {
+  const t = e.target as HTMLElement | null;
+  return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+}
 
 function useGlobalKeys() {
   useEffect(() => {
@@ -29,6 +35,9 @@ function useGlobalKeys() {
         e.preventDefault();
         s.closeDiff();
         window.dispatchEvent(new Event("gitbrix:find"));
+      } else if (e.key === "z" && (e.ctrlKey || e.metaKey) && !e.shiftKey && s.repo && !isTyping(e)) {
+        e.preventDefault();
+        void undoLast();
       } else if (e.key === "Escape" && s.diffSource && !s.dialog && !s.menu) {
         s.closeDiff();
       } else if (e.key === "o" && (e.ctrlKey || e.metaKey)) {

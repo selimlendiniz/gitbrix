@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api, errorText } from "../api";
 import { relativeTime, shortId } from "../format";
 import { useStore } from "../store";
+import { trackHead } from "../undo";
 import { IconClose } from "./Icons";
 
 export type Action = "pick" | "reword" | "squash" | "fixup" | "drop";
@@ -97,7 +98,9 @@ export function RebaseView() {
       id: r.id,
       message: r.action === "reword" ? r.newMessage : null,
     }));
-    const ok = await run("Rebasing", (repoPath) => api.interactiveRebase(repoPath, base, steps), "Interactive rebase finished");
+    const ok = await trackHead("interactive rebase", () =>
+      run("Rebasing", (repoPath) => api.interactiveRebase(repoPath, base, steps), "Interactive rebase finished"),
+    );
     if (ok) close();
   }
 

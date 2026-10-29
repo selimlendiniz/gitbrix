@@ -50,6 +50,7 @@ pub fn run() {
             commands::stash_save,
             commands::stash_apply,
             commands::stash_drop,
+            commands::stash_store,
             commands::cherry_pick,
             commands::revert,
             commands::reset,

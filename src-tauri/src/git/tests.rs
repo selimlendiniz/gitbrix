@@ -696,6 +696,31 @@ fn interactive_rebase_autostashes_local_changes() {
     assert_eq!(fs::read_to_string(t.path.join("base.txt")).unwrap(), "dirty\n");
 }
 
+#[test]
+fn undo_building_blocks_keep_reset_and_stash_store() {
+    let t = TestRepo::new();
+    let first = t.commit("a.txt", "1\n", "first");
+    let second = t.commit("a.txt", "2\n", "second");
+    // reset --keep moves HEAD back and forth when the tree is clean...
+    ops::reset(&t.path, &first, "keep").unwrap();
+    ops::reset(&t.path, &second, "keep").unwrap();
+    assert_eq!(t.git(&["rev-parse", "HEAD"]), second);
+    // ...but refuses to clobber a local edit of a file it would change.
+    t.write("a.txt", "local edit\n");
+    assert!(ops::reset(&t.path, &first, "keep").is_err());
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "local edit\n");
+
+    // A dropped stash can be stored back.
+    ops::stash_save(&t.path, Some("keep me"), false).unwrap();
+    let st = refs::stashes(&mut t.open()).unwrap().remove(0);
+    ops::stash_drop(&t.path, 0).unwrap();
+    assert!(refs::stashes(&mut t.open()).unwrap().is_empty());
+    ops::stash_store(&t.path, &st.id, &st.message).unwrap();
+    let back = refs::stashes(&mut t.open()).unwrap();
+    assert_eq!(back[0].id, st.id);
+    assert_eq!(back[0].message, st.message);
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

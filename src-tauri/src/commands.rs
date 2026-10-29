@@ -269,6 +269,11 @@ pub fn stash_drop(repo: String, index: usize) -> Result<()> {
 }
 
 #[tauri::command(async)]
+pub fn stash_store(repo: String, id: String, message: String) -> Result<()> {
+    ops::stash_store(&workdir(&repo)?, &id, &message)
+}
+
+#[tauri::command(async)]
 pub fn cherry_pick(repo: String, id: String) -> Result<()> {
     ops::cherry_pick(&workdir(&repo)?, &id)
 }
