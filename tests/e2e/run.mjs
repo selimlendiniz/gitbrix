@@ -335,6 +335,43 @@ try {
     );
   });
 
+  await step("creates a new repository and makes the first commit", async () => {
+    await click(".repo-btn");
+    await js(`[...document.querySelectorAll('.menu-item')].find(b => b.textContent.includes('New repository')).click()`);
+    await waitFor("init dialog", () => js("return !!document.querySelector('.modal.wide')"));
+    await js(
+      `const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+       const [parent, name] = document.querySelectorAll('.modal.wide input');
+       set.call(parent, arguments[0]); parent.dispatchEvent(new Event('input', {bubbles: true}));
+       set.call(name, 'fresh'); name.dispatchEvent(new Event('input', {bubbles: true}));`,
+      work,
+    );
+    await click(".modal.wide button[type=submit]");
+    await waitFor("fresh repo open", async () => (await text(".repo-name")) === "fresh");
+    const fresh = join(work, "fresh");
+    writeFileSync(join(fresh, "hello.txt"), "hello\n");
+    await waitFor("untracked file listed", () =>
+      js("return [...document.querySelectorAll('.wip-panel .file-row')].some(r => r.textContent.includes('hello.txt'))"),
+    );
+    await js(`[...document.querySelectorAll('.wip-panel .file-row')].find(r => r.textContent.includes('hello.txt')).querySelector('[title="Stage file"]').click()`);
+    await waitFor("commit enabled after typing", async () => {
+      await js(
+        `const i = document.querySelector('.commit-summary-input');
+         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'Initial commit');
+         i.dispatchEvent(new Event('input', {bubbles: true}));`,
+      );
+      return js("return !document.querySelector('.commit-form .primary-btn').disabled");
+    });
+    await click(".commit-form .primary-btn");
+    await waitFor("first commit", () =>
+      execFileSync("git", ["-C", fresh, "log", "--format=%s"], { encoding: "utf8" }).trim() === "Initial commit",
+    );
+    await waitFor("graph shows it", () =>
+      js("return [...document.querySelectorAll('.graph-row')].some(r => r.textContent.includes('Initial commit'))"),
+    );
+    await shot("17-first-commit");
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

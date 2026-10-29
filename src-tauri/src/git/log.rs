@@ -104,7 +104,9 @@ pub fn graph_filtered(repo: &Repository, limit: usize, wip: bool, filter: &Graph
 
     insert_stashes(repo, &mut commits)?;
 
-    let wip_row = wip && head.is_some();
+    // Also without HEAD: in a repository with no commits yet, the WIP row
+    // is the only way to reach the changes for the first commit.
+    let wip_row = wip;
     if wip_row {
         commits.insert(
             0,
@@ -115,7 +117,7 @@ pub fn graph_filtered(repo: &Repository, limit: usize, wip: bool, filter: &Graph
                 author_name: String::new(),
                 author_email: String::new(),
                 time: 0,
-                parents: vec![head.unwrap().to_string()],
+                parents: head.map(|h| vec![h.to_string()]).unwrap_or_default(),
                 lane: 0,
                 color: 0,
                 up: Vec::new(),

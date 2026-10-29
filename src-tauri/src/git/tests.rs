@@ -131,8 +131,13 @@ fn graph_limit_and_wip_row() {
 #[test]
 fn graph_of_empty_repo() {
     let t = TestRepo::new();
-    let g = log::graph(&t.open(), 100, true).unwrap();
+    let g = log::graph(&t.open(), 100, false).unwrap();
     assert!(g.commits.is_empty());
+    // With changes waiting for the first commit there is a WIP row.
+    let g = log::graph(&t.open(), 100, true).unwrap();
+    assert_eq!(g.commits.len(), 1);
+    assert_eq!(g.commits[0].id, log::WIP_ID);
+    assert!(g.commits[0].parents.is_empty());
     let info = repo::info(&t.open()).unwrap();
     assert!(info.unborn);
     assert_eq!(info.head_branch.as_deref(), Some("main"));

@@ -324,6 +324,12 @@ export function CommitGraph() {
         <div className="graph-rows" style={{ height: commits.length * ROW_H }}>
           {rows}
         </div>
+        {commits.length === 0 && (
+          <div className="graph-empty">
+            <strong>No commits yet.</strong>
+            <span>Add or edit files in this folder — they show up here, ready to stage and commit.</span>
+          </div>
+        )}
         {graph?.truncated && (
           <div className="graph-truncated">
             Showing the newest {commits.length.toLocaleString()} commits.{" "}

@@ -310,6 +310,8 @@ export const useStore = create<State>((set, get) => ({
 
       // Keep the selection if it still exists; otherwise fall back to HEAD.
       const { selectedId } = get();
+      // Nothing selected (e.g. a fresh repository) and changes appeared.
+      if (!selectedId && graph.commits[0]?.id === WIP_ID) get().select(WIP_ID);
       // Stashes aren't graph rows but can be selected from the sidebar.
       const { compareId } = get();
       if (compareId && !graph.commits.some((c) => c.id === compareId)) set({ compareId: null });

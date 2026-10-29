@@ -1028,6 +1028,15 @@ textarea {
   background: var(--add-bg);
 }
 
+.graph-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
 .graph-truncated {
   padding: 12px;
   text-align: center;
