@@ -619,7 +619,8 @@ textarea {
   color: var(--text);
 }
 
-.side-item.group {
+.side-item.group,
+.side-item.folder {
   color: var(--text-dim);
 }
 

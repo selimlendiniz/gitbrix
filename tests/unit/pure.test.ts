@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DiffLine, RefInfo } from "../../src/api";
 import { fuzzyScore } from "../../src/components/CommandPalette";
 import { planProblems, Row } from "../../src/components/RebaseView";
+import { buildTree, countLeaves } from "../../src/components/RefTree";
 import { nameFromUrl } from "../../src/components/RepoDialogs";
 import { splitRows } from "../../src/diff/split";
 import { initials, relativeTime, splitPath } from "../../src/format";
@@ -126,5 +127,17 @@ describe("fuzzyScore", () => {
     const loose = fuzzyScore("push", "Action Pull (rebase) stash")!;
     expect(tight).toBeGreaterThan(loose);
     expect(fuzzyScore("", "anything")).toBe(0);
+  });
+});
+
+describe("buildTree", () => {
+  const r = (name: string) => ({ name }) as RefInfo;
+  it("groups slash-separated names into folders", () => {
+    const t = buildTree([r("main"), r("feature/a"), r("feature/b"), r("fix/deep/c")], (x) => x.name);
+    expect(t.leaves.map((l) => l.label)).toEqual(["main"]);
+    expect(t.folders.map((f) => f.name)).toEqual(["feature", "fix"]);
+    expect(t.folders[0].leaves.map((l) => l.label)).toEqual(["a", "b"]);
+    expect(t.folders[1].folders[0].path).toBe("fix/deep");
+    expect(countLeaves(t)).toBe(4);
   });
 });

@@ -3,6 +3,7 @@ import { ReactNode, useMemo, useState } from "react";
 import { RefInfo, RemoteInfo } from "../api";
 import { addRemote, checkoutRef, createBranch, refMenu, remoteMenu, remoteOf, stashMenu } from "../actions";
 import { useStore } from "../store";
+import { buildTree, RefTree } from "./RefTree";
 import { IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
 
 function Section({
@@ -106,9 +107,12 @@ export function Sidebar() {
             </button>
           }
         >
-          {locals.map((r) => (
-            <RefItem key={r.fullName} r={r} label={r.name} />
-          ))}
+          <RefTree
+            tree={buildTree(locals, (r) => r.name)}
+            indent={1}
+            forceOpen={!!filter.trim()}
+            renderLeaf={(r, label, depth) => <RefItem key={r.fullName} r={r} label={label} indent={depth - 1} />}
+          />
         </Section>
         <Section
           title="Remote"
@@ -121,7 +125,7 @@ export function Sidebar() {
           }
         >
           {allRemotes.map((rm) => (
-            <RemoteGroup key={rm.name} remote={rm} list={remotes.get(rm.name) ?? []} />
+            <RemoteGroup key={rm.name} remote={rm} list={remotes.get(rm.name) ?? []} filtering={!!filter.trim()} />
           ))}
         </Section>
         <Section title="Tags" icon={<IconTag size={13} />} count={tags.length}>
@@ -151,7 +155,7 @@ export function Sidebar() {
   );
 }
 
-function RemoteGroup({ remote, list }: { remote: RemoteInfo; list: RefInfo[] }) {
+function RemoteGroup({ remote, list, filtering }: { remote: RemoteInfo; list: RefInfo[]; filtering: boolean }) {
   const [open, setOpen] = useState(true);
   const showMenu = useStore((s) => s.showMenu);
   return (
@@ -171,7 +175,14 @@ function RemoteGroup({ remote, list }: { remote: RemoteInfo; list: RefInfo[] }) 
         <span className="side-item-label">{remote.name}</span>
         {list.length === 0 && <span className="side-count">not fetched</span>}
       </div>
-      {open && list.map((r) => <RefItem key={r.fullName} r={r} label={remoteOf(r).branch} indent={1} />)}
+      {open && (
+        <RefTree
+          tree={buildTree(list, (r) => remoteOf(r).branch)}
+          indent={2}
+          forceOpen={filtering}
+          renderLeaf={(r, label, depth) => <RefItem key={r.fullName} r={r} label={label} indent={depth - 1} />}
+        />
+      )}
     </>
   );
 }
