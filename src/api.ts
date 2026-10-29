@@ -220,6 +220,9 @@ export const api = {
   pull: (repo: string, mode: PullMode) => invoke<void>("pull", { repo, mode }),
   push: (repo: string, force: boolean) => invoke<void>("push", { repo, force }),
 
+  cloneRepo: (url: string, parent: string, name: string) => invoke<string>("clone_repo", { url, parent, name }),
+  initRepo: (path: string) => invoke<string>("init_repo", { path }),
+
   stashSave: (repo: string, message: string | null, includeUntracked: boolean) =>
     invoke<void>("stash_save", { repo, message, includeUntracked }),
   stashApply: (repo: string, index: number, pop: boolean) => invoke<void>("stash_apply", { repo, index, pop }),

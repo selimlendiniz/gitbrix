@@ -9,6 +9,7 @@ import { ConflictView } from "./components/ConflictView";
 import { DiffView } from "./components/DiffView";
 import { BlameView, HistoryView } from "./components/FileViews";
 import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
+import { RepoDialogs } from "./components/RepoDialogs";
 import { Sidebar } from "./components/Sidebar";
 import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
@@ -43,10 +44,12 @@ function useGlobalKeys() {
       const s = useStore.getState();
       if (s.repo?.path === e.payload && !s.busy) void s.refresh();
     });
+    const unlistenProgress = listen<string>("git-progress", (e) => useStore.setState({ progress: e.payload }));
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("focus", onFocus);
       void unlisten.then((f) => f()).catch(() => {});
+      void unlistenProgress.then((f) => f()).catch(() => {});
     };
   }, []);
 }
@@ -86,6 +89,7 @@ export default function App() {
         <Welcome />
       )}
       <ContextMenu />
+      <RepoDialogs />
       <Dialog />
       <Toasts />
     </div>

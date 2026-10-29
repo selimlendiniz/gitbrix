@@ -217,6 +217,28 @@ try {
     await shot("09-merged");
   });
 
+  await step("clones a repository with progress and opens it", async () => {
+    await click(".repo-btn");
+    await js(`[...document.querySelectorAll('.menu-item')].find(b => b.textContent.includes('Clone repository')).click()`);
+    await waitFor("clone dialog", () => js("return !!document.querySelector('.modal.wide')"));
+    const inputs = "document.querySelectorAll('.modal.wide input')";
+    // Set React-controlled inputs the way typing would.
+    await js(
+      `const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+       const [u, p] = ${inputs};
+       set.call(u, arguments[0]); u.dispatchEvent(new Event('input', {bubbles: true}));
+       set.call(p, arguments[1]); p.dispatchEvent(new Event('input', {bubbles: true}));`,
+      join(demo, "origin.git"),
+      work,
+    );
+    await waitFor("name derived", () => js(`return ${inputs}[2].value === 'origin'`));
+    await shot("10-clone-dialog");
+    await click(".modal.wide button[type=submit]");
+    await waitFor("cloned repo opened", async () => (await text(".repo-name")) === "origin", 60000);
+    await waitFor("cloned graph", () => js("return document.querySelectorAll('.graph-row').length > 3"));
+    await shot("11-cloned");
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

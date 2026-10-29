@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DiffLine, RefInfo } from "../../src/api";
+import { nameFromUrl } from "../../src/components/RepoDialogs";
 import { splitRows } from "../../src/diff/split";
 import { initials, relativeTime, splitPath } from "../../src/format";
 import { refsByCommit } from "../../src/graph/refs";
@@ -76,5 +77,15 @@ describe("format", () => {
   it("splits paths", () => {
     expect(splitPath("src/a/b.ts")).toEqual({ dir: "src/a/", base: "b.ts" });
     expect(splitPath("README.md")).toEqual({ dir: "", base: "README.md" });
+  });
+});
+
+describe("nameFromUrl", () => {
+  it("derives a folder name from common URL shapes", () => {
+    expect(nameFromUrl("https://github.com/owner/project.git")).toBe("project");
+    expect(nameFromUrl("git@github.com:owner/tool.git")).toBe("tool");
+    expect(nameFromUrl("https://gitlab.com/group/sub/repo/")).toBe("repo");
+    expect(nameFromUrl("/srv/git/local.git")).toBe("local");
+    expect(nameFromUrl("")).toBe("");
   });
 });

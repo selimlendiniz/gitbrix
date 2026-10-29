@@ -376,7 +376,7 @@ fn push_sets_upstream_then_tracks_ahead_behind() {
     t.commit("a.txt", "1\n", "first");
     t.add_origin();
 
-    ops::push(&t.path, false).unwrap();
+    ops::push(&t.path, false, &mut |_| {}).unwrap();
     let info = repo::info(&t.open()).unwrap();
     assert_eq!(info.upstream.as_deref(), Some("origin/main"));
     assert_eq!((info.ahead, info.behind), (0, 0));
@@ -385,8 +385,8 @@ fn push_sets_upstream_then_tracks_ahead_behind() {
     let info = repo::info(&t.open()).unwrap();
     assert_eq!((info.ahead, info.behind), (1, 0));
 
-    ops::push(&t.path, false).unwrap();
-    ops::fetch(&t.path).unwrap();
+    ops::push(&t.path, false, &mut |_| {}).unwrap();
+    ops::fetch(&t.path, &mut |_| {}).unwrap();
     let main = refs::list(&t.open()).unwrap().into_iter().find(|r| r.name == "main").unwrap();
     assert_eq!((main.ahead, main.behind), (0, 0));
     assert_eq!(main.upstream.as_deref(), Some("origin/main"));
@@ -401,7 +401,7 @@ fn pull_fast_forwards_from_clone() {
     let t = TestRepo::new();
     t.commit("a.txt", "1\n", "first");
     let bare = t.add_origin();
-    ops::push(&t.path, false).unwrap();
+    ops::push(&t.path, false, &mut |_| {}).unwrap();
 
     // Someone else pushes a commit.
     let other = t.path.parent().unwrap().join("other");
@@ -412,11 +412,11 @@ fn pull_fast_forwards_from_clone() {
     git_in(&other, &["commit", "-q", "-m", "from other"]);
     git_in(&other, &["push", "-q"]);
 
-    ops::fetch(&t.path).unwrap();
+    ops::fetch(&t.path, &mut |_| {}).unwrap();
     assert_eq!(repo::info(&t.open()).unwrap().behind, 1);
-    ops::pull(&t.path, "ff-only").unwrap();
+    ops::pull(&t.path, "ff-only", &mut |_| {}).unwrap();
     assert!(t.path.join("b.txt").exists());
-    assert!(ops::pull(&t.path, "sideways").is_err());
+    assert!(ops::pull(&t.path, "sideways", &mut |_| {}).is_err());
 }
 
 #[test]
@@ -573,6 +573,31 @@ fn file_history_follows_renames_and_blame_attributes_lines() {
     let old = history::blame(&t.path, "old.txt", Some(&at)).unwrap();
     assert_eq!(old.lines.len(), 2);
     assert!(history::blame(&t.path, "new.txt", Some("--evil")).is_err());
+}
+
+#[test]
+fn clone_reports_progress_and_init_creates_repo() {
+    let t = TestRepo::new();
+    for i in 0..3 {
+        t.commit("f.txt", &format!("{i}\n"), &format!("c{i}"));
+    }
+    let bare = t.add_origin();
+    ops::push(&t.path, false, &mut |_| {}).unwrap();
+
+    let parent = t.path.parent().unwrap();
+    let mut lines = Vec::new();
+    let dest = ops::clone(parent, bare.to_str().unwrap(), "cloned", &mut |l| lines.push(l.to_owned())).unwrap();
+    assert!(dest.join("f.txt").exists());
+    assert!(lines.iter().any(|l| l.starts_with("Cloning into")), "{lines:?}");
+    assert!(ops::clone(parent, bare.to_str().unwrap(), "cloned", &mut |_| {}).is_err(), "destination exists");
+    assert!(ops::clone(parent, "--upload-pack=evil", "x", &mut |_| {}).is_err());
+
+    let err = ops::clone(parent, "/nonexistent/repo.git", "nothing", &mut |_| {}).unwrap_err().to_string();
+    assert!(err.contains("does not exist") || err.contains("not appear to be a git repository"), "{err}");
+
+    let fresh = parent.join("fresh/nested");
+    ops::init(&fresh).unwrap();
+    assert!(repo::info(&repo::open(&fresh).unwrap()).unwrap().unborn);
 }
 
 /// Records what the backend returns for a repository into the JSON

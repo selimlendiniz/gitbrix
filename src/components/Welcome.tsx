@@ -5,7 +5,8 @@ import { errorText } from "../api";
 import { relativeTime } from "../format";
 import { loadRecent, removeRecent } from "../recent";
 import { useStore } from "../store";
-import { IconClose, IconFolder } from "./Icons";
+import { IconClose, IconCloud, IconFolder, IconPlus } from "./Icons";
+import { useRepoDialog } from "./RepoDialogs";
 
 export async function openRepoDialog() {
   try {
@@ -36,6 +37,14 @@ export function Welcome() {
         <button className="primary-btn big" onClick={openRepoDialog} disabled={loading}>
           <IconFolder size={16} /> Open repository…
         </button>
+        <div className="welcome-row">
+          <button className="secondary-btn" onClick={() => useRepoDialog.setState({ kind: "clone" })} disabled={loading}>
+            <IconCloud size={15} /> Clone…
+          </button>
+          <button className="secondary-btn" onClick={() => useRepoDialog.setState({ kind: "init" })} disabled={loading}>
+            <IconPlus size={15} /> New repository…
+          </button>
+        </div>
 
         <form
           className="path-form"

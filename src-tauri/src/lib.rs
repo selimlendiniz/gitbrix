@@ -45,6 +45,8 @@ pub fn run() {
             commands::fetch,
             commands::pull,
             commands::push,
+            commands::clone_repo,
+            commands::init_repo,
             commands::stash_save,
             commands::stash_apply,
             commands::stash_drop,

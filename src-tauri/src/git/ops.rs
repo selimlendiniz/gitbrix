@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use super::cli::{run, run_with_input};
+use super::cli::{run, run_progress, run_with_input};
 use crate::error::{Error, Result};
 
 fn with_paths<'a>(mut args: Vec<&'a str>, paths: &'a [String]) -> Vec<&'a str> {
@@ -195,27 +195,50 @@ pub fn delete_tag(repo: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn fetch(repo: &Path) -> Result<()> {
-    run(repo, &["fetch", "--all", "--prune", "--tags"])?;
+/// Progress callback for long-running network operations.
+pub type Progress<'a> = &'a mut dyn FnMut(&str);
+
+pub fn fetch(repo: &Path, progress: Progress) -> Result<()> {
+    run_progress(repo, &["fetch", "--all", "--prune", "--tags", "--progress"], progress)?;
     Ok(())
 }
 
-pub fn pull(repo: &Path, mode: &str) -> Result<()> {
+pub fn pull(repo: &Path, mode: &str, progress: Progress) -> Result<()> {
     let flag = match mode {
         "ff-only" => "--ff-only",
         "rebase" => "--rebase",
         "merge" => "--no-rebase",
         other => return Err(Error::msg(format!("Unknown pull mode {other}"))),
     };
-    run(repo, &["pull", flag])?;
+    run_progress(repo, &["pull", flag, "--progress"], progress)?;
+    Ok(())
+}
+
+/// Clone `url` into `parent/name`. Returns the new work tree path.
+pub fn clone(parent: &Path, url: &str, name: &str, progress: Progress) -> Result<std::path::PathBuf> {
+    if url.starts_with('-') || name.is_empty() || name.starts_with('-') || name.contains('/') {
+        return Err(Error::msg("Invalid URL or folder name"));
+    }
+    let dest = parent.join(name);
+    if dest.exists() && dest.read_dir().map(|mut d| d.next().is_some()).unwrap_or(true) {
+        return Err(Error::msg(format!("{} already exists and is not empty", dest.display())));
+    }
+    run_progress(parent, &["clone", "--progress", "--", url, name], progress)?;
+    Ok(dest)
+}
+
+/// Create a new repository at `path` (created if missing).
+pub fn init(path: &Path) -> Result<()> {
+    std::fs::create_dir_all(path)?;
+    run(path, &["init", "-q"])?;
     Ok(())
 }
 
 /// Push the current branch. Without an upstream, publish it to `origin`
 /// (or the only remote) under the same name and start tracking it.
-pub fn push(repo: &Path, force: bool) -> Result<()> {
+pub fn push(repo: &Path, force: bool, progress: Progress) -> Result<()> {
     let upstream = run(repo, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
-    let mut args = vec!["push"];
+    let mut args = vec!["push", "--progress"];
     if force {
         args.push("--force-with-lease");
     }
@@ -234,10 +257,10 @@ pub fn push(repo: &Path, force: bool) -> Result<()> {
         let remote = remote.to_owned();
         let mut full = args.clone();
         full.extend(["-u", remote.as_str(), "HEAD"]);
-        run(repo, &full)?;
+        run_progress(repo, &full, progress)?;
         return Ok(());
     }
-    run(repo, &args)?;
+    run_progress(repo, &args, progress)?;
     Ok(())
 }
 

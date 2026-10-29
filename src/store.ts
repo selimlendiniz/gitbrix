@@ -85,6 +85,8 @@ interface State {
   diff: FileDiff | null;
   diffError: string | null;
   busy: string | null;
+  /** Latest progress line from git while `busy`. */
+  progress: string | null;
   loading: boolean;
   toasts: Toast[];
   dialog: PromptRequest | ConfirmRequest | null;
@@ -130,6 +132,7 @@ export const useStore = create<State>((set, get) => ({
   diff: null,
   diffError: null,
   busy: null,
+  progress: null,
   loading: false,
   toasts: [],
   dialog: null,
@@ -258,7 +261,7 @@ export const useStore = create<State>((set, get) => ({
   async run(label, fn, success) {
     const repo = get().repo;
     if (!repo || get().busy) return false;
-    set({ busy: label });
+    set({ busy: label, progress: null });
     let ok = true;
     try {
       await fn(repo.path);
@@ -267,7 +270,7 @@ export const useStore = create<State>((set, get) => ({
       ok = false;
       get().toast("error", errorText(e));
     } finally {
-      set({ busy: null });
+      set({ busy: null, progress: null });
       await get().refresh();
     }
     return ok;

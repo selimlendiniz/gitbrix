@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { createBranch, fetchAll, pull, push, stashPop, stashSave } from "../actions";
 import { PullMode } from "../api";
 import { useStore } from "../store";
+import { useRepoDialog } from "./RepoDialogs";
 import { openRepoDialog } from "./Welcome";
 import {
   IconBranch,
@@ -68,6 +69,7 @@ const PULL_MODES: { mode: PullMode; label: string }[] = [
 export function Toolbar() {
   const repo = useStore((s) => s.repo);
   const busy = useStore((s) => s.busy);
+  const progress = useStore((s) => s.progress);
   const stashes = useStore((s) => s.stashes);
   const status = useStore((s) => s.status);
   const refresh = useStore((s) => s.refresh);
@@ -88,6 +90,8 @@ export function Toolbar() {
             const r = e.currentTarget.getBoundingClientRect();
             showMenu(r.left, r.bottom + 4, [
               { label: "Open repository…", onSelect: () => openRepoDialog() },
+              { label: "Clone repository…", onSelect: () => useRepoDialog.setState({ kind: "clone" }) },
+              { label: "New repository…", onSelect: () => useRepoDialog.setState({ kind: "init" }) },
               { label: "Close repository", onSelect: () => closeRepo() },
             ]);
           }}
@@ -134,7 +138,14 @@ export function Toolbar() {
         <ToolButton icon={<IconUndo />} label="Pop" disabled={disabled || stashes.length === 0} onClick={() => stashPop(0)} />
       </div>
 
-      <div className="toolbar-right">{busy && <span className="busy"><span className="spinner" />{busy}…</span>}</div>
+      <div className="toolbar-right">
+        {busy && (
+          <span className="busy" title={progress ?? undefined}>
+            <span className="spinner" />
+            {busy}…{progress && <span className="busy-progress">{progress}</span>}
+          </span>
+        )}
+      </div>
     </header>
   );
 }

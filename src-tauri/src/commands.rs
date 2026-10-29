@@ -212,19 +212,45 @@ pub fn delete_tag(repo: String, name: String) -> Result<()> {
     ops::delete_tag(&workdir(&repo)?, &name)
 }
 
-#[tauri::command(async)]
-pub fn fetch(repo: String) -> Result<()> {
-    ops::fetch(&workdir(&repo)?)
+/// Emits `git-progress` events with git's progress lines.
+fn progress(app: &tauri::AppHandle) -> impl FnMut(&str) + '_ {
+    use tauri::Emitter;
+    let mut last = std::time::Instant::now() - std::time::Duration::from_secs(1);
+    move |line: &str| {
+        // Git redraws progress very often; the UI needs a few per second.
+        if last.elapsed() >= std::time::Duration::from_millis(100) || line.contains("done") {
+            last = std::time::Instant::now();
+            let _ = app.emit("git-progress", line);
+        }
+    }
 }
 
 #[tauri::command(async)]
-pub fn pull(repo: String, mode: String) -> Result<()> {
-    ops::pull(&workdir(&repo)?, &mode)
+pub fn fetch(app: tauri::AppHandle, repo: String) -> Result<()> {
+    ops::fetch(&workdir(&repo)?, &mut progress(&app))
 }
 
 #[tauri::command(async)]
-pub fn push(repo: String, force: bool) -> Result<()> {
-    ops::push(&workdir(&repo)?, force)
+pub fn pull(app: tauri::AppHandle, repo: String, mode: String) -> Result<()> {
+    ops::pull(&workdir(&repo)?, &mode, &mut progress(&app))
+}
+
+#[tauri::command(async)]
+pub fn push(app: tauri::AppHandle, repo: String, force: bool) -> Result<()> {
+    ops::push(&workdir(&repo)?, force, &mut progress(&app))
+}
+
+#[tauri::command(async)]
+pub fn clone_repo(app: tauri::AppHandle, url: String, parent: String, name: String) -> Result<String> {
+    let dest = ops::clone(Path::new(&parent), url.trim(), name.trim(), &mut progress(&app))?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+#[tauri::command(async)]
+pub fn init_repo(path: String) -> Result<String> {
+    let p = PathBuf::from(&path);
+    ops::init(&p)?;
+    Ok(p.to_string_lossy().into_owned())
 }
 
 #[tauri::command(async)]
