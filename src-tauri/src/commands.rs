@@ -318,13 +318,26 @@ pub fn stash_save(repo: String, message: Option<String>, include_untracked: bool
     ops::stash_save(&workdir(&repo)?, message.as_deref(), include_untracked)
 }
 
+/// The UI's stash list can be stale (a `git stash` in a terminal shifts
+/// the indices). With `id`, act on that stash wherever it is now.
+fn stash_index(repo: &str, index: usize, id: Option<String>) -> Result<usize> {
+    let Some(id) = id else { return Ok(index) };
+    refs::stashes(&mut open(repo)?)?
+        .into_iter()
+        .find(|s| s.id == id)
+        .map(|s| s.index)
+        .ok_or_else(|| Error::msg("That stash no longer exists"))
+}
+
 #[tauri::command(async)]
-pub fn stash_apply(repo: String, index: usize, pop: bool) -> Result<()> {
+pub fn stash_apply(repo: String, index: usize, pop: bool, id: Option<String>) -> Result<()> {
+    let index = stash_index(&repo, index, id)?;
     ops::stash_apply(&workdir(&repo)?, index, pop)
 }
 
 #[tauri::command(async)]
-pub fn stash_drop(repo: String, index: usize) -> Result<()> {
+pub fn stash_drop(repo: String, index: usize, id: Option<String>) -> Result<()> {
+    let index = stash_index(&repo, index, id)?;
     ops::stash_drop(&workdir(&repo)?, index)
 }
 

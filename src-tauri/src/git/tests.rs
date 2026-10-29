@@ -804,6 +804,76 @@ fn ignore_appends_once_and_hides_files() {
     assert!(ops::ignore(&t.path, "a\nb").is_err());
 }
 
+#[test]
+fn paths_are_literal_not_globs() {
+    let t = TestRepo::new();
+    t.write("a*b.txt", "1\n");
+    t.write("axb.txt", "1\n");
+    t.git(&["add", "-A"]);
+    t.git(&["commit", "-q", "-m", "base"]);
+    t.write("a*b.txt", "changed\n");
+    t.write("axb.txt", "changed\n");
+    t.write("notes[1].txt", "u\n");
+    t.write("notes1.txt", "keep me\n");
+    ops::discard(&t.path, &["a*b.txt".into()], &["notes[1].txt".into()]).unwrap();
+    assert_eq!(fs::read_to_string(t.path.join("a*b.txt")).unwrap(), "1\n");
+    assert_eq!(fs::read_to_string(t.path.join("axb.txt")).unwrap(), "changed\n", "glob must not match");
+    assert!(!t.path.join("notes[1].txt").exists());
+    assert!(t.path.join("notes1.txt").exists(), "glob must not match");
+    ops::stage(&t.path, &["a*b.txt".into(), "axb.txt".into()]).unwrap();
+    ops::unstage_all(&t.path).unwrap();
+    assert!(status::status(&t.open()).unwrap().staged.is_empty());
+}
+
+#[test]
+fn conflict_paths_must_stay_inside_the_repo() {
+    let t = conflicted_repo();
+    let outside = t.path.parent().unwrap().join("outside.txt");
+    assert!(ops::resolve_with_content(&t.path, outside.to_str().unwrap(), "x").is_err());
+    assert!(ops::resolve_with_content(&t.path, "../outside.txt", "x").is_err());
+    assert!(!outside.exists());
+    assert!(ops::resolve_with_side(&t.path, "/etc/hostname", "ours", true).is_err());
+}
+
+#[test]
+fn rebase_refuses_while_another_is_stopped() {
+    let (t, base, ids) = rebase_fixture();
+    let c1 = t.commit("same.txt", "one\n", "one");
+    let c2 = t.commit("same.txt", "two\n", "two");
+    let mut plan: Vec<_> = ids.iter().map(|id| step("pick", id, None)).collect();
+    plan.push(step("pick", &c2, None));
+    plan.push(step("pick", &c1, None));
+    assert!(rebase::run(&t.open(), &t.path, &base, &plan).is_err());
+    let err = rebase::run(&t.open(), &t.path, &base, &plan).unwrap_err().to_string();
+    assert!(err.contains("in progress"), "{err}");
+    ops::sequencer(&t.path, "rebase", "abort").unwrap();
+}
+
+#[test]
+fn reword_then_squash_keeps_the_new_message() {
+    let (t, base, ids) = rebase_fixture();
+    let plan = vec![
+        step("reword", &ids[0], Some("Renamed A")),
+        step("squash", &ids[1], None),
+        step("pick", &ids[2], None),
+        step("pick", &ids[3], None),
+    ];
+    rebase::run(&t.open(), &t.path, &base, &plan).unwrap();
+    let msg = t.git(&["log", "-1", "--format=%B", "HEAD~2"]);
+    assert!(msg.contains("Renamed A") && msg.contains("add b") && !msg.contains("add a"), "{msg}");
+}
+
+#[test]
+fn non_utf8_diffs_are_flagged() {
+    let t = TestRepo::new();
+    t.commit("latin1.txt", "plain\n", "base");
+    fs::write(t.path.join("latin1.txt"), b"plain\ncaf\xe9\n").unwrap();
+    let fd = diff::workdir_file_diff(&t.open(), "latin1.txt", false).unwrap();
+    assert!(fd.lossy);
+    t.write("utf8.txt", "café\n");
+    assert!(!diff::workdir_file_diff(&t.open(), "utf8.txt", false).unwrap().lossy);
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

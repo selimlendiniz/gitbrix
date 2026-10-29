@@ -33,7 +33,13 @@ export interface Parsed {
   finalNewline: boolean;
 }
 
-const marker = (line: string, c: string) => line.startsWith(c.repeat(7)) && (line.length === 7 || line[7] === " ");
+// Lines keep a trailing "\r" in CRLF files (so joining with "\n" restores
+// the endings); markers are recognised without it.
+const marker = (line: string, c: string) => {
+  const l = line.endsWith("\r") ? line.slice(0, -1) : line;
+  return l.startsWith(c.repeat(7)) && (l.length === 7 || l[7] === " ");
+};
+const label = (line: string) => line.slice(8).replace(/\r$/, "");
 
 export function parseConflicts(text: string): Parsed {
   const finalNewline = text.endsWith("\n");
@@ -73,8 +79,8 @@ export function parseConflicts(text: string): Parsed {
       ours: lines.slice(start + 1, oursEnd),
       base: baseAt >= 0 ? lines.slice(baseAt + 1, sep) : null,
       theirs: lines.slice(sep + 1, end),
-      oursLabel: lines[start].slice(8),
-      theirsLabel: lines[end].slice(8),
+      oursLabel: label(lines[start]),
+      theirsLabel: label(lines[end]),
     });
     i = end + 1;
   }

@@ -17,12 +17,25 @@ pub struct Output {
 fn base(repo: &Path) -> Command {
     let mut cmd = Command::new("git");
     cmd.arg("-C").arg(repo);
-    // Never block on an interactive prompt: there is no terminal attached.
+    // Never ask on a terminal: none is attached (or it belongs to whoever
+    // started the app). Git's own prompts are off; ssh asks through the
+    // desktop's askpass helper when one is configured (KDE: ksshaskpass)
+    // instead of reading /dev/tty.
     cmd.env("GIT_TERMINAL_PROMPT", "0");
+    if std::env::var_os("SSH_ASKPASS").is_some() {
+        cmd.env("SSH_ASKPASS_REQUIRE", "force");
+    }
     // Stable, parseable output regardless of the user's locale.
     cmd.env("LC_ALL", "C");
     cmd.stdin(Stdio::null());
     cmd
+}
+
+/// A file name as a pathspec that matches only itself: `a*b.txt` must not
+/// also match `axb.txt`. (Not GIT_LITERAL_PATHSPECS: that also disables
+/// the magic pathspecs git uses internally, e.g. in `stash -u`.)
+pub fn literal(path: &str) -> String {
+    format!(":(literal){path}")
 }
 
 pub fn run(repo: &Path, args: &[&str]) -> Result<Output> {

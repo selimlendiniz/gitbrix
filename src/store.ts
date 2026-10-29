@@ -137,6 +137,8 @@ let toastSeq = 0;
 // Responses from an earlier refresh or selection must not overwrite newer
 // ones, so each async load checks it is still the latest of its kind.
 let refreshSeq = 0;
+let statusSeq = 0;
+let openSeq = 0;
 let detailsSeq = 0;
 let diffSeq = 0;
 let loadingMore = false;
@@ -168,9 +170,12 @@ export const useStore = create<State>((set, get) => ({
   tabs: loadTabs().tabs,
 
   async openRepo(path) {
+    const seq = ++openSeq;
     set({ loading: true });
     try {
       const info = await api.openRepo(path);
+      // A later open (another tab clicked meanwhile) wins.
+      if (seq !== openSeq) return;
       addRecent(info.path, info.name);
       const tabs = get().tabs.some((t) => t.path === info.path)
         ? get().tabs
@@ -191,6 +196,7 @@ export const useStore = create<State>((set, get) => ({
         graphLimit: GRAPH_PAGE,
       });
       await get().refresh();
+      if (seq !== openSeq) return;
       const { graph, status } = get();
       const dirty = status && (status.staged.length || status.unstaged.length || status.conflicted.length);
       get().select(dirty ? WIP_ID : graph?.commits[0]?.id ?? null);
@@ -203,7 +209,7 @@ export const useStore = create<State>((set, get) => ({
         saveTabs(tabs, get().repo?.path ?? null);
       }
     } finally {
-      set({ loading: false });
+      if (seq === openSeq) set({ loading: false });
     }
   },
 
@@ -231,11 +237,13 @@ export const useStore = create<State>((set, get) => ({
   async refresh(scope = "all") {
     const repo = get().repo;
     if (!repo) return;
-    const seq = ++refreshSeq;
     try {
       if (scope === "status" && get().graph) {
+        // Own counter: a status-only load must not cancel a full refresh
+        // that is already running (it would drop that refresh's graph).
+        const sseq = ++statusSeq;
         const status = await api.status(repo.path);
-        if (seq !== refreshSeq || get().repo?.path !== repo.path) return;
+        if (sseq !== statusSeq || get().repo?.path !== repo.path) return;
         const dirty = status.staged.length + status.unstaged.length + status.conflicted.length > 0;
         const hasWipRow = get().graph?.commits[0]?.id === WIP_ID;
         if (dirty === hasWipRow) {
@@ -245,6 +253,10 @@ export const useStore = create<State>((set, get) => ({
         }
         // The WIP row has to appear or disappear: fall through to a full load.
       }
+      const seq = ++refreshSeq;
+      // Also a status load: if a status-only refresh starts after this one,
+      // its newer result must win over ours.
+      const sseq = ++statusSeq;
       const [info, graph, status, stashes, remotes] = await Promise.all([
         api.repoInfo(repo.path),
         api.graph(repo.path, get().graphLimit),
@@ -254,7 +266,7 @@ export const useStore = create<State>((set, get) => ({
       ]);
       if (seq !== refreshSeq || get().repo?.path !== repo.path) return;
       const stopped = get().repo?.state === "clean" && info.state !== "clean" && status.conflicted.length > 0;
-      set({ repo: info, graph, status, stashes, remotes });
+      set(sseq === statusSeq ? { repo: info, graph, status, stashes, remotes } : { repo: info, graph, stashes, remotes });
       // An operation just stopped on conflicts: show them.
       if (stopped) get().select(WIP_ID, true);
 
@@ -267,7 +279,7 @@ export const useStore = create<State>((set, get) => ({
         get().select(info.headOid ?? graph.commits[0]?.id ?? null);
       }
 
-      get().reloadOpenDiff(status);
+      get().reloadOpenDiff(get().status ?? status);
     } catch (e) {
       get().toast("error", errorText(e));
     }

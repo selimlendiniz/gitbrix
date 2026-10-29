@@ -130,6 +130,8 @@ export interface FileDiff {
   status: FileStatus;
   binary: boolean;
   truncated: boolean;
+  /** Not valid UTF-8: line text is approximate, no partial staging. */
+  lossy?: boolean;
   hunks: Hunk[];
 }
 
@@ -256,8 +258,10 @@ export const api = {
 
   stashSave: (repo: string, message: string | null, includeUntracked: boolean) =>
     invoke<void>("stash_save", { repo, message, includeUntracked }),
-  stashApply: (repo: string, index: number, pop: boolean) => invoke<void>("stash_apply", { repo, index, pop }),
-  stashDrop: (repo: string, index: number) => invoke<void>("stash_drop", { repo, index }),
+  /** With `id`, the stash is found by id (the index may be stale). */
+  stashApply: (repo: string, index: number, pop: boolean, id: string | null = null) =>
+    invoke<void>("stash_apply", { repo, index, pop, id }),
+  stashDrop: (repo: string, index: number, id: string | null = null) => invoke<void>("stash_drop", { repo, index, id }),
   stashStore: (repo: string, id: string, message: string) => invoke<void>("stash_store", { repo, id, message }),
 
   cherryPick: (repo: string, id: string) => invoke<void>("cherry_pick", { repo, id }),

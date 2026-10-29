@@ -60,3 +60,13 @@ describe("resolve", () => {
     expect(resolve(q, ["ours"])).toBe("x");
   });
 });
+
+describe("CRLF files", () => {
+  it("recognises markers with \\r and keeps the line endings", () => {
+    const text = "top\r\n<<<<<<< HEAD\r\nours\r\n=======\r\ntheirs\r\n>>>>>>> side\r\nend\r\n";
+    const p = parseConflicts(text);
+    expect(p.segments.map((s) => s.kind)).toEqual(["text", "conflict", "text"]);
+    expect(p.segments[1]).toMatchObject({ oursLabel: "HEAD", theirsLabel: "side" });
+    expect(resolve(p, ["theirs"])).toBe("top\r\ntheirs\r\nend\r\n");
+  });
+});

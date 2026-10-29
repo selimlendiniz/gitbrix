@@ -107,6 +107,10 @@ pub fn run(repo: &Repository, workdir: &Path, base: &str, steps: &[RebaseStep]) 
     if base.starts_with('-') || Oid::from_str(base).is_err() {
         return Err(Error::msg("Invalid base commit"));
     }
+    // A stopped rebase may still need the message files in our scratch dir.
+    if repo.state() != git2::RepositoryState::Clean {
+        return Err(Error::msg("Another operation is in progress; finish or abort it first"));
+    }
     let expected: Vec<String> = commits(repo, base)?.into_iter().map(|c| c.id).collect();
     let mut planned: Vec<String> = steps.iter().map(|s| s.id.clone()).collect();
     planned.sort();

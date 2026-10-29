@@ -58,3 +58,16 @@ describe("lineRange", () => {
     expect(lineRange(hunk, 5, 0)).toEqual([1, 2, 3, 4]);
   });
 });
+
+describe("no-newline-at-end selections", () => {
+  // Old file ends with "last" (no newline); new file "lastmod\n".
+  const h: Hunk = { ...hunk, lines: [L("del", "last", true), L("add", "lastmod")] };
+
+  it("allows replacing the last line", () => {
+    expect(body(buildPatch(diff, h, null, false))).toEqual(["@@ -1,1 +1,1 @@", "-last", "\\ No newline at end of file", "+lastmod"]);
+  });
+
+  it("refuses to add after a kept no-newline last line", () => {
+    expect(() => buildPatch(diff, h, new Set([1]), false)).toThrow(/last line/);
+  });
+});

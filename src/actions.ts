@@ -243,15 +243,22 @@ export async function stashSave() {
   if (!res) return;
   const ok = await s().run("Stashing", (r) => api.stashSave(r, res.value.trim() || null, res.checked), "Changes stashed");
   const repo = s().repo?.path;
-  if (ok && repo) pushUndo({ label: "stash", repo, run: (r) => api.stashApply(r, 0, true) });
+  const id = s().stashes[0]?.id ?? null; // the refresh after `run` lists the new stash first
+  if (ok && repo && id) pushUndo({ label: "stash", repo, run: (r) => api.stashApply(r, 0, true, id) });
+}
+
+function stashId(index: number): string | null {
+  return s().stashes.find((st) => st.index === index)?.id ?? null;
 }
 
 export async function stashPop(index = 0) {
-  await s().run("Popping stash", (r) => api.stashApply(r, index, true), "Stash applied and dropped");
+  const id = stashId(index);
+  await s().run("Popping stash", (r) => api.stashApply(r, index, true, id), "Stash applied and dropped");
 }
 
 export async function stashApply(index: number) {
-  await s().run("Applying stash", (r) => api.stashApply(r, index, false), "Stash applied");
+  const id = stashId(index);
+  await s().run("Applying stash", (r) => api.stashApply(r, index, false, id), "Stash applied");
 }
 
 export async function stashDrop(st: StashInfo) {
@@ -262,7 +269,7 @@ export async function stashDrop(st: StashInfo) {
     danger: true,
   });
   if (!ok) return;
-  const done = await s().run("Dropping stash", (r) => api.stashDrop(r, st.index), "Stash dropped");
+  const done = await s().run("Dropping stash", (r) => api.stashDrop(r, st.index, st.id), "Stash dropped");
   const repo = s().repo?.path;
   if (done && repo) pushUndo({ label: "drop stash", repo, run: (r) => api.stashStore(r, st.id, st.message) });
 }

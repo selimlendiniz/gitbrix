@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
@@ -16,6 +16,7 @@ use tauri::{AppHandle, Emitter};
 use crate::error::{Error, Result};
 
 const DEBOUNCE: Duration = Duration::from_millis(300);
+const MAX_WAIT: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Serialize)]
 struct Changed {
@@ -97,10 +98,21 @@ pub fn watch(app: AppHandle, state: &WatchState, repo_path: &str) -> Result<()> 
             }
             let mut git = in_git(&ev);
             // Swallow the burst that follows (a checkout touches many files).
+            // Only relevant events extend the wait, and never past MAX_WAIT,
+            // so a build writing ignored files nonstop can't starve the UI.
+            let started = Instant::now();
+            let mut quiet_until = Instant::now() + DEBOUNCE;
             loop {
-                match rx.recv_timeout(DEBOUNCE) {
-                    Ok(Ok(ev)) => git |= in_git(&ev),
-                    Ok(Err(_)) => continue,
+                let now = Instant::now();
+                if now >= quiet_until || now >= started + MAX_WAIT {
+                    break;
+                }
+                match rx.recv_timeout(quiet_until.min(started + MAX_WAIT) - now) {
+                    Ok(Ok(ev)) if relevant(&ev) => {
+                        git |= in_git(&ev);
+                        quiet_until = Instant::now() + DEBOUNCE;
+                    }
+                    Ok(_) => {}
                     Err(RecvTimeoutError::Timeout) => break,
                     Err(RecvTimeoutError::Disconnected) => return,
                 }

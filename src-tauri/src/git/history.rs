@@ -7,7 +7,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
-use super::cli::run;
+use super::cli::{literal, run};
 use crate::error::{Error, Result};
 
 #[derive(Debug, Serialize)]
@@ -28,7 +28,7 @@ pub fn file_history(repo: &Path, path: &str, limit: usize) -> Result<Vec<History
     let limit = format!("-n{limit}");
     let out = run(
         repo,
-        &["log", &limit, "--follow", "--name-only", "--format=%x1e%H%x1f%an%x1f%at%x1f%s", "--", path],
+        &["log", &limit, "--follow", "--name-only", "--format=%x1e%H%x1f%an%x1f%at%x1f%s", "--", &literal(path)],
     )?;
     Ok(parse_history(&out.stdout))
 }

@@ -42,20 +42,31 @@ export async function undoLast() {
   if (ok) useUndo.setState((s) => ({ stack: s.stack.filter((e) => e !== entry) }));
 }
 
-/** How to get from HEAD `after` back to HEAD `before`, or null. */
+/** How to get from HEAD `after` back to HEAD `before`, or null. The
+ *  returned function first checks HEAD is still where `after` left it:
+ *  if anything moved it since (a commit from a terminal), undoing would
+ *  throw that work away, so it refuses. */
 export function headUndo(before: RepoInfo, after: RepoInfo): ((repo: string) => Promise<unknown>) | null {
   if (!before.headOid) return null; // nothing to go back to
+  let undo: (repo: string) => Promise<unknown>;
   if (before.headBranch !== after.headBranch || before.detached !== after.detached) {
     const branch = before.headBranch;
     const oid = before.headOid;
-    return before.detached || !branch ? (r) => api.checkoutDetached(r, oid) : (r) => api.checkoutBranch(r, branch);
-  }
-  if (before.headOid !== after.headOid) {
+    undo = before.detached || !branch ? (r) => api.checkoutDetached(r, oid) : (r) => api.checkoutBranch(r, branch);
+  } else if (before.headOid !== after.headOid) {
     const oid = before.headOid;
     const mode: ResetMode = "keep";
-    return (r) => api.reset(r, oid, mode);
+    undo = (r) => api.reset(r, oid, mode);
+  } else {
+    return null;
   }
-  return null;
+  return async (r) => {
+    const now = await api.repoInfo(r);
+    if (now.headOid !== after.headOid || now.headBranch !== after.headBranch) {
+      throw "HEAD has moved since then (another commit or checkout), so this can't be undone safely.";
+    }
+    return undo(r);
+  };
 }
 
 /** Run an operation that may move HEAD and make it undoable. `op`

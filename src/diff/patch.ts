@@ -39,6 +39,7 @@ export function buildPatch(diff: FileDiff, hunk: Hunk, selected: Set<number> | n
   });
 
   if (changes === 0) return null;
+  checkNoEol(body);
 
   const oldPath = diff.oldPath ?? diff.path;
   const header = [
@@ -48,6 +49,22 @@ export function buildPatch(diff: FileDiff, hunk: Hunk, selected: Set<number> | n
     `@@ -${hunk.oldStart},${oldCount} +${hunk.newStart},${newCount} @@`,
   ];
   return [...header, ...body].join("\n") + "\n";
+}
+
+/** A "no newline at end of file" line ends its side of the file, so in a
+ *  valid patch nothing from that side may follow it: after a context line
+ *  nothing at all, after a deletion only additions, after an addition
+ *  nothing. A selection that breaks this (keeping the old last line while
+ *  adding after it) can't be expressed; the user must include the change
+ *  to that last line. */
+function checkNoEol(body: string[]) {
+  body.forEach((line, i) => {
+    if (line !== NO_EOL) return;
+    const kind = body[i - 1]?.[0];
+    const rest = body.slice(i + 1).filter((l) => l !== NO_EOL);
+    const ok = kind === "-" ? rest.every((l) => l[0] === "+") : rest.length === 0;
+    if (!ok) throw new Error("This selection changes what follows the file's last line. Include the change to that last line too.");
+  });
 }
 
 /** Indices of the add/del lines between two clicked lines, inclusive. */

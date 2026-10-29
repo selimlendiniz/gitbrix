@@ -49,6 +49,9 @@ pub struct FileDiff {
     pub status: &'static str,
     pub binary: bool,
     pub truncated: bool,
+    /// Some line isn't valid UTF-8, so its text here is approximate and
+    /// must not be used to build a patch.
+    pub lossy: bool,
     pub hunks: Vec<Hunk>,
 }
 
@@ -155,6 +158,7 @@ pub fn file_diff(diff: &Diff, path: &str) -> Result<FileDiff> {
             status,
             binary: delta.flags().is_binary(),
             truncated: false,
+            lossy: false,
             hunks: Vec::new(),
         };
         let Some(patch) = Patch::from_diff(diff, i)? else {
@@ -195,6 +199,7 @@ pub fn file_diff(diff: &Diff, path: &str) -> Result<FileDiff> {
                     _ => continue,
                 };
                 let text = String::from_utf8_lossy(line.content());
+                fd.lossy |= matches!(text, std::borrow::Cow::Owned(_));
                 out.lines.push(Line {
                     kind,
                     old_no: line.old_lineno(),

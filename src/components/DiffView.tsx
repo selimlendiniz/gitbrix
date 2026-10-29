@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { api, DiffLine, FileDiff } from "../api";
+import { api, DiffLine, errorText, FileDiff } from "../api";
 import { discardFiles } from "../actions";
 import { shortId, statusLetter } from "../format";
 import { diffTokens, Token } from "../diff/highlight";
@@ -169,7 +169,19 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
     const h = diff.hunks[hunk];
     const lines = sel?.hunk === hunk ? sel.lines : null;
     const reverse = action !== "stage";
-    const patch = buildPatch(diff, h, lines, reverse);
+    // A whole new or deleted file is one hunk; a patch would leave an empty
+    // file behind instead of adding or removing it, so act on the file.
+    if (!lines && diff.hunks.length === 1 && ["added", "deleted", "untracked"].includes(diff.status)) {
+      if (action === "discard") return discardFiles([diff.path]);
+      return run(action === "stage" ? "Staging" : "Unstaging", (r) => (action === "stage" ? api.stage(r, [diff.path]) : api.unstage(r, [diff.path])), undefined, "status");
+    }
+    let patch: string | null;
+    try {
+      patch = buildPatch(diff, h, lines, reverse);
+    } catch (e) {
+      useStore.getState().toast("error", errorText(e));
+      return;
+    }
     if (!patch) return;
     const what = lines ? `${lines.size} line${lines.size === 1 ? "" : "s"}` : "this hunk";
     if (action === "discard") {
@@ -195,7 +207,7 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
           <div className="hunk" key={i}>
             <div className="hunk-header">
               <span className="hunk-range">{h.header}</span>
-              {wip && (
+              {wip && !diff.lossy && (
                 <span className="hunk-actions">
                   {wip.staged ? (
                     <button className="small-btn" onClick={() => apply(i, "unstage")}>
@@ -221,7 +233,7 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
                     l={l}
                     tokens={tokens?.[i]?.[j]}
                     selected={sel?.hunk === i && sel.lines.has(j)}
-                    onPick={wip && l.kind !== "ctx" ? (extend) => pick(i, j, extend) : undefined}
+                    onPick={wip && !diff.lossy && l.kind !== "ctx" ? (extend) => pick(i, j, extend) : undefined}
                   />
                 ))
               : (() => {
@@ -237,6 +249,9 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
         );
       })}
       {diff.truncated && <div className="diff-message">Diff truncated — file is too large to show in full.</div>}
+      {wip && diff.lossy && (
+        <div className="diff-message">This file isn't UTF-8 text, so hunks and lines can't be staged separately. Stage the whole file instead.</div>
+      )}
     </div>
   );
 }

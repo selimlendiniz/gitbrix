@@ -2,13 +2,20 @@
 
 use std::path::Path;
 
-use super::cli::{run, run_progress, run_with_input};
+use super::cli::{literal, run, run_progress, run_with_input};
 use crate::error::{Error, Result};
 
-fn with_paths<'a>(mut args: Vec<&'a str>, paths: &'a [String]) -> Vec<&'a str> {
-    args.push("--");
-    args.extend(paths.iter().map(String::as_str));
-    args
+fn with_paths(args: &[&str], paths: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+    out.push("--".into());
+    out.extend(paths.iter().map(|p| literal(p)));
+    out
+}
+
+fn run_owned(repo: &Path, args: &[String]) -> Result<()> {
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    run(repo, &refs)?;
+    Ok(())
 }
 
 fn has_commits(repo: &Path) -> bool {
@@ -24,7 +31,7 @@ fn check_name(name: &str) -> Result<()> {
 }
 
 pub fn stage(repo: &Path, paths: &[String]) -> Result<()> {
-    run(repo, &with_paths(vec!["add", "-A"], paths))?;
+    run_owned(repo, &with_paths(&["add", "-A"], paths))?;
     Ok(())
 }
 
@@ -35,9 +42,9 @@ pub fn stage_all(repo: &Path) -> Result<()> {
 
 pub fn unstage(repo: &Path, paths: &[String]) -> Result<()> {
     if has_commits(repo) {
-        run(repo, &with_paths(vec!["restore", "--staged"], paths))?;
+        run_owned(repo, &with_paths(&["restore", "--staged"], paths))?;
     } else {
-        run(repo, &with_paths(vec!["rm", "--cached", "-r", "-q"], paths))?;
+        run_owned(repo, &with_paths(&["rm", "--cached", "-r", "-q"], paths))?;
     }
     Ok(())
 }
@@ -71,31 +78,44 @@ pub fn apply_patch(repo: &Path, patch: &str, to_index: bool, reverse: bool) -> R
 
 /// Record an untracked file in the index as empty, so a patch can stage
 /// part of its content.
+/// A path from the UI must stay inside the work tree.
+pub fn check_path(path: &str) -> Result<()> {
+    let p = Path::new(path);
+    if path.is_empty() || p.is_absolute() || p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err(Error::msg(format!("Invalid path: {path:?}")));
+    }
+    Ok(())
+}
+
 pub fn intent_to_add(repo: &Path, path: &str) -> Result<()> {
-    run(repo, &["add", "-N", "--", path])?;
+    check_path(path)?;
+    run(repo, &["add", "-N", "--", &literal(path)])?;
     Ok(())
 }
 
 /// Resolve a conflicted file by writing `content` to it and staging it.
 pub fn resolve_with_content(repo: &Path, path: &str, content: &str) -> Result<()> {
+    check_path(path)?;
     std::fs::write(repo.join(path), content)?;
-    run(repo, &["add", "--", path])?;
+    run(repo, &["add", "--", &literal(path)])?;
     Ok(())
 }
 
 /// Resolve a conflicted file by taking one side whole. If that side
 /// deleted the file, the resolution is the deletion.
 pub fn resolve_with_side(repo: &Path, path: &str, side: &str, side_exists: bool) -> Result<()> {
+    check_path(path)?;
     let flag = match side {
         "ours" => "--ours",
         "theirs" => "--theirs",
         other => return Err(Error::msg(format!("Unknown side {other}"))),
     };
+    let lit = literal(path);
     if side_exists {
-        run(repo, &["checkout", flag, "--", path])?;
-        run(repo, &["add", "--", path])?;
+        run(repo, &["checkout", flag, "--", &lit])?;
+        run(repo, &["add", "--", &lit])?;
     } else {
-        run(repo, &["rm", "-q", "--", path])?;
+        run(repo, &["rm", "-q", "--", &lit])?;
     }
     Ok(())
 }
@@ -122,10 +142,10 @@ pub fn ignore(repo: &Path, pattern: &str) -> Result<()> {
 
 pub fn discard(repo: &Path, tracked: &[String], untracked: &[String]) -> Result<()> {
     if !tracked.is_empty() {
-        run(repo, &with_paths(vec!["restore", "--worktree"], tracked))?;
+        run_owned(repo, &with_paths(&["restore", "--worktree"], tracked))?;
     }
     if !untracked.is_empty() {
-        run(repo, &with_paths(vec!["clean", "-f", "-q"], untracked))?;
+        run_owned(repo, &with_paths(&["clean", "-f", "-q"], untracked))?;
     }
     Ok(())
 }

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RepoInfo } from "../../src/api";
 
 const calls: unknown[][] = [];
+let currentHead: Partial<RepoInfo> = {};
 vi.mock("../../src/api", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../src/api")>();
   const rec =
@@ -12,7 +13,12 @@ vi.mock("../../src/api", async (importOriginal) => {
     };
   return {
     ...real,
-    api: { checkoutBranch: rec("checkoutBranch"), checkoutDetached: rec("checkoutDetached"), reset: rec("reset") },
+    api: {
+      checkoutBranch: rec("checkoutBranch"),
+      checkoutDetached: rec("checkoutDetached"),
+      reset: rec("reset"),
+      repoInfo: async () => currentHead,
+    },
   };
 });
 
@@ -38,16 +44,25 @@ describe("headUndo", () => {
   });
 
   it("switches back when the branch changed", async () => {
+    currentHead = info({ headBranch: "topic" });
     await headUndo(info({}), info({ headBranch: "topic" }))!("/r");
     expect(calls).toEqual([["checkoutBranch", "/r", "main"]]);
   });
 
   it("moves the branch back with reset --keep when it advanced", async () => {
+    currentHead = info({ headOid: "b".repeat(40) });
     await headUndo(info({}), info({ headOid: "b".repeat(40) }))!("/r");
     expect(calls).toEqual([["reset", "/r", "a".repeat(40), "keep"]]);
   });
 
+  it("refuses when HEAD moved again since (e.g. a terminal commit)", async () => {
+    currentHead = info({ headOid: "c".repeat(40) });
+    await expect(headUndo(info({}), info({ headOid: "b".repeat(40) }))!("/r")).rejects.toMatch(/moved/);
+    expect(calls).toEqual([]);
+  });
+
   it("goes back to a detached commit", async () => {
+    currentHead = info({});
     await headUndo(info({ detached: true, headBranch: null }), info({}))!("/r");
     expect(calls).toEqual([["checkoutDetached", "/r", "a".repeat(40)]]);
   });
