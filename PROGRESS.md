@@ -17,6 +17,27 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — settings, remotes, compare, drag & drop, packaging, review
+
+- Settings: dark / light / system theme, Pull button mode, date format;
+  resizable sidebar and details panels.
+- Remotes: add / edit URL / rename / remove / fetch one; push a branch or
+  tag to a chosen remote; set / unset upstream.
+- Compare any two commits (Ctrl/Shift+click).
+- Drag a branch onto another: merge, rebase, check out & merge, push.
+- Ignore untracked files (file / extension / folder), discard all, open
+  file / show in folder, shortcuts help (`?`), branch folders in the
+  sidebar, refs on the commit panel, double-click shortcuts, infinite scroll.
+- Strict CSP for the webview; release RPM builds
+  (`pnpm tauri build --bundles rpm` →
+  `src-tauri/target/release/bundle/rpm/gitbrix-0.1.0-1.x86_64.rpm`, 3.2 MB).
+  e2e passes against both debug and release binaries (`E2E_APP=…`).
+- An independent code review found 4 bugs and 9 risks; all fixed with
+  regression tests (literal pathspecs, undo safety, CRLF conflicts,
+  non-UTF-8 partial staging, stale stash indices, refresh races, …).
+
+Tests: 54 Rust, 42 unit, 19 Playwright UI, 10 e2e steps — all passing.
+
 ### 2026-10-29 — performance, stash view, undo, highlighting, tabs, palette
 
 - Big-repo work (generated 50k commits, `scripts/big-repo.py`): fixed a
