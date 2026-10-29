@@ -80,6 +80,16 @@ pub fn commit_file_diff(repo: String, id: String, path: String, old_path: Option
 }
 
 #[tauri::command(async)]
+pub fn compare_commits(repo: String, from: String, to: String) -> Result<Vec<diff::FileChange>> {
+    diff::compare(&open(&repo)?, oid(&from)?, oid(&to)?)
+}
+
+#[tauri::command(async)]
+pub fn compare_file_diff(repo: String, from: String, to: String, path: String, old_path: Option<String>) -> Result<diff::FileDiff> {
+    diff::compare_file_diff(&open(&repo)?, oid(&from)?, oid(&to)?, &path, old_path.as_deref())
+}
+
+#[tauri::command(async)]
 pub fn workdir_file_diff(repo: String, path: String, staged: bool) -> Result<diff::FileDiff> {
     diff::workdir_file_diff(&open(&repo)?, &path, staged)
 }

@@ -877,6 +877,29 @@ textarea {
   background: var(--bg-select);
 }
 
+.graph-row.compared {
+  background: var(--bg-select);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+
+.compare-ends {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.compare-ends > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-arrow {
+  color: var(--text-faint);
+  padding-left: 14px;
+}
+
 .graph-row .cell {
   padding: 0 10px;
   min-width: 0;

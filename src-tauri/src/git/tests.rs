@@ -766,6 +766,27 @@ fn remote_management_and_targeted_push() {
     assert_eq!(git_in(&bare, &["tag"]).trim(), "");
 }
 
+#[test]
+fn compare_two_commits() {
+    let t = TestRepo::new();
+    let a = t.commit("a.txt", "1\n", "a");
+    t.commit("b.txt", "b\n", "b");
+    t.git(&["mv", "a.txt", "moved.txt"]);
+    t.git(&["commit", "-q", "-m", "move"]);
+    let c = t.commit("moved.txt", "1\n2\n", "edit");
+    let r = t.open();
+    let (a, c) = (git2::Oid::from_str(&a).unwrap(), git2::Oid::from_str(&c).unwrap());
+    let mut files: Vec<(String, &str)> = diff::compare(&r, a, c).unwrap().into_iter().map(|f| (f.path, f.status)).collect();
+    files.sort();
+    assert_eq!(files, vec![("b.txt".into(), "added"), ("moved.txt".into(), "renamed")]);
+    let fd = diff::compare_file_diff(&r, a, c, "moved.txt", Some("a.txt")).unwrap();
+    assert_eq!(fd.old_path.as_deref(), Some("a.txt"));
+    assert!(fd.hunks[0].lines.iter().any(|l| l.kind == "add" && l.text == "2"));
+    // Reversed direction swaps additions and deletions.
+    let back = diff::compare_file_diff(&r, c, a, "b.txt", None).unwrap();
+    assert_eq!(back.status, "deleted");
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

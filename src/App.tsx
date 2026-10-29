@@ -6,6 +6,7 @@ import { WIP_ID } from "./api";
 import { CommandPalette, usePalette } from "./components/CommandPalette";
 import { CommitGraph } from "./components/CommitGraph";
 import { CommitPanel } from "./components/CommitPanel";
+import { ComparePanel } from "./components/ComparePanel";
 import { ConflictView } from "./components/ConflictView";
 import { DiffView } from "./components/DiffView";
 import { BlameView, HistoryView } from "./components/FileViews";
@@ -94,6 +95,7 @@ export default function App() {
   const detailsWidth = useSettings((s) => s.detailsWidth);
   useTheme();
   const selectedId = useStore((s) => s.selectedId);
+  const compareId = useStore((s) => s.compareId);
   const diffSource = useStore((s) => s.diffSource);
   useGlobalKeys();
 
@@ -128,7 +130,15 @@ export default function App() {
               )}
             </section>
             <aside className="details">
-              {selectedId === WIP_ID ? <WipPanel /> : selectedId ? <CommitPanel /> : <div className="panel-loading">Select a commit</div>}
+              {compareId ? (
+                <ComparePanel />
+              ) : selectedId === WIP_ID ? (
+                <WipPanel />
+              ) : selectedId ? (
+                <CommitPanel />
+              ) : (
+                <div className="panel-loading">Select a commit</div>
+              )}
             </aside>
           </div>
         </>

@@ -272,3 +272,27 @@ pub fn workdir_file_diff(repo: &Repository, path: &str, staged: bool) -> Result<
     };
     file_diff(&diff, path)
 }
+
+/// Changes between two commits (`from` → `to`), as `git diff from to`.
+fn range_diff<'r>(repo: &'r Repository, from: Oid, to: Oid, pathspec: Option<&str>) -> Result<Diff<'r>> {
+    let a = repo.find_commit(from)?.tree()?;
+    let b = repo.find_commit(to)?.tree()?;
+    let mut opts = DiffOptions::new();
+    if let Some(p) = pathspec {
+        opts.pathspec(p).disable_pathspec_match(true);
+    }
+    let mut diff = repo.diff_tree_to_tree(Some(&a), Some(&b), Some(&mut opts))?;
+    if pathspec.is_none() {
+        find_renames(&mut diff)?;
+    }
+    Ok(diff)
+}
+
+pub fn compare(repo: &Repository, from: Oid, to: Oid) -> Result<Vec<FileChange>> {
+    changes(&range_diff(repo, from, to, None)?)
+}
+
+pub fn compare_file_diff(repo: &Repository, from: Oid, to: Oid, path: &str, old_path: Option<&str>) -> Result<FileDiff> {
+    let diff = range_diff(repo, from, to, if old_path.is_some() { None } else { Some(path) })?;
+    file_diff(&diff, path)
+}

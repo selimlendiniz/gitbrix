@@ -35,6 +35,10 @@ const READS: Record<string, (a: Args) => unknown> = {
   blame: (a) => (fixture.blames as Record<string, unknown>)[a.path as string] ?? fail(`No blame for ${a.path}`),
   rebase_commits: () => fixture.rebaseCommits,
   get_remotes: () => fixture.remotes,
+  // Not recorded: approximate a comparison by the newer commit's own changes.
+  compare_commits: (a) => ((fixture.details as Record<string, { files: unknown[] }>)[a.to as string]?.files ?? []),
+  compare_file_diff: (a) =>
+    (fixture.commitDiffs as Record<string, unknown>)[`${a.to}:${a.path}`] ?? fail(`No fixture diff for ${a.path}`),
   "plugin:dialog|open": () => fixture.info.path,
 };
 

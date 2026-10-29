@@ -30,7 +30,7 @@ export function DiffView() {
 
   const openDiff = useStore((s) => s.openDiff);
 
-  if (!source || (source.kind !== "commit" && source.kind !== "wip")) return null;
+  if (!source || (source.kind !== "commit" && source.kind !== "wip" && source.kind !== "compare")) return null;
 
   function changeMode(m: Mode) {
     setMode(m);
@@ -51,7 +51,13 @@ export function DiffView() {
           {source.path}
         </span>
         <span className="dim diff-where">
-          {source.kind === "commit" ? `in ${shortId(source.id)}` : source.staged ? "staged" : "unstaged"}
+          {source.kind === "commit"
+            ? `in ${shortId(source.id)}`
+            : source.kind === "compare"
+              ? `${shortId(source.from)} → ${shortId(source.to)}`
+              : source.staged
+                ? "staged"
+                : "unstaged"}
         </span>
         <span className="diff-header-actions">
           {source.kind === "wip" &&
@@ -77,7 +83,11 @@ export function DiffView() {
           <button
             className="link-btn"
             onClick={() =>
-              openDiff({ kind: "blame", path: source.path, rev: source.kind === "commit" ? source.id : null })
+              openDiff({
+                kind: "blame",
+                path: source.path,
+                rev: source.kind === "commit" ? source.id : source.kind === "compare" ? source.to : null,
+              })
             }
           >
             Blame

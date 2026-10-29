@@ -198,3 +198,16 @@ test("remote and branch menus offer remote operations", async ({ page }) => {
   expect(calls).toContainEqual(["fetch_remote", expect.objectContaining({ remote: "origin" })]);
   expect(calls).toContainEqual(["push_branch", expect.objectContaining({ remote: "origin", branch: "feature/parser" })]);
 });
+
+test("ctrl+click compares two commits", async ({ page }) => {
+  await page.goto("/?open");
+  await page.getByText("Add Cargo manifest").click();
+  await page.getByText("Wire parser into main").click({ modifiers: ["Control"] });
+  await expect(page.getByTestId("compare")).toBeVisible();
+  await expect(page.locator(".graph-row.compared")).toContainText("Wire parser into main");
+  await page.locator("[data-testid=compare] .file-row").first().click();
+  await expect(page.locator(".diff-where")).toContainText("→");
+  await page.screenshot({ path: "test-results/shots/compare.png" });
+  await page.getByRole("button", { name: "Stop comparing" }).click();
+  await expect(page.getByTestId("compare")).toBeHidden();
+});

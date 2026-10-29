@@ -40,6 +40,8 @@ export function CommitGraph() {
   const status = useStore((s) => s.status);
   const repo = useStore((s) => s.repo);
   const selectedId = useStore((s) => s.selectedId);
+  const compareId = useStore((s) => s.compareId);
+  const setCompare = useStore((s) => s.setCompare);
   const scrollRequest = useStore((s) => s.scrollRequest);
   const select = useStore((s) => s.select);
   const showMenu = useStore((s) => s.showMenu);
@@ -176,9 +178,10 @@ export function CommitGraph() {
         columns={columns}
         pills={pills.get(c.id)}
         selected={c.id === selectedId}
+        compared={c.id === compareId}
         dim={!!matchSet && !matchSet.has(i)}
         wip={c.id === WIP_ID ? wipCounts : null}
-        onSelect={select}
+        onSelect={(id, extend) => (extend && selectedId && selectedId !== WIP_ID ? setCompare(id) : select(id))}
         onMenu={(x, y) => {
           select(c.id);
           showMenu(x, y, commitMenu(c));
@@ -277,22 +280,24 @@ interface RowProps {
   columns: string;
   pills: RefPill[] | undefined;
   selected: boolean;
+  compared: boolean;
   dim: boolean;
   wip: { staged: number; unstaged: number } | null;
-  onSelect: (id: string) => void;
+  /** `extend`: Ctrl/Shift held — pick as the second commit to compare. */
+  onSelect: (id: string, extend: boolean) => void;
   onMenu: (x: number, y: number) => void;
 }
 
-const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, selected, dim, wip, onSelect, onMenu }: RowProps) {
+const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, selected, compared, dim, wip, onSelect, onMenu }: RowProps) {
   const color = laneColor(c.color);
   const dateFormat = useSettings((s) => s.dateFormat);
   return (
     <div
-      className={`graph-row${selected ? " selected" : ""}${wip ? " wip" : ""}${dim ? " dim" : ""}`}
+      className={`graph-row${selected ? " selected" : ""}${compared ? " compared" : ""}${wip ? " wip" : ""}${dim ? " dim" : ""}`}
       style={{ top: index * ROW_H, height: ROW_H, gridTemplateColumns: columns }}
       data-commit={c.id}
       onMouseDown={(e) => {
-        if (e.button === 0) onSelect(c.id);
+        if (e.button === 0) onSelect(c.id, e.ctrlKey || e.metaKey || e.shiftKey);
       }}
       onContextMenu={(e) => {
         e.preventDefault();

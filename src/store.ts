@@ -20,6 +20,7 @@ const GRAPH_PAGE = 5_000;
 export type DiffSource =
   | { kind: "commit"; id: string; path: string; oldPath: string | null }
   | { kind: "wip"; path: string; staged: boolean }
+  | { kind: "compare"; from: string; to: string; path: string; oldPath: string | null }
   | { kind: "conflict"; path: string }
   | { kind: "history"; path: string }
   | { kind: "blame"; path: string; rev: string | null }
@@ -84,6 +85,8 @@ interface State {
   stashes: StashInfo[];
   remotes: RemoteInfo[];
   selectedId: string | null;
+  /** Second commit picked with Ctrl/Shift+click to compare against. */
+  compareId: string | null;
   details: CommitDetails | null;
   diffSource: DiffSource | null;
   diff: FileDiff | null;
@@ -111,6 +114,7 @@ interface State {
   refresh: (scope?: "all" | "status") => Promise<void>;
   loadMoreCommits: () => Promise<void>;
   select: (id: string | null, scroll?: boolean) => void;
+  setCompare: (id: string | null) => void;
   openDiff: (source: DiffSource) => Promise<void>;
   reloadOpenDiff: (status: WorkingStatus) => void;
   closeDiff: () => void;
@@ -147,6 +151,7 @@ export const useStore = create<State>((set, get) => ({
   stashes: [],
   remotes: [],
   selectedId: null,
+  compareId: null,
   details: null,
   diffSource: null,
   diff: null,
@@ -255,6 +260,8 @@ export const useStore = create<State>((set, get) => ({
       // Keep the selection if it still exists; otherwise fall back to HEAD.
       const { selectedId } = get();
       // Stashes aren't graph rows but can be selected from the sidebar.
+      const { compareId } = get();
+      if (compareId && !graph.commits.some((c) => c.id === compareId)) set({ compareId: null });
       if (selectedId && !graph.commits.some((c) => c.id === selectedId) && !stashes.some((st) => st.id === selectedId)) {
         get().select(info.headOid ?? graph.commits[0]?.id ?? null);
       }
@@ -294,13 +301,17 @@ export const useStore = create<State>((set, get) => ({
     const repo = get().repo;
     set((s) => ({
       selectedId: id,
+      compareId: null,
       details: null,
       scrollRequest: scroll ? s.scrollRequest + 1 : s.scrollRequest,
     }));
     // A commit's file diff belongs to that commit; history and blame
     // views stay open while you click through commits.
     const src = get().diffSource;
-    if (src && (src.kind === "commit" || (src.kind === "wip" && id !== WIP_ID) || (src.kind === "conflict" && id !== WIP_ID))) {
+    if (
+      src &&
+      (src.kind === "commit" || src.kind === "compare" || (src.kind === "wip" && id !== WIP_ID) || (src.kind === "conflict" && id !== WIP_ID))
+    ) {
       get().closeDiff();
     }
     if (!repo || !id || id === WIP_ID) return;
@@ -313,18 +324,25 @@ export const useStore = create<State>((set, get) => ({
       .catch((e) => get().toast("error", errorText(e)));
   },
 
+  setCompare(id) {
+    if (get().diffSource?.kind === "compare" || get().diffSource?.kind === "commit") get().closeDiff();
+    set({ compareId: id && id !== get().selectedId && id !== WIP_ID ? id : null });
+  },
+
   async openDiff(source) {
     const repo = get().repo;
     if (!repo) return;
     const seq = ++diffSeq;
     if (!sameSource(source, get().diffSource)) set({ diffSource: source, diff: null, diffError: null });
     // These views load their own data.
-    if (source.kind !== "commit" && source.kind !== "wip") return;
+    if (source.kind !== "commit" && source.kind !== "wip" && source.kind !== "compare") return;
     try {
       const diff =
         source.kind === "commit"
           ? await api.commitFileDiff(repo.path, source.id, source.path, source.oldPath)
-          : await api.workdirFileDiff(repo.path, source.path, source.staged);
+          : source.kind === "compare"
+            ? await api.compareFileDiff(repo.path, source.from, source.to, source.path, source.oldPath)
+            : await api.workdirFileDiff(repo.path, source.path, source.staged);
       if (seq === diffSeq) set({ diff, diffError: null });
     } catch (e) {
       if (seq === diffSeq) set({ diff: null, diffError: errorText(e) });
