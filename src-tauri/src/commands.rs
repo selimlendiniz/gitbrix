@@ -53,10 +53,10 @@ pub fn repo_info(repo: String) -> Result<repo::RepoInfo> {
 }
 
 #[tauri::command(async)]
-pub fn get_graph(repo: String, limit: usize) -> Result<log::Graph> {
+pub fn get_graph(repo: String, limit: usize, filter: Option<log::GraphFilter>) -> Result<log::Graph> {
     let r = open(&repo)?;
     let dirty = status::status(&r)?.is_dirty();
-    log::graph(&r, limit, dirty)
+    log::graph_filtered(&r, limit, dirty, &filter.unwrap_or_default())
 }
 
 #[tauri::command(async)]

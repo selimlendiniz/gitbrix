@@ -244,3 +244,16 @@ test("commit panel lists refs; double-click stages a file", async ({ page }) => 
   expect(call).toMatchObject({ paths: ["notes.txt"] });
   expect(errors).toEqual([]);
 });
+
+test("hiding a branch sends a graph filter and shows a banner", async ({ page }) => {
+  await page.goto("/?open");
+  const item = page.locator(".side-item:not(.folder)", { hasText: /^typo$/ });
+  await item.hover();
+  await item.getByTitle("Hide in graph").click();
+  await expect(page.locator(".filter-banner")).toContainText("1 branch hidden");
+  const graphCalls = await page.evaluate(() => window.__gitbrixCalls.filter((c) => c.cmd === "get_graph").map((c) => c.args));
+  expect(graphCalls[graphCalls.length - 1]).toMatchObject({ filter: { hidden: ["refs/heads/fix/typo"], solo: [] } });
+  await page.screenshot({ path: "test-results/shots/hidden-branch.png" });
+  await page.locator(".filter-banner").getByRole("button", { name: "Show all" }).click();
+  await expect(page.locator(".filter-banner")).toBeHidden();
+});

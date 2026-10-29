@@ -55,6 +55,12 @@ export interface Graph {
   truncated: boolean;
 }
 
+/** Refs (full names) the graph leaves out, or the only ones it walks. */
+export interface GraphFilter {
+  hidden: string[];
+  solo: string[];
+}
+
 export interface StashInfo {
   index: number;
   message: string;
@@ -197,7 +203,7 @@ export const api = {
   watchRepo: (repo: string) => invoke<void>("watch_repo", { repo }),
   unwatchRepo: () => invoke<void>("unwatch_repo"),
   repoInfo: (repo: string) => invoke<RepoInfo>("repo_info", { repo }),
-  graph: (repo: string, limit: number) => invoke<Graph>("get_graph", { repo, limit }),
+  graph: (repo: string, limit: number, filter: GraphFilter) => invoke<Graph>("get_graph", { repo, limit, filter }),
   status: (repo: string) => invoke<WorkingStatus>("get_status", { repo }),
   stashes: (repo: string) => invoke<StashInfo[]>("get_stashes", { repo }),
   commitDetails: (repo: string, id: string) => invoke<CommitDetails>("commit_details", { repo, id }),

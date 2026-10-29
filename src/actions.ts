@@ -295,6 +295,10 @@ export function stashMenu(st: StashInfo): MenuItem[] {
 }
 
 export function refMenu(ref: RefInfo): MenuItem[] {
+  return [...refMenuItems(ref), { separator: true, label: "" }, ...graphItems(ref)];
+}
+
+function refMenuItems(ref: RefInfo): MenuItem[] {
   const head = currentBranch();
   const items: MenuItem[] = [];
   if (ref.kind === "local") {
@@ -567,4 +571,26 @@ export function dropMenu(source: RefInfo, target: RefInfo): MenuItem[] {
     });
   }
   return items;
+}
+
+// ---------- graph filter ----------
+
+export function toggleHidden(ref: RefInfo) {
+  const f = s().graphFilter;
+  const hidden = f.hidden.includes(ref.fullName) ? f.hidden.filter((h) => h !== ref.fullName) : [...f.hidden, ref.fullName];
+  void s().setGraphFilter({ hidden, solo: [] });
+}
+
+export function toggleSolo(ref: RefInfo) {
+  const f = s().graphFilter;
+  const solo = f.solo.includes(ref.fullName) ? f.solo.filter((x) => x !== ref.fullName) : [...f.solo, ref.fullName];
+  void s().setGraphFilter({ hidden: [], solo });
+}
+
+export function graphItems(ref: RefInfo): MenuItem[] {
+  const f = s().graphFilter;
+  return [
+    { label: f.hidden.includes(ref.fullName) ? "Show in graph" : "Hide in graph", onSelect: () => toggleHidden(ref) },
+    { label: f.solo.includes(ref.fullName) ? "Unsolo" : "Solo (show only this)", onSelect: () => toggleSolo(ref) },
+  ];
 }

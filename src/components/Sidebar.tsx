@@ -1,10 +1,10 @@
 import { ReactNode, useMemo, useState } from "react";
 
 import { RefInfo, RemoteInfo } from "../api";
-import { addRemote, checkoutRef, createBranch, refMenu, remoteMenu, remoteOf, stashMenu } from "../actions";
+import { addRemote, checkoutRef, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
-import { IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
+import { IconEye, IconEyeOff, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
 
 function Section({
   title,
@@ -41,9 +41,12 @@ function Section({
 function RefItem({ r, label, indent = 0 }: { r: RefInfo; label: string; indent?: number }) {
   const select = useStore((s) => s.select);
   const showMenu = useStore((s) => s.showMenu);
+  const filter = useStore((s) => s.graphFilter);
+  const hidden = filter.solo.length ? !filter.solo.includes(r.fullName) : filter.hidden.includes(r.fullName);
+  const solo = filter.solo.includes(r.fullName);
   return (
     <div
-      className={`side-item${r.isHead ? " head" : ""}`}
+      className={`side-item${r.isHead ? " head" : ""}${hidden ? " hidden-ref" : ""}`}
       style={{ paddingLeft: 24 + indent * 12 }}
       title={r.upstream ? `${r.name} → ${r.upstream}` : r.name}
       onClick={() => select(r.target, true)}
@@ -60,6 +63,20 @@ function RefItem({ r, label, indent = 0 }: { r: RefInfo; label: string; indent?:
           {r.behind > 0 && <span title={`${r.behind} behind ${r.upstream}`}>↓{r.behind}</span>}
           {r.ahead > 0 && <span title={`${r.ahead} ahead of ${r.upstream}`}>↑{r.ahead}</span>}
         </span>
+      )}
+      {solo && <span className="solo-badge">solo</span>}
+      {!r.isHead && (
+        <button
+          className={`eye-btn${hidden && !filter.solo.length ? " on" : ""}`}
+          title={hidden ? "Show in graph" : "Hide in graph"}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (filter.solo.length) toggleSolo(r);
+            else toggleHidden(r);
+          }}
+        >
+          {hidden ? <IconEyeOff size={12} /> : <IconEye size={12} />}
+        </button>
       )}
     </div>
   );

@@ -215,6 +215,7 @@ export function CommitGraph() {
         <span>Author</span>
         <span>Date</span>
       </div>
+      <FilterBanner />
       {searchOpen && (
         <div className="graph-search">
           <IconSearch size={13} />
@@ -421,5 +422,21 @@ function Pill({ pill, color }: { pill: RefPill; color: string }) {
         </>
       )}
     </span>
+  );
+}
+
+function FilterBanner() {
+  const filter = useStore((s) => s.graphFilter);
+  const setGraphFilter = useStore((s) => s.setGraphFilter);
+  const n = filter.solo.length || filter.hidden.length;
+  if (!n) return null;
+  const names = (filter.solo.length ? filter.solo : filter.hidden).map((f) => f.replace(/^refs\/(heads|remotes|tags)\//, ""));
+  return (
+    <div className="filter-banner" title={names.join("\n")}>
+      {filter.solo.length ? `Showing only ${names.join(", ")}` : `${n} branch${n === 1 ? "" : "es"} hidden`}
+      <button className="link-btn" onClick={() => setGraphFilter({ hidden: [], solo: [] })}>
+        Show all
+      </button>
+    </div>
   );
 }

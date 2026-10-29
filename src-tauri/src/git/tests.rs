@@ -897,6 +897,29 @@ fn stashes_appear_in_the_graph_above_their_base() {
     assert_eq!(g.max_lanes, 2, "both stashes reuse the second lane");
 }
 
+#[test]
+fn graph_can_hide_or_solo_branches() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "base");
+    t.git(&["switch", "-q", "-c", "side"]);
+    t.commit("s.txt", "s\n", "side work");
+    t.git(&["switch", "-q", "-c", "other", "main"]);
+    t.commit("o.txt", "o\n", "other work");
+    t.git(&["switch", "-q", "main"]);
+    let r = t.open();
+    let summaries = |f: log::GraphFilter| -> Vec<String> {
+        let mut v: Vec<String> = log::graph_filtered(&r, 100, false, &f).unwrap().commits.into_iter().map(|c| c.summary).collect();
+        v.sort();
+        v
+    };
+    assert_eq!(summaries(log::GraphFilter::default()), vec!["base", "other work", "side work"]);
+    let hidden = log::GraphFilter { hidden: vec!["refs/heads/side".into()], solo: vec![] };
+    assert_eq!(summaries(hidden), vec!["base", "other work"]);
+    let solo = log::GraphFilter { hidden: vec![], solo: vec!["refs/heads/side".into()] };
+    // HEAD (main) is always walked.
+    assert_eq!(summaries(solo), vec!["base", "side work"]);
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

@@ -36,7 +36,23 @@ pub struct Graph {
     pub truncated: bool,
 }
 
+/// Which refs the graph walks from. Commits reachable only from hidden
+/// refs disappear; with `solo`, only those refs (and HEAD) are walked.
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphFilter {
+    #[serde(default)]
+    pub hidden: Vec<String>,
+    #[serde(default)]
+    pub solo: Vec<String>,
+}
+
+#[cfg(test)]
 pub fn graph(repo: &Repository, limit: usize, wip: bool) -> Result<Graph> {
+    graph_filtered(repo, limit, wip, &GraphFilter::default())
+}
+
+pub fn graph_filtered(repo: &Repository, limit: usize, wip: bool, filter: &GraphFilter) -> Result<Graph> {
     let refs = refs::list(repo)?;
 
     let mut walk = repo.revwalk()?;
@@ -45,7 +61,14 @@ pub fn graph(repo: &Repository, limit: usize, wip: bool) -> Result<Graph> {
     if let Some(h) = head {
         walk.push(h)?;
     }
-    for r in &refs {
+    let walked = |full: &str| {
+        if !filter.solo.is_empty() {
+            filter.solo.iter().any(|s| s == full)
+        } else {
+            !filter.hidden.iter().any(|h| h == full)
+        }
+    };
+    for r in refs.iter().filter(|r| walked(&r.full_name)) {
         // A ref may point at something unreadable (shallow clone edge,
         // corrupt object); skip it rather than failing the whole graph.
         if let Ok(oid) = Oid::from_str(&r.target) {

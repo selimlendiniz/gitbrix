@@ -633,6 +633,49 @@ textarea {
   background: var(--add);
 }
 
+.side-item.hidden-ref .side-item-label {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.eye-btn {
+  display: none;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0 2px;
+  color: var(--text-faint);
+}
+
+.side-item:hover .eye-btn,
+.eye-btn.on {
+  display: inline-flex;
+}
+
+.eye-btn:hover {
+  color: var(--text);
+}
+
+.solo-badge {
+  font-size: 10px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0 4px;
+}
+
+.filter-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--warn);
+  background: rgba(229, 180, 90, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+
 .side-item-label {
   flex: 1;
   min-width: 0;

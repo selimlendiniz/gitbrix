@@ -6,6 +6,7 @@ import {
   errorText,
   FileDiff,
   Graph,
+  GraphFilter,
   RemoteInfo,
   RepoInfo,
   StashInfo,
@@ -14,6 +15,30 @@ import {
 } from "./api";
 import { addRecent } from "./recent";
 import { loadTabs, saveTabs, Tab } from "./tabs";
+
+const FILTER_KEY = "gitbrix.graphFilter";
+
+function loadGraphFilter(repo: string): GraphFilter {
+  try {
+    const all = JSON.parse(localStorage.getItem(FILTER_KEY) ?? "{}");
+    const f = all[repo];
+    if (f && Array.isArray(f.hidden) && Array.isArray(f.solo)) return f;
+  } catch {
+    // fall through
+  }
+  return { hidden: [], solo: [] };
+}
+
+function saveGraphFilter(repo: string, f: GraphFilter) {
+  try {
+    const all = JSON.parse(localStorage.getItem(FILTER_KEY) ?? "{}");
+    if (f.hidden.length || f.solo.length) all[repo] = f;
+    else delete all[repo];
+    localStorage.setItem(FILTER_KEY, JSON.stringify(all));
+  } catch {
+    // ignore
+  }
+}
 
 const GRAPH_PAGE = 5_000;
 
@@ -102,6 +127,8 @@ interface State {
   scrollRequest: number;
   /** How many commits the graph loads; grows with "load more". */
   graphLimit: number;
+  graphFilter: GraphFilter;
+  setGraphFilter: (f: GraphFilter) => Promise<void>;
 
   /** Open repositories, one per tab. */
   tabs: Tab[];
@@ -167,6 +194,7 @@ export const useStore = create<State>((set, get) => ({
   menu: null,
   scrollRequest: 0,
   graphLimit: GRAPH_PAGE,
+  graphFilter: { hidden: [], solo: [] },
   tabs: loadTabs().tabs,
 
   async openRepo(path) {
@@ -194,6 +222,7 @@ export const useStore = create<State>((set, get) => ({
         diffSource: null,
         diff: null,
         graphLimit: GRAPH_PAGE,
+        graphFilter: loadGraphFilter(info.path),
       });
       await get().refresh();
       if (seq !== openSeq) return;
@@ -259,7 +288,7 @@ export const useStore = create<State>((set, get) => ({
       const sseq = ++statusSeq;
       const [info, graph, status, stashes, remotes] = await Promise.all([
         api.repoInfo(repo.path),
-        api.graph(repo.path, get().graphLimit),
+        api.graph(repo.path, get().graphLimit, get().graphFilter),
         api.status(repo.path),
         api.stashes(repo.path),
         api.remotes(repo.path),
@@ -303,6 +332,14 @@ export const useStore = create<State>((set, get) => ({
         }
       }
     }
+  },
+
+  async setGraphFilter(f) {
+    const repo = get().repo;
+    if (!repo) return;
+    set({ graphFilter: f });
+    saveGraphFilter(repo.path, f);
+    await get().refresh();
   },
 
   async loadMoreCommits() {
