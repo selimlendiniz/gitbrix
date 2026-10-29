@@ -1,8 +1,11 @@
-import { fileItems, stashApply, stashDrop, stashPop } from "../actions";
+import { useMemo } from "react";
+
+import { checkoutRef, fileItems, refMenu, stashApply, stashDrop, stashPop } from "../actions";
 import { laneColor } from "../colors";
 import { fullTime, initials, shortId } from "../format";
 import { useStore } from "../store";
 import { FileList } from "./FileList";
+import { IconBranch, IconCloud, IconTag } from "./Icons";
 
 export function CommitPanel() {
   const details = useStore((s) => s.details);
@@ -66,6 +69,8 @@ export function CommitPanel() {
         </div>
       </div>
 
+      {!stash && <CommitRefs id={details.id} />}
+
       <div className="commit-ids" style={stash ? { display: "none" } : undefined}>
         <span className="dim">commit</span>
         <button
@@ -109,6 +114,35 @@ export function CommitPanel() {
           ])
         }
       />
+    </div>
+  );
+}
+
+/** Branches and tags pointing at this commit. */
+function CommitRefs({ id }: { id: string }) {
+  // Select the stable array, filter outside: a selector returning a new
+  // array on every call would re-render forever.
+  const all = useStore((s) => s.graph?.refs);
+  const refs = useMemo(() => all?.filter((r) => r.target === id) ?? [], [all, id]);
+  const showMenu = useStore((s) => s.showMenu);
+  if (refs.length === 0) return null;
+  return (
+    <div className="commit-refs">
+      {refs.map((r) => (
+        <span
+          key={r.fullName}
+          className={`ref-chip ${r.kind}${r.isHead ? " head" : ""}`}
+          onDoubleClick={() => checkoutRef(r)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            showMenu(e.clientX, e.clientY, refMenu(r));
+          }}
+          title={r.upstream ? `tracks ${r.upstream}` : undefined}
+        >
+          {r.kind === "tag" ? <IconTag size={11} /> : r.kind === "remote" ? <IconCloud size={11} /> : <IconBranch size={11} />}
+          {r.name}
+        </span>
+      ))}
     </div>
   );
 }

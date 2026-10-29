@@ -231,3 +231,16 @@ test("dragging a branch onto HEAD offers merge and rebase", async ({ page }) => 
   await expect(page.getByRole("menuitem", { name: "Rebase main onto feature/ui" })).toBeVisible();
   await page.screenshot({ path: "test-results/shots/drag-drop.png" });
 });
+
+test("commit panel lists refs; double-click stages a file", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  await page.goto("/?open");
+  await page.getByText("Tidy up main").click();
+  await expect(page.locator(".ref-chip.head")).toHaveText("main");
+  await page.locator(".graph-row.wip").click();
+  await page.locator(".wip-panel .file-row", { hasText: "notes.txt" }).dblclick();
+  const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "stage")?.args);
+  expect(call).toMatchObject({ paths: ["notes.txt"] });
+  expect(errors).toEqual([]);
+});

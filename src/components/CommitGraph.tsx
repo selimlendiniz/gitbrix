@@ -299,6 +299,11 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, sele
       onMouseDown={(e) => {
         if (e.button === 0) onSelect(c.id, e.ctrlKey || e.metaKey || e.shiftKey);
       }}
+      onDoubleClick={() => {
+        // Double-click a commit that has a local branch: check it out.
+        const local = pills?.find((p) => p.local)?.local;
+        if (local && !local.isHead) void checkoutRef(local);
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         onMenu(e.clientX, e.clientY);

@@ -93,6 +93,7 @@ export function WipPanel() {
           onOpen={(f) =>
             openDiff(f.status === "conflicted" ? { kind: "conflict", path: f.path } : { kind: "wip", path: f.path, staged: false })
           }
+          onActivate={(f) => f.status !== "conflicted" && stage([f.path])}
           onMenu={(f, x, y) =>
             showMenu(x, y, [
               { label: "Stage file", onSelect: () => stage([f.path]) },
@@ -134,6 +135,7 @@ export function WipPanel() {
           empty="Nothing staged yet"
           activePath={active?.staged ? active.path : null}
           onOpen={(f) => openDiff({ kind: "wip", path: f.path, staged: true })}
+          onActivate={(f) => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path])}
           onMenu={(f, x, y) => showMenu(x, y, [{ label: "Unstage file", onSelect: () => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path]) }])}
           actions={(f) => (
             <button className="icon-btn unstage" title="Unstage file" onClick={() => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path])}>

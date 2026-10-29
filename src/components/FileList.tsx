@@ -16,6 +16,7 @@ export function FileList({
   files,
   activePath,
   onOpen,
+  onActivate,
   actions,
   onMenu,
   empty,
@@ -23,6 +24,7 @@ export function FileList({
   files: FileRow[];
   activePath?: string | null;
   onOpen: (f: FileRow) => void;
+  onActivate?: (f: FileRow) => void;
   actions?: (f: FileRow) => ReactNode;
   onMenu?: (f: FileRow, x: number, y: number) => void;
   empty?: string;
@@ -38,6 +40,7 @@ export function FileList({
             className={`file-row${activePath === f.path ? " active" : ""}`}
             title={f.oldPath ? `${f.oldPath} → ${f.path}` : f.path}
             onClick={() => onOpen(f)}
+            onDoubleClick={onActivate ? () => onActivate(f) : undefined}
             onContextMenu={
               onMenu
                 ? (e) => {
