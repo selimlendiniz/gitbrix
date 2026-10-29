@@ -4,7 +4,7 @@
 
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 
-import { api, CommitRow, PullMode, RefInfo, RemoteInfo, ResetMode, StashInfo, WIP_ID, Worktree } from "./api";
+import { api, CommitRow, PullMode, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
@@ -704,4 +704,22 @@ function fileItemsAbs(path: string): MenuItem[] {
     { label: "Show in folder", onSelect: () => revealItemInDir(path).catch((e) => s().toast("error", String(e))) },
     { label: "Copy path", onSelect: () => copy(path) },
   ];
+}
+
+// ---------- submodules ----------
+
+export function submoduleMenu(sm: SubmoduleInfo): MenuItem[] {
+  const repo = s().repo;
+  const abs = repo ? `${repo.path.replace(/\/+$/, "")}/${sm.path}` : sm.path;
+  return [
+    { label: "Open in a tab", disabled: !sm.initialized, onSelect: () => void s().openRepo(abs) },
+    { label: "Update all submodules", onSelect: () => updateSubmodules() },
+    { separator: true, label: "" },
+    ...fileItemsAbs(abs),
+    { label: "Copy URL", disabled: !sm.url, onSelect: () => sm.url && copy(sm.url) },
+  ];
+}
+
+export async function updateSubmodules() {
+  await s().run("Updating submodules", (r) => api.submoduleUpdate(r), "Submodules updated");
 }

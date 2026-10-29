@@ -202,6 +202,14 @@ export interface Worktree {
   prunable: boolean;
 }
 
+export interface SubmoduleInfo {
+  name: string;
+  path: string;
+  url: string | null;
+  initialized: boolean;
+  modified: boolean;
+}
+
 export type PullMode = "ff-only" | "merge" | "rebase";
 export type ResetMode = "soft" | "mixed" | "hard" | "keep";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -269,6 +277,8 @@ export const api = {
     invoke<void>("push_branch", { repo, remote, branch, force }),
   setUpstream: (repo: string, branch: string, upstream: string | null) => invoke<void>("set_upstream", { repo, branch, upstream }),
   pushTag: (repo: string, remote: string, tag: string, del: boolean) => invoke<void>("push_tag", { repo, remote, tag, delete: del }),
+  submodules: (repo: string) => invoke<SubmoduleInfo[]>("get_submodules", { repo }),
+  submoduleUpdate: (repo: string) => invoke<void>("submodule_update", { repo }),
   worktrees: (repo: string) => invoke<Worktree[]>("get_worktrees", { repo }),
   addWorktree: (repo: string, path: string, branch: string, newBranch: boolean, start: string | null) =>
     invoke<void>("add_worktree", { repo, path, branch, newBranch, start }),

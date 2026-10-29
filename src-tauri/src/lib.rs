@@ -50,6 +50,8 @@ pub fn run() {
             commands::push,
             commands::clone_repo,
             commands::get_worktrees,
+            commands::get_submodules,
+            commands::submodule_update,
             commands::add_worktree,
             commands::remove_worktree,
             commands::prune_worktrees,

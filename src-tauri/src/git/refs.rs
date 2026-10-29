@@ -142,3 +142,32 @@ pub fn remotes(repo: &Repository) -> Result<Vec<RemoteInfo>> {
     }
     Ok(out)
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmoduleInfo {
+    pub name: String,
+    pub path: String,
+    pub url: Option<String>,
+    /// Checked out (has a work tree with a repository).
+    pub initialized: bool,
+    /// Its checked-out commit differs from the one the superproject records.
+    pub modified: bool,
+}
+
+pub fn submodules(repo: &Repository) -> Result<Vec<SubmoduleInfo>> {
+    let mut out = Vec::new();
+    for sm in repo.submodules()? {
+        let path = sm.path().to_string_lossy().into_owned();
+        let initialized = sm.open().is_ok();
+        let modified = initialized && sm.workdir_id().is_some() && sm.workdir_id() != sm.index_id();
+        out.push(SubmoduleInfo {
+            name: sm.name().unwrap_or(&path).to_owned(),
+            url: sm.url().ok().flatten().map(str::to_owned),
+            path,
+            initialized,
+            modified,
+        });
+    }
+    Ok(out)
+}

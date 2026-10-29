@@ -309,6 +309,15 @@ try {
     await shot("14-worktree");
   });
 
+  await step("lists submodules", async () => {
+    await js(`[...document.querySelectorAll('.tab')].find(t => t.textContent === 'demo-app').click()`);
+    await waitFor("demo tab", async () => (await text(".repo-name")) === "demo-app");
+    git("-c", "protocol.file.allow=always", "submodule", "add", "-q", join(demo, "origin.git"), "vendor/origin");
+    await waitFor("submodule section", () =>
+      js("return [...document.querySelectorAll('.side-section')].some(s => s.textContent.includes('Submodules') && s.textContent.includes('vendor/origin'))"),
+    );
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

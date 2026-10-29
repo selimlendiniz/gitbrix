@@ -301,6 +301,16 @@ pub fn push_tag(app: tauri::AppHandle, repo: String, remote: String, tag: String
 }
 
 #[tauri::command(async)]
+pub fn get_submodules(repo: String) -> Result<Vec<refs::SubmoduleInfo>> {
+    refs::submodules(&open(&repo)?)
+}
+
+#[tauri::command(async)]
+pub fn submodule_update(app: tauri::AppHandle, repo: String) -> Result<()> {
+    ops::submodule_update(&workdir(&repo)?, &mut progress(&app))
+}
+
+#[tauri::command(async)]
 pub fn get_worktrees(repo: String) -> Result<Vec<worktree::Worktree>> {
     worktree::list(&workdir(&repo)?)
 }

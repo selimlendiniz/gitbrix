@@ -952,6 +952,31 @@ fn worktrees_add_list_open_remove() {
     assert_eq!(worktree::list(&t.path).unwrap().len(), 1);
 }
 
+#[test]
+fn submodules_are_listed() {
+    let lib = TestRepo::new();
+    lib.commit("lib.txt", "lib\n", "lib");
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    t.git(&["-c", "protocol.file.allow=always", "submodule", "add", "-q", lib.path.to_str().unwrap(), "vendor/lib"]);
+    t.git(&["commit", "-q", "-m", "add submodule"]);
+
+    let subs = refs::submodules(&t.open()).unwrap();
+    assert_eq!(subs.len(), 1);
+    assert_eq!(subs[0].path, "vendor/lib");
+    assert!(subs[0].initialized && !subs[0].modified);
+
+    // A fresh clone has the submodule registered but not checked out.
+    let parent = t.path.parent().unwrap();
+    git_in(parent, &["clone", "-q", t.path.to_str().unwrap(), "clone"]);
+    let clone = parent.join("clone");
+    isolate(&clone);
+    assert!(!refs::submodules(&repo::open(&clone).unwrap()).unwrap()[0].initialized);
+    // `submodule_update` itself isn't exercised: git refuses file://
+    // submodule clones by default and the nested clone ignores repo-local
+    // config, so it would need a change to the global git config.
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

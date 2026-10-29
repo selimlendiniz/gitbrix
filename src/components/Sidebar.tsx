@@ -1,10 +1,10 @@
 import { ReactNode, useMemo, useState } from "react";
 
 import { RefInfo, RemoteInfo } from "../api";
-import { addRemote, addWorktree, checkoutRef, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
+import { addRemote, addWorktree, checkoutRef, submoduleMenu, updateSubmodules, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
-import { IconEye, IconEyeOff, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
+import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
 
 function Section({
   title,
@@ -108,6 +108,7 @@ export function Sidebar() {
   const remoteCount = [...remotes.values()].reduce((n, l) => n + l.length, 0);
   const allRemotes = useStore((s) => s.remotes);
   const worktrees = useStore((s) => s.worktrees);
+  const submodules = useStore((s) => s.submodules);
   const openRepo = useStore((s) => s.openRepo);
   const repoPath = useStore((s) => s.repo?.path.replace(/\/+$/, ""));
 
@@ -184,6 +185,36 @@ export function Sidebar() {
                 </div>
               );
             })}
+          </Section>
+        )}
+        {submodules.length > 0 && (
+          <Section
+            title="Submodules"
+            icon={<IconFolder size={13} />}
+            count={submodules.length}
+            action={
+              <button className="icon-btn" title="Update all (init + checkout)" onClick={() => updateSubmodules()}>
+                <IconFetch size={12} />
+              </button>
+            }
+          >
+            {submodules.map((sm) => (
+              <div
+                key={sm.path}
+                className={`side-item${sm.initialized ? "" : " hidden-ref"}`}
+                style={{ paddingLeft: 24 }}
+                title={`${sm.path}${sm.url ? `\n${sm.url}` : ""}${sm.initialized ? "" : "\nnot checked out"}`}
+                onDoubleClick={() => sm.initialized && openRepo(`${repoPath}/${sm.path}`)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  showMenu(e.clientX, e.clientY, submoduleMenu(sm));
+                }}
+              >
+                <span className="side-item-label">{sm.name}</span>
+                {sm.modified && <span className="side-count">changed</span>}
+                {!sm.initialized && <span className="side-count">not cloned</span>}
+              </div>
+            ))}
           </Section>
         )}
         <Section title="Stashes" icon={<IconStash size={13} />} count={stashes.length}>

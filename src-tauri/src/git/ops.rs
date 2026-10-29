@@ -371,6 +371,12 @@ pub fn push_tag(repo: &Path, remote: &str, tag: &str, delete: bool, progress: Pr
     Ok(())
 }
 
+/// Initialise and check out submodules at the recorded commits.
+pub fn submodule_update(repo: &Path, progress: Progress) -> Result<()> {
+    run_progress(repo, &["submodule", "update", "--init", "--recursive", "--progress"], progress)?;
+    Ok(())
+}
+
 pub fn stash_save(repo: &Path, message: Option<&str>, include_untracked: bool) -> Result<()> {
     let mut args = vec!["stash", "push"];
     if include_untracked {
