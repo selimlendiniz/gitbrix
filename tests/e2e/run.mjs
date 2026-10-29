@@ -14,7 +14,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const app = join(root, "src-tauri/target/debug/gitbrix");
+// E2E_APP=src-tauri/target/release/gitbrix tests the release build instead.
+const app = resolve(root, process.env.E2E_APP ?? "src-tauri/target/debug/gitbrix");
 const shots = join(root, "test-results/shots");
 const DISPLAY = process.env.E2E_DISPLAY ?? ":99";
 const PORT = 4444;
