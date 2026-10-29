@@ -38,6 +38,7 @@ pub fn run() {
             commands::conflict_file,
             commands::resolve_conflict,
             commands::commit,
+            commands::reword_head,
             commands::checkout_branch,
             commands::checkout_remote,
             commands::checkout_detached,

@@ -9,6 +9,8 @@ export interface Settings {
   pullMode: PullMode;
   dateFormat: "relative" | "absolute";
   fileView: "list" | "tree";
+  /** Hide whitespace-only changes in commit and comparison diffs. */
+  ignoreWhitespace: boolean;
   /** Minutes between background fetches; 0 = off. */
   autoFetch: number;
   sidebarWidth: number;
@@ -22,6 +24,7 @@ export const DEFAULTS: Settings = {
   pullMode: "ff-only",
   dateFormat: "relative",
   fileView: "list",
+  ignoreWhitespace: false,
   // Off by default: with a passphrase-protected ssh key not in an agent,
   // a background fetch would pop up a password prompt every time.
   autoFetch: 0,

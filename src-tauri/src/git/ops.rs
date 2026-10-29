@@ -173,6 +173,14 @@ pub fn commit(repo: &Path, message: &str, amend: bool) -> Result<()> {
     Ok(())
 }
 
+pub fn reword_head(repo: &Path, message: &str) -> Result<()> {
+    if message.trim().is_empty() {
+        return Err(Error::msg("Commit message is empty"));
+    }
+    run_with_input(repo, &["commit", "--amend", "--only", "--allow-empty", "-F", "-"], Some(message))?;
+    Ok(())
+}
+
 pub fn checkout_branch(repo: &Path, name: &str) -> Result<()> {
     check_name(name)?;
     run(repo, &["switch", name])?;

@@ -20,7 +20,7 @@ export function Dialog() {
     if (dialog.kind === "prompt") {
       setValue(dialog.initial ?? "");
       setChecked(dialog.checkbox?.initial ?? false);
-      setText("");
+      setText(dialog.textarea?.initial ?? "");
       setTimeout(() => inputRef.current?.select(), 0);
     } else {
       setTimeout(() => okRef.current?.focus(), 0);

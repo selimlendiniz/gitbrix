@@ -223,7 +223,7 @@ fn commit_details_and_file_diff() {
     let f = &d.files[0];
     assert_eq!((f.path.as_str(), f.status, f.additions, f.deletions), ("a.txt", "modified", 2, 1));
 
-    let fd = diff::commit_file_diff(&r, oid, "a.txt", None).unwrap();
+    let fd = diff::commit_file_diff(&r, oid, "a.txt", None, false).unwrap();
     assert_eq!(fd.hunks.len(), 1);
     let kinds: Vec<(&str, &str)> =
         fd.hunks[0].lines.iter().map(|l| (l.kind, l.text.as_str())).collect();
@@ -252,7 +252,7 @@ fn root_commit_and_rename_diffs() {
     assert_eq!(d.files.len(), 1);
     assert_eq!(d.files[0].status, "renamed");
     assert_eq!(d.files[0].old_path.as_deref(), Some("a.txt"));
-    let fd = diff::commit_file_diff(&r, git2::Oid::from_str(&id).unwrap(), "b.txt", Some("a.txt")).unwrap();
+    let fd = diff::commit_file_diff(&r, git2::Oid::from_str(&id).unwrap(), "b.txt", Some("a.txt"), false).unwrap();
     assert_eq!(fd.status, "renamed");
 }
 
@@ -787,11 +787,11 @@ fn compare_two_commits() {
     let mut files: Vec<(String, &str)> = diff::compare(&r, a, c).unwrap().into_iter().map(|f| (f.path, f.status)).collect();
     files.sort();
     assert_eq!(files, vec![("b.txt".into(), "added"), ("moved.txt".into(), "renamed")]);
-    let fd = diff::compare_file_diff(&r, a, c, "moved.txt", Some("a.txt")).unwrap();
+    let fd = diff::compare_file_diff(&r, a, c, "moved.txt", Some("a.txt"), false).unwrap();
     assert_eq!(fd.old_path.as_deref(), Some("a.txt"));
     assert!(fd.hunks[0].lines.iter().any(|l| l.kind == "add" && l.text == "2"));
     // Reversed direction swaps additions and deletions.
-    let back = diff::compare_file_diff(&r, c, a, "b.txt", None).unwrap();
+    let back = diff::compare_file_diff(&r, c, a, "b.txt", None, false).unwrap();
     assert_eq!(back.status, "deleted");
 }
 
@@ -1033,6 +1033,27 @@ fn search_history_by_file_and_code() {
     assert!(history::search(&t.path, "nope", "x", 100).is_err());
 }
 
+#[test]
+fn reword_head_keeps_staged_changes_and_whitespace_can_be_ignored() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "fn main() {\n    x();\n}\n", "frist");
+    t.commit("a.txt", "fn main() {\n        x();\n}\nmore\n", "reindent");
+    t.write("staged.txt", "s\n");
+    ops::stage(&t.path, &["staged.txt".into()]).unwrap();
+    ops::reword_head(&t.path, "Reindent and add more").unwrap();
+    assert_eq!(t.git(&["log", "-1", "--format=%s"]), "Reindent and add more");
+    assert_eq!(t.git(&["show", "--stat", "--format=", "HEAD"]).contains("staged.txt"), false);
+    assert_eq!(status::status(&t.open()).unwrap().staged.len(), 1, "still staged, not committed");
+
+    let r = t.open();
+    let head = git2::Oid::from_str(&t.git(&["rev-parse", "HEAD"])).unwrap();
+    let all = diff::commit_file_diff(&r, head, "a.txt", None, false).unwrap();
+    let ws = diff::commit_file_diff(&r, head, "a.txt", None, true).unwrap();
+    let changed = |d: &diff::FileDiff| d.hunks.iter().flat_map(|h| &h.lines).filter(|l| l.kind != "ctx").count();
+    assert_eq!(changed(&all), 3, "indent change + addition");
+    assert_eq!(changed(&ws), 1, "only the addition");
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.
@@ -1062,7 +1083,7 @@ fn record_ui_fixture() {
         let oid = git2::Oid::from_str(&id).unwrap();
         let d = diff::commit_details(&r, oid).unwrap();
         for f in &d.files {
-            let fd = diff::commit_file_diff(&r, oid, &f.path, f.old_path.as_deref()).unwrap();
+            let fd = diff::commit_file_diff(&r, oid, &f.path, f.old_path.as_deref(), false).unwrap();
             commit_diffs.insert(format!("{}:{}", id, f.path), serde_json::to_value(fd).unwrap());
         }
         details.insert(id.clone(), serde_json::to_value(d).unwrap());

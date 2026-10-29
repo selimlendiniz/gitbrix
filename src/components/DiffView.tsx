@@ -6,6 +6,7 @@ import { shortId, statusLetter } from "../format";
 import { diffTokens, Token } from "../diff/highlight";
 import { buildPatch, lineRange } from "../diff/patch";
 import { splitRows } from "../diff/split";
+import { updateSettings, useSettings } from "../settings";
 import { useStore } from "../store";
 import { IconClose } from "./Icons";
 
@@ -29,6 +30,7 @@ export function DiffView() {
   const [mode, setMode] = useState<Mode>(loadMode);
 
   const openDiff = useStore((s) => s.openDiff);
+  const ignoreWs = useSettings((s) => s.ignoreWhitespace);
 
   if (!source || (source.kind !== "commit" && source.kind !== "wip" && source.kind !== "compare")) return null;
 
@@ -77,6 +79,19 @@ export function DiffView() {
                 </button>
               </>
             ))}
+          {source.kind !== "wip" && (
+            <label className="checkbox" title="Hide changes that only touch spaces and indentation">
+              <input
+                type="checkbox"
+                checked={ignoreWs}
+                onChange={(e) => {
+                  updateSettings({ ignoreWhitespace: e.target.checked });
+                  void openDiff(source);
+                }}
+              />
+              Ignore whitespace
+            </label>
+          )}
           <button className="link-btn" onClick={() => openDiff({ kind: "history", path: source.path })}>
             History
           </button>

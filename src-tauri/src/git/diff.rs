@@ -221,7 +221,7 @@ pub fn file_diff(diff: &Diff, path: &str) -> Result<FileDiff> {
 /// Diff of a commit against its first parent (or the empty tree for a
 /// root commit). Merge commits are shown relative to the first parent,
 /// which is what "what did this merge bring in" usually means.
-pub fn commit_diff<'r>(repo: &'r Repository, oid: Oid, pathspec: Option<&str>) -> Result<Diff<'r>> {
+pub fn commit_diff<'r>(repo: &'r Repository, oid: Oid, pathspec: Option<&str>, ignore_ws: bool) -> Result<Diff<'r>> {
     let commit = repo.find_commit(oid)?;
     let tree = commit.tree()?;
     let parent_tree = match commit.parent(0) {
@@ -232,6 +232,7 @@ pub fn commit_diff<'r>(repo: &'r Repository, oid: Oid, pathspec: Option<&str>) -
     if let Some(p) = pathspec {
         opts.pathspec(p).disable_pathspec_match(true);
     }
+    opts.ignore_whitespace(ignore_ws);
     let mut diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))?;
     if pathspec.is_none() {
         find_renames(&mut diff)?;
@@ -241,7 +242,7 @@ pub fn commit_diff<'r>(repo: &'r Repository, oid: Oid, pathspec: Option<&str>) -
 
 pub fn commit_details(repo: &Repository, oid: Oid) -> Result<CommitDetails> {
     let commit = repo.find_commit(oid)?;
-    let diff = commit_diff(repo, oid, None)?;
+    let diff = commit_diff(repo, oid, None, false)?;
     Ok(CommitDetails {
         id: commit.id().to_string(),
         message: commit.message().unwrap_or("").to_owned(),
@@ -253,14 +254,16 @@ pub fn commit_details(repo: &Repository, oid: Oid) -> Result<CommitDetails> {
     })
 }
 
-pub fn commit_file_diff(repo: &Repository, oid: Oid, path: &str, old_path: Option<&str>) -> Result<FileDiff> {
+/// `ignore_ws`: hide whitespace-only changes (view only; never used for
+/// working-tree diffs, whose hunks must match the files exactly to stage).
+pub fn commit_file_diff(repo: &Repository, oid: Oid, path: &str, old_path: Option<&str>, ignore_ws: bool) -> Result<FileDiff> {
     // For a rename both sides are needed, so diff the whole commit and
     // pick the file; otherwise restrict to the path to keep it cheap.
     if old_path.is_some() {
-        let diff = commit_diff(repo, oid, None)?;
+        let diff = commit_diff(repo, oid, None, ignore_ws)?;
         return file_diff(&diff, path);
     }
-    let diff = commit_diff(repo, oid, Some(path))?;
+    let diff = commit_diff(repo, oid, Some(path), ignore_ws)?;
     file_diff(&diff, path)
 }
 
@@ -282,13 +285,14 @@ pub fn workdir_file_diff(repo: &Repository, path: &str, staged: bool) -> Result<
 }
 
 /// Changes between two commits (`from` → `to`), as `git diff from to`.
-fn range_diff<'r>(repo: &'r Repository, from: Oid, to: Oid, pathspec: Option<&str>) -> Result<Diff<'r>> {
+fn range_diff<'r>(repo: &'r Repository, from: Oid, to: Oid, pathspec: Option<&str>, ignore_ws: bool) -> Result<Diff<'r>> {
     let a = repo.find_commit(from)?.tree()?;
     let b = repo.find_commit(to)?.tree()?;
     let mut opts = DiffOptions::new();
     if let Some(p) = pathspec {
         opts.pathspec(p).disable_pathspec_match(true);
     }
+    opts.ignore_whitespace(ignore_ws);
     let mut diff = repo.diff_tree_to_tree(Some(&a), Some(&b), Some(&mut opts))?;
     if pathspec.is_none() {
         find_renames(&mut diff)?;
@@ -297,10 +301,17 @@ fn range_diff<'r>(repo: &'r Repository, from: Oid, to: Oid, pathspec: Option<&st
 }
 
 pub fn compare(repo: &Repository, from: Oid, to: Oid) -> Result<Vec<FileChange>> {
-    changes(&range_diff(repo, from, to, None)?)
+    changes(&range_diff(repo, from, to, None, false)?)
 }
 
-pub fn compare_file_diff(repo: &Repository, from: Oid, to: Oid, path: &str, old_path: Option<&str>) -> Result<FileDiff> {
-    let diff = range_diff(repo, from, to, if old_path.is_some() { None } else { Some(path) })?;
+pub fn compare_file_diff(
+    repo: &Repository,
+    from: Oid,
+    to: Oid,
+    path: &str,
+    old_path: Option<&str>,
+    ignore_ws: bool,
+) -> Result<FileDiff> {
+    let diff = range_diff(repo, from, to, if old_path.is_some() { None } else { Some(path) }, ignore_ws)?;
     file_diff(&diff, path)
 }

@@ -312,3 +312,20 @@ test("hovering a branch label dims commits not on it", async ({ page }) => {
   await expect(page.locator(".graph-row", { hasText: "Experiment: fast path" })).toHaveClass(/dim/);
   await page.screenshot({ path: "test-results/shots/branch-hover.png" });
 });
+
+test("ignore whitespace and edit the last commit's message", async ({ page }) => {
+  await page.goto("/?open");
+  await page.getByText("Wire parser into main").click();
+  await page.locator(".commit-panel .file-row", { hasText: "main.rs" }).click();
+  await page.getByLabel("Ignore whitespace").check();
+  await expect
+    .poll(() => page.evaluate(() => window.__gitbrixCalls.filter((c) => c.cmd === "commit_file_diff").pop()?.args.ignoreWs))
+    .toBe(true);
+  await page.keyboard.press("Escape");
+  await page.getByText("Tidy up main").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Edit commit message…" }).click();
+  await expect(page.getByRole("dialog").locator("input").first()).toHaveValue("Tidy up main");
+  await page.getByRole("dialog").locator("input").first().fill("Tidy up main.rs");
+  await page.getByRole("button", { name: "Save message" }).click();
+  await expect.poll(() => page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "reword_head")?.args.message)).toBe("Tidy up main.rs\n");
+});

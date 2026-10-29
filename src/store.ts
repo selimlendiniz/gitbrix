@@ -16,6 +16,7 @@ import {
   WorkingStatus,
 } from "./api";
 import { addRecent } from "./recent";
+import { useSettings } from "./settings";
 import { loadTabs, saveTabs, Tab } from "./tabs";
 
 const FILTER_KEY = "gitbrix.graphFilter";
@@ -72,7 +73,7 @@ export interface PromptRequest {
   /** Optional checkbox under the input, e.g. "Check out after create". */
   checkbox?: { label: string; initial: boolean };
   /** Multi-line textarea under the input, e.g. a tag message. */
-  textarea?: { label: string; placeholder?: string };
+  textarea?: { label: string; placeholder?: string; initial?: string };
   resolve: (r: PromptResult | null) => void;
 }
 
@@ -410,11 +411,12 @@ export const useStore = create<State>((set, get) => ({
     // These views load their own data.
     if (source.kind !== "commit" && source.kind !== "wip" && source.kind !== "compare") return; // views that load their own data
     try {
+      const ws = useSettings.getState().ignoreWhitespace;
       const diff =
         source.kind === "commit"
-          ? await api.commitFileDiff(repo.path, source.id, source.path, source.oldPath)
+          ? await api.commitFileDiff(repo.path, source.id, source.path, source.oldPath, ws)
           : source.kind === "compare"
-            ? await api.compareFileDiff(repo.path, source.from, source.to, source.path, source.oldPath)
+            ? await api.compareFileDiff(repo.path, source.from, source.to, source.path, source.oldPath, ws)
             : await api.workdirFileDiff(repo.path, source.path, source.staged);
       if (seq === diffSeq) set({ diff, diffError: null });
     } catch (e) {

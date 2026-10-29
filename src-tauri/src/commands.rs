@@ -75,8 +75,14 @@ pub fn commit_details(repo: String, id: String) -> Result<diff::CommitDetails> {
 }
 
 #[tauri::command(async)]
-pub fn commit_file_diff(repo: String, id: String, path: String, old_path: Option<String>) -> Result<diff::FileDiff> {
-    diff::commit_file_diff(&open(&repo)?, oid(&id)?, &path, old_path.as_deref())
+pub fn commit_file_diff(
+    repo: String,
+    id: String,
+    path: String,
+    old_path: Option<String>,
+    ignore_ws: Option<bool>,
+) -> Result<diff::FileDiff> {
+    diff::commit_file_diff(&open(&repo)?, oid(&id)?, &path, old_path.as_deref(), ignore_ws.unwrap_or(false))
 }
 
 #[tauri::command(async)]
@@ -85,8 +91,15 @@ pub fn compare_commits(repo: String, from: String, to: String) -> Result<Vec<dif
 }
 
 #[tauri::command(async)]
-pub fn compare_file_diff(repo: String, from: String, to: String, path: String, old_path: Option<String>) -> Result<diff::FileDiff> {
-    diff::compare_file_diff(&open(&repo)?, oid(&from)?, oid(&to)?, &path, old_path.as_deref())
+pub fn compare_file_diff(
+    repo: String,
+    from: String,
+    to: String,
+    path: String,
+    old_path: Option<String>,
+    ignore_ws: Option<bool>,
+) -> Result<diff::FileDiff> {
+    diff::compare_file_diff(&open(&repo)?, oid(&from)?, oid(&to)?, &path, old_path.as_deref(), ignore_ws.unwrap_or(false))
 }
 
 #[tauri::command(async)]
@@ -190,6 +203,12 @@ pub fn discard(repo: String, paths: Vec<String>) -> Result<()> {
 #[tauri::command(async)]
 pub fn commit(repo: String, message: String, amend: bool) -> Result<()> {
     ops::commit(&workdir(&repo)?, &message, amend)
+}
+
+/// Change the last commit's message only; staged changes stay staged.
+#[tauri::command(async)]
+pub fn reword_head(repo: String, message: String) -> Result<()> {
+    ops::reword_head(&workdir(&repo)?, &message)
 }
 
 #[tauri::command(async)]

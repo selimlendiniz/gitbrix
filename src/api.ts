@@ -236,11 +236,11 @@ export const api = {
   status: (repo: string) => invoke<WorkingStatus>("get_status", { repo }),
   stashes: (repo: string) => invoke<StashInfo[]>("get_stashes", { repo }),
   commitDetails: (repo: string, id: string) => invoke<CommitDetails>("commit_details", { repo, id }),
-  commitFileDiff: (repo: string, id: string, path: string, oldPath: string | null) =>
-    invoke<FileDiff>("commit_file_diff", { repo, id, path, oldPath }),
+  commitFileDiff: (repo: string, id: string, path: string, oldPath: string | null, ignoreWs = false) =>
+    invoke<FileDiff>("commit_file_diff", { repo, id, path, oldPath, ignoreWs }),
   compareCommits: (repo: string, from: string, to: string) => invoke<FileChange[]>("compare_commits", { repo, from, to }),
-  compareFileDiff: (repo: string, from: string, to: string, path: string, oldPath: string | null) =>
-    invoke<FileDiff>("compare_file_diff", { repo, from, to, path, oldPath }),
+  compareFileDiff: (repo: string, from: string, to: string, path: string, oldPath: string | null, ignoreWs = false) =>
+    invoke<FileDiff>("compare_file_diff", { repo, from, to, path, oldPath, ignoreWs }),
   workdirFileDiff: (repo: string, path: string, staged: boolean) =>
     invoke<FileDiff>("workdir_file_diff", { repo, path, staged }),
   fileHistory: (repo: string, path: string, limit: number) => invoke<HistoryEntry[]>("file_history", { repo, path, limit }),
@@ -262,6 +262,7 @@ export const api = {
   ignore: (repo: string, pattern: string) => invoke<void>("ignore", { repo, pattern }),
   discard: (repo: string, paths: string[]) => invoke<void>("discard", { repo, paths }),
   commit: (repo: string, message: string, amend: boolean) => invoke<void>("commit", { repo, message, amend }),
+  rewordHead: (repo: string, message: string) => invoke<void>("reword_head", { repo, message }),
 
   checkoutBranch: (repo: string, name: string) => invoke<void>("checkout_branch", { repo, name }),
   checkoutRemote: (repo: string, remoteBranch: string, local: string) =>

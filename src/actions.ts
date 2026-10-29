@@ -396,7 +396,9 @@ export function commitMenu(c: CommitRow): MenuItem[] {
   }
   const head = currentBranch();
   const sid = shortId(c.id);
+  const isHead = c.id === s().repo?.headOid;
   return [
+    ...(isHead ? [{ label: "Edit commit message…", onSelect: () => rewordHead() }, { separator: true, label: "" }] : []),
     { label: "Check out this commit…", onSelect: () => checkoutDetached(c.id) },
     { label: "Create branch here…", onSelect: () => createBranch(c.id, sid) },
     { label: "Create tag here…", onSelect: () => createTag(c.id, sid) },
@@ -735,4 +737,23 @@ export function submoduleMenu(sm: SubmoduleInfo): MenuItem[] {
 
 export async function updateSubmodules() {
   await s().run("Updating submodules", (r) => api.submoduleUpdate(r), "Submodules updated");
+}
+
+/** Change the message of the commit HEAD points at (staged changes stay out). */
+export async function rewordHead() {
+  const repo = s().repo;
+  if (!repo) return;
+  const msg = await api.headMessage(repo.path).catch(() => "");
+  const [summary, ...rest] = msg.split("\n");
+  const res = await s().prompt({
+    title: "Edit commit message",
+    label: "Summary",
+    initial: summary,
+    confirmLabel: "Save message",
+    textarea: { label: "Description", initial: rest.join("\n").trim() },
+  });
+  const sum = res?.value.trim();
+  if (!res || !sum) return;
+  const message = res.text.trim() ? `${sum}\n\n${res.text.trim()}\n` : `${sum}\n`;
+  await trackHead("edit message", () => s().run("Saving message", (r) => api.rewordHead(r, message), "Message updated"));
 }
