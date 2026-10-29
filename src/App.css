@@ -1278,6 +1278,11 @@ textarea {
 
 .files {
   padding-bottom: 6px;
+  outline: none;
+}
+
+.files:focus-visible .file-row.active {
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .files-empty {

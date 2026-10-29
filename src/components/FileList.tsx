@@ -48,7 +48,27 @@ export function FileList({
     />
   );
 
-  if (view === "list") return <div className="files">{files.map((f) => row(f, null))}</div>;
+  // Arrow keys move through the files (in display order), Space does the
+  // list's double-click action (stage / unstage).
+  const onKeyDown = (order: FileRow[]) => (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== " ") return;
+    e.preventDefault();
+    const i = order.findIndex((f) => f.path === activePath);
+    if (e.key === " ") {
+      if (i >= 0) onActivate?.(order[i]);
+      return;
+    }
+    const next = e.key === "ArrowDown" ? Math.min(order.length - 1, i + 1) : Math.max(0, i - 1);
+    if (order[next]) onOpen(order[next]);
+  };
+
+  if (view === "list") {
+    return (
+      <div className="files" tabIndex={0} onKeyDown={onKeyDown(files)}>
+        {files.map((f) => row(f, null))}
+      </div>
+    );
+  }
 
   const toggle = (path: string) =>
     setClosed((c) => {
@@ -76,7 +96,18 @@ export function FileList({
     for (const f of node.files) out.push(row(f, depth));
     return out;
   };
-  return <div className="files">{render(fileTree(files), 0)}</div>;
+  const tree = fileTree(files);
+  const order: FileRow[] = [];
+  const walk = (n: DirNode) => {
+    for (const d of n.dirs) if (!closed.has(d.path)) walk(d);
+    order.push(...n.files);
+  };
+  walk(tree);
+  return (
+    <div className="files" tabIndex={0} onKeyDown={onKeyDown(order)}>
+      {render(tree, 0)}
+    </div>
+  );
 }
 
 interface DirNode {

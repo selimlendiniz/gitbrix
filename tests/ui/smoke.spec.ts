@@ -285,3 +285,13 @@ test("search by file path across history", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page.locator(".graph-row.selected")).toContainText(/[Pp]arser/);
 });
+
+test("arrow keys move through files, space stages", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".wip-panel .file-row", { hasText: "notes.txt" }).click();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator(".wip-panel .file-row.active")).toContainText("main.rs");
+  await page.keyboard.press(" ");
+  const call = await page.evaluate(() => window.__gitbrixCalls.filter((c) => c.cmd === "stage").pop()?.args);
+  expect(call).toMatchObject({ paths: ["src/main.rs"] });
+});
