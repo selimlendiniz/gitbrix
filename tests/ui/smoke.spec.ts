@@ -575,3 +575,20 @@ test("pull requests window: points to Settings without accounts", async ({ page 
     options: { title: "Review requested: !1 Example merge request" },
   });
 });
+
+test("title bar: own window buttons, also on the welcome screen", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".titlebar-name")).toHaveText("gitbrix");
+  for (const [name, cmd] of [
+    ["Minimize", "plugin:window|minimize"],
+    ["Maximize", "plugin:window|toggle_maximize"],
+    ["Close", "plugin:window|close"],
+  ]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    expect(await calls(page)).toContain(cmd);
+  }
+  await page.goto("/?open");
+  await expect(page.locator(".titlebar .tab.active")).toHaveText("demo-app");
+  await expect(page.locator(".titlebar-drag")).toHaveAttribute("data-tauri-drag-region", "true");
+  await page.locator(".titlebar").screenshot({ path: "test-results/shots/titlebar.png" });
+});

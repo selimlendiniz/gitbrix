@@ -269,13 +269,62 @@ textarea {
   flex: none;
   display: flex;
   align-items: flex-end;
-  gap: 2px;
   height: 34px;
-  padding: 0 8px;
+  padding-left: 8px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.titlebar-name {
+  align-self: center;
+  padding-left: 6px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.titlebar-drag {
+  flex: 1;
+  min-width: 40px;
+  align-self: stretch;
+}
+
+.window-controls {
+  display: flex;
+  align-self: stretch;
+}
+
+.window-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  padding: 0;
+  cursor: default;
+}
+
+.window-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.window-btn.close:hover {
+  background: #e5484d;
+  color: #fff;
 }
 
 .tab {
