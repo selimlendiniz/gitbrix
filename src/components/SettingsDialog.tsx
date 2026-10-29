@@ -93,6 +93,26 @@ export function SettingsDialog() {
               { value: "30", label: "30 min" },
             ]}
           />
+          <span>Pull requests</span>
+          <Choice
+            value={String(settings.prPoll)}
+            onChange={(v) => set({ prPoll: Number(v) })}
+            options={[
+              { value: "0", label: "On open" },
+              { value: "1", label: "1 min" },
+              { value: "3", label: "3 min" },
+              { value: "10", label: "10 min" },
+            ]}
+          />
+          <span>Notifications</span>
+          <Choice
+            value={settings.prNotify ? "on" : "off"}
+            onChange={(v) => set({ prNotify: v === "on" })}
+            options={[
+              { value: "on", label: "New requests I can approve" },
+              { value: "off", label: "Off" },
+            ]}
+          />
           <span>Panels</span>
           <span>
             <button

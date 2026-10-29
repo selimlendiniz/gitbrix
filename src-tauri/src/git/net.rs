@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use git2::build::{CheckoutBuilder, RepoBuilder};
 use git2::{
-    AutotagOption, Cred, CredentialType, Direction, ErrorCode, FetchOptions, FetchPrune, Oid, PushOptions,
+    AutotagOption, BranchType, Cred, CredentialType, Direction, ErrorCode, FetchOptions, FetchPrune, Oid, PushOptions,
     RemoteCallbacks, Repository, SubmoduleUpdateOptions,
 };
 
@@ -172,12 +172,21 @@ fn net_error(e: git2::Error, auth: &RefCell<Auth>, url: &str) -> Error {
 // Fetch and pull
 
 fn fetch_one(r: &Repository, name: &str, progress: Shared) -> Result<()> {
+    fetch_refspecs(r, name, &[], progress)
+}
+
+/// Fetch `refspecs` from remote `name`, or its configured ones when empty
+/// (then pruning deleted branches and taking all tags).
+fn fetch_refspecs(r: &Repository, name: &str, refspecs: &[&str], progress: Shared) -> Result<()> {
     let mut remote = r.find_remote(name).map_err(|_| Error::msg(format!("No remote named '{name}'")))?;
     let url = remote.url().unwrap_or("").to_owned();
     let auth = RefCell::new(Auth::default());
     let mut fo = FetchOptions::new();
-    fo.remote_callbacks(callbacks(progress, &auth)).prune(FetchPrune::On).download_tags(AutotagOption::All);
-    remote.fetch(&[] as &[&str], Some(&mut fo), None).map_err(|e| net_error(e, &auth, &url))?;
+    fo.remote_callbacks(callbacks(progress, &auth));
+    if refspecs.is_empty() {
+        fo.prune(FetchPrune::On).download_tags(AutotagOption::All);
+    }
+    remote.fetch(refspecs, Some(&mut fo), None).map_err(|e| net_error(e, &auth, &url))?;
     Ok(())
 }
 
@@ -198,6 +207,50 @@ pub fn fetch_remote(repo: &Path, remote: &str, progress: Progress) -> Result<()>
     ops::check_name(remote)?;
     let r = open(repo)?;
     fetch_one(&r, remote, &RefCell::new(progress))
+}
+
+/// Check out the head of a pull/merge request from a fork on a local
+/// branch (`pr/12` for GitHub, `mr/12` for GitLab), creating it or moving
+/// it forward to the request's latest commit. Returns the branch name.
+pub fn checkout_pull_request(repo: &Path, remote: &str, provider: &str, number: u64, progress: Progress) -> Result<String> {
+    ops::check_name(remote)?;
+    let (head_ref, branch) = match provider {
+        "github" => (format!("refs/pull/{number}/head"), format!("pr/{number}")),
+        "gitlab" => (format!("refs/merge-requests/{number}/head"), format!("mr/{number}")),
+        other => return Err(Error::msg(format!("Unknown provider {other}"))),
+    };
+    {
+        let r = open(repo)?;
+        fetch_refspecs(&r, remote, &[&head_ref], &RefCell::new(progress))?;
+        // The fetched commit is FETCH_HEAD's only entry.
+        let mut tip = None;
+        r.fetchhead_foreach(|_, _, oid, _| {
+            tip = Some(*oid);
+            false
+        })
+        .or_else(|e| if tip.is_some() { Ok(()) } else { Err(e) })?;
+        let tip = tip.ok_or_else(|| Error::msg(format!("{remote} has no {head_ref}")))?;
+        let commit = r.find_commit(tip)?;
+        match r.find_branch(&branch, BranchType::Local) {
+            Err(_) => {
+                r.branch(&branch, &commit, false)?;
+            }
+            Ok(existing) => {
+                let current = existing.get().target().unwrap_or(tip);
+                if current != tip {
+                    if existing.is_head() {
+                        return Err(Error::msg(format!("{branch} is checked out; switch to another branch to update it")));
+                    }
+                    if !r.graph_descendant_of(tip, current)? {
+                        return Err(Error::msg(format!("{branch} has commits the request doesn't; rename or delete it first")));
+                    }
+                    r.reference(&format!("refs/heads/{branch}"), tip, true, &format!("gitbrix: update {branch} from {remote}"))?;
+                }
+            }
+        }
+    }
+    ops::checkout_branch(repo, &branch)?;
+    Ok(branch)
 }
 
 /// The current branch, its upstream's remote, and the upstream branch ref

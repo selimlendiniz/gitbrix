@@ -674,6 +674,48 @@ textarea {
   padding: 0 4px;
 }
 
+.pr-number {
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.pr-badge {
+  font-size: 10px;
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.pr-badge.review {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.pr-badge.ok {
+  color: var(--add);
+  border-color: var(--add);
+}
+
+.side-note {
+  padding: 2px 12px 2px 24px;
+  font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-note.error {
+  color: var(--warn);
+}
+
+.icon-btn.spinning svg {
+  animation: spin 900ms linear infinite;
+}
+
 .filter-banner {
   flex: none;
   display: flex;

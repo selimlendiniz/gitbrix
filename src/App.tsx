@@ -29,6 +29,7 @@ import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
 import { undoLast } from "./undo";
 import { backgroundFetch } from "./actions";
+import { loadPrs } from "./prs";
 
 function isTyping(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
@@ -117,6 +118,23 @@ function useAutoFetch() {
   }, [minutes, repoPath]);
 }
 
+/** Pull/merge requests: the open repository's on switching to it, and
+ * every open tab's on a timer so new ones raise a notification. */
+function usePullRequests() {
+  const minutes = useSettings((s) => s.prPoll);
+  const repoPath = useStore((s) => s.repo?.path);
+  useEffect(() => {
+    if (repoPath) void loadPrs(repoPath);
+  }, [repoPath]);
+  useEffect(() => {
+    if (!minutes) return;
+    const id = setInterval(() => {
+      for (const tab of useStore.getState().tabs) void loadPrs(tab.path);
+    }, minutes * 60_000);
+    return () => clearInterval(id);
+  }, [minutes]);
+}
+
 function useTheme() {
   const theme = useSettings((s) => s.theme);
   // Layout effect: the attribute must be set before children's effects
@@ -139,6 +157,7 @@ export default function App() {
   const detailsWidth = Math.min(useSettings((s) => s.detailsWidth), Math.round(winW * 0.34));
   useTheme();
   useAutoFetch();
+  usePullRequests();
   useFolderDrop();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);

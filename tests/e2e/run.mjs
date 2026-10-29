@@ -38,7 +38,8 @@ function start(cmd, args, env = {}) {
 
 function cleanup() {
   for (const p of children.reverse()) p.kill("SIGTERM");
-  rmSync(work, { recursive: true, force: true });
+  // The app may still be writing while it exits.
+  rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -460,6 +461,13 @@ try {
     await shot("19-drag-menu");
     await js(`[...document.querySelectorAll('[role=menuitem]')].find(m => m.textContent.startsWith('Move dnd-moved to')).click()`);
     await waitFor("branch moved", () => git("rev-parse", "dnd-moved") === target);
+  });
+
+  await step("pull requests: local remotes need no account; notifications are available", async () => {
+    const res = await js("return window.__TAURI_INTERNALS__.invoke('pull_requests', { repo: arguments[0] })", repo);
+    if (res.covered || res.items.length || res.problems.length) throw new Error(`unexpected ${JSON.stringify(res)}`);
+    const granted = await js("return window.__TAURI_INTERNALS__.invoke('plugin:notification|is_permission_granted')");
+    if (granted !== true) throw new Error(`notification permission: ${granted}`);
   });
 
   await wd("DELETE", `/session/${session}`);

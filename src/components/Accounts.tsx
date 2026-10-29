@@ -5,6 +5,8 @@
 import { useEffect, useState } from "react";
 
 import { Account, api, errorText, Provider } from "../api";
+import { loadPrs } from "../prs";
+import { useStore } from "../store";
 
 const DEFAULT_URL: Record<Provider, string> = {
   github: "https://github.com",
@@ -25,14 +27,21 @@ export function AccountsSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = () =>
+  const load = () =>
     api
       .accounts()
       .then(setAccounts)
       .catch((e) => setError(errorText(e)));
 
+  // After a change the open repository's requests may look different.
+  const reload = async () => {
+    await load();
+    const repo = useStore.getState().repo?.path;
+    if (repo) void loadPrs(repo);
+  };
+
   useEffect(() => {
-    void reload();
+    void load();
   }, []);
 
   function pick(p: Provider) {

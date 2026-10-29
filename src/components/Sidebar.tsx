@@ -1,11 +1,12 @@
 import { ReactNode, useMemo, useState } from "react";
 
-import { RefInfo, RemoteInfo } from "../api";
-import { addRemote, addWorktree, checkoutRef, submoduleMenu, updateSubmodules, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
+import { PullRequest, RefInfo, RemoteInfo } from "../api";
+import { addRemote, addWorktree, checkoutPullRequest, checkoutRef, prHead, prMenu, submoduleMenu, updateSubmodules, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
 import { beginDrag, dropTarget } from "../dnd";
+import { loadPrs, prLabel, usePrs, wantsReview } from "../prs";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
-import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
+import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconPullRequest, IconStash, IconTag } from "./Icons";
 
 function Section({
   title,
@@ -152,6 +153,7 @@ export function Sidebar() {
             <RemoteGroup key={rm.name} remote={rm} list={remotes.get(rm.name) ?? []} filtering={!!filter.trim()} />
           ))}
         </Section>
+        <PullRequestSection />
         <Section title="Tags" icon={<IconTag size={13} />} count={tags.length}>
           {tags.map((r) => (
             <RefItem key={r.fullName} r={r} label={r.name} />
@@ -273,5 +275,67 @@ function RemoteGroup({ remote, list, filtering }: { remote: RemoteInfo; list: Re
         />
       )}
     </>
+  );
+}
+
+function PullRequestSection() {
+  const repoPath = useStore((s) => s.repo?.path);
+  const data = usePrs((s) => (repoPath ? s.byRepo[repoPath] : undefined));
+  const select = useStore((s) => s.select);
+  const showMenu = useStore((s) => s.showMenu);
+  // Nothing to say for repositories no account covers.
+  if (!repoPath || !data || (!data.covered && !data.problems.length && !data.error)) return null;
+  const notes = [...(data.error ? [data.error] : []), ...data.problems];
+  return (
+    <Section
+      title="Pull Requests"
+      icon={<IconPullRequest size={13} />}
+      count={data.items.length}
+      action={
+        <button className={`icon-btn${data.loading ? " spinning" : ""}`} title="Check for requests" onClick={() => void loadPrs(repoPath)}>
+          <IconFetch size={12} />
+        </button>
+      }
+    >
+      {data.items.map((pr) => (
+        <PullRequestItem
+          key={`${pr.project}#${pr.number}`}
+          pr={pr}
+          onSelect={() => {
+            const head = prHead(pr);
+            if (head) select(head.target, true);
+          }}
+          onMenu={(x, y) => showMenu(x, y, prMenu(pr))}
+        />
+      ))}
+      {data.covered && !data.items.length && !notes.length && <div className="side-note">No open requests</div>}
+      {notes.map((n) => (
+        <div key={n} className="side-note error" title={n}>
+          {n}
+        </div>
+      ))}
+    </Section>
+  );
+}
+
+function PullRequestItem({ pr, onSelect, onMenu }: { pr: PullRequest; onSelect: () => void; onMenu: (x: number, y: number) => void }) {
+  return (
+    <div
+      className="side-item pr-item"
+      style={{ paddingLeft: 24 }}
+      title={`${pr.title}\n${pr.author} · ${pr.sourceBranch} → ${pr.targetBranch}${pr.sameRepo ? "" : " (fork)"}\nDouble-click to check out, right-click for more`}
+      onClick={onSelect}
+      onDoubleClick={() => checkoutPullRequest(pr)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu(e.clientX, e.clientY);
+      }}
+    >
+      <span className="pr-number">{prLabel(pr)}</span>
+      <span className="side-item-label">{pr.title}</span>
+      {pr.draft && <span className="pr-badge">draft</span>}
+      {wantsReview(pr) && <span className="pr-badge review">{pr.reviewRequested ? "review" : "approve"}</span>}
+      {pr.approved && <span className="pr-badge ok" title={pr.approvedByMe ? "Approved (you too)" : "Approved"}>✓</span>}
+    </div>
   );
 }

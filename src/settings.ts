@@ -13,6 +13,10 @@ export interface Settings {
   ignoreWhitespace: boolean;
   /** Minutes between background fetches; 0 = off. */
   autoFetch: number;
+  /** Minutes between pull/merge request checks; 0 = only on open. */
+  prPoll: number;
+  /** Desktop notification for new requests the user can approve. */
+  prNotify: boolean;
   sidebarWidth: number;
   detailsWidth: number;
 }
@@ -28,6 +32,8 @@ export const DEFAULTS: Settings = {
   // Off by default: with a passphrase-protected ssh key not in an agent,
   // a background fetch would pop up a password prompt every time.
   autoFetch: 0,
+  prPoll: 3,
+  prNotify: true,
   sidebarWidth: 240,
   detailsWidth: 380,
 };

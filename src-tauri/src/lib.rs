@@ -1,6 +1,7 @@
 mod accounts;
 mod commands;
 mod error;
+mod forge;
 mod git;
 mod watch;
 
@@ -9,6 +10,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(watch::WatchState::default())
         .setup(|app| {
             use tauri::Manager;
@@ -94,6 +96,9 @@ pub fn run() {
             commands::get_accounts,
             commands::add_account,
             commands::remove_account,
+            commands::pull_requests,
+            commands::approve_pull_request,
+            commands::checkout_pull_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

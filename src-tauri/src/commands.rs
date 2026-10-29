@@ -10,6 +10,7 @@ use git2::Oid;
 
 use crate::error::{Error, Result};
 use crate::accounts;
+use crate::forge;
 use crate::git::{diff, history, log, net, ops, rebase, refs, repo, status, worktree};
 use crate::watch::{self, WatchState};
 
@@ -484,4 +485,22 @@ pub fn add_account(provider: String, url: String, token: String) -> Result<accou
 #[tauri::command(async)]
 pub fn remove_account(id: String) -> Result<()> {
     accounts::remove(&id)
+}
+
+#[tauri::command(async)]
+pub fn pull_requests(repo: String) -> Result<forge::PullRequests> {
+    forge::list(&workdir(&repo)?)
+}
+
+#[tauri::command(async)]
+pub fn approve_pull_request(repo: String, remote: String, number: u64) -> Result<()> {
+    forge::approve(&workdir(&repo)?, &remote, number)
+}
+
+/// For requests from forks; same-repository ones check out their branch.
+#[tauri::command(async)]
+pub fn checkout_pull_request(app: tauri::AppHandle, repo: String, remote: String, number: u64) -> Result<String> {
+    let path = workdir(&repo)?;
+    let provider = forge::provider_of_remote(&path, &remote)?;
+    net::checkout_pull_request(&path, &remote, &provider, number, &mut progress(&app))
 }

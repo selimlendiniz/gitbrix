@@ -2,11 +2,12 @@
 // Each one asks for input or confirmation where needed, then runs through
 // the store so errors become toasts and the view refreshes afterwards.
 
-import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 
-import { api, CommitRow, PullMode, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
+import { api, CommitRow, errorText, PullMode, PullRequest, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
+import { loadPrs, prLabel } from "./prs";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
 
@@ -864,4 +865,69 @@ export async function rewordHead() {
   if (!res || !sum) return;
   const message = res.text.trim() ? `${sum}\n\n${res.text.trim()}\n` : `${sum}\n`;
   await trackHead("edit message", () => s().run("Saving message", (r) => api.rewordHead(r, message), "Message updated"));
+}
+
+// ---------------------------------------------------------------------------
+// Pull / merge requests
+
+/** The request's branch: a same-repository one tracks its remote branch, a fork's goes on pr/N or mr/N. */
+export async function checkoutPullRequest(pr: PullRequest) {
+  const label = prLabel(pr);
+  if (pr.sameRepo) {
+    const remoteRef = `${pr.remote}/${pr.sourceBranch}`;
+    if (s().repo?.headBranch === pr.sourceBranch) return;
+    await trackHead(`checkout ${pr.sourceBranch}`, () =>
+      s().run(
+        `Checking out ${label}`,
+        async (r) => {
+          await api.fetchRemote(r, pr.remote);
+          await api.checkoutRemote(r, remoteRef, pr.sourceBranch);
+        },
+        `Switched to ${pr.sourceBranch}`,
+      ),
+    );
+  } else {
+    await trackHead(`checkout ${label}`, () =>
+      s().run(`Checking out ${label}`, (r) => api.checkoutPullRequest(r, pr.remote, pr.number), `Checked out ${label} from its fork`),
+    );
+  }
+}
+
+export async function approvePullRequest(pr: PullRequest) {
+  const repo = s().repo?.path;
+  if (!repo) return;
+  const ok = await s().confirm({
+    title: `Approve ${prLabel(pr)}`,
+    message: `Approve "${pr.title}" by ${pr.author} on ${pr.project.split("/")[0]}? The approval is posted under your account.`,
+    confirmLabel: "Approve",
+  });
+  if (!ok) return;
+  try {
+    await api.approvePullRequest(repo, pr.remote, pr.number);
+    s().toast("info", `Approved ${prLabel(pr)}`);
+  } catch (e) {
+    s().toast("error", errorText(e));
+  }
+  await loadPrs(repo);
+}
+
+/** The commit the request's branch points at, if it was fetched. */
+export function prHead(pr: PullRequest): RefInfo | undefined {
+  if (!pr.sameRepo) return undefined;
+  return s().graph?.refs.find((r) => r.kind === "remote" && r.name === `${pr.remote}/${pr.sourceBranch}`);
+}
+
+export function prMenu(pr: PullRequest): MenuItem[] {
+  return [
+    { label: "Open in browser", onSelect: () => void openUrl(pr.url) },
+    { label: `Check out ${pr.sameRepo ? pr.sourceBranch : prLabel(pr)}`, onSelect: () => checkoutPullRequest(pr) },
+    {
+      label: pr.approvedByMe ? "Approved by you" : "Approve…",
+      disabled: !pr.canApprove || pr.approvedByMe,
+      onSelect: () => approvePullRequest(pr),
+    },
+    { separator: true, label: "" },
+    { label: "Copy link", onSelect: () => copy(pr.url) },
+    { label: "Copy branch name", onSelect: () => copy(pr.sourceBranch) },
+  ];
 }

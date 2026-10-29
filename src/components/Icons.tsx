@@ -52,6 +52,15 @@ export const IconTag = (p: P) => (
   </Svg>
 );
 
+export const IconPullRequest = (p: P) => (
+  <Svg {...p}>
+    <circle cx="4" cy="3.5" r="1.5" />
+    <circle cx="4" cy="12.5" r="1.5" />
+    <circle cx="12" cy="12.5" r="1.5" />
+    <path d="M4 5v6M12 11V6.5a2 2 0 0 0-2-2H7.5M9 3l-1.5 1.5L9 6" />
+  </Svg>
+);
+
 export const IconStash = (p: P) => (
   <Svg {...p}>
     <rect x="2.5" y="3" width="11" height="3" rx="0.8" />

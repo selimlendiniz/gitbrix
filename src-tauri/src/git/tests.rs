@@ -1553,3 +1553,40 @@ fn live_push() {
     assert_eq!(fs::read_to_string(clone.join("README.md")).unwrap(), "# gitbrix push test\n\nPushed by gitbrix through libgit2.\n");
     println!("clone ok: {}", clone.display());
 }
+
+#[test]
+fn pull_requests_from_forks_check_out_on_their_own_branch() {
+    let t = TestRepo::new();
+    let base = t.commit("a.txt", "1\n", "first");
+    let bare = t.add_origin();
+    // The service keeps a fork's commits under refs/pull/N/head.
+    let fork = t.commit("a.txt", "2\n", "from a fork");
+    git_in(&t.path, &["push", "-q", "origin", "HEAD:refs/pull/7/head"]);
+    git_in(&t.path, &["reset", "-q", "--hard", &base]);
+
+    let branch = net::checkout_pull_request(&t.path, "origin", "github", 7, &mut |_| {}).unwrap();
+    assert_eq!(branch, "pr/7");
+    assert_eq!(t.git(&["rev-parse", "HEAD"]), fork);
+    assert_eq!(t.git(&["symbolic-ref", "--short", "HEAD"]), "pr/7");
+
+    // New commits on the request move the branch forward.
+    ops::checkout_branch(&t.path, "main").unwrap();
+    let other = TempDir::new().unwrap();
+    git_in(other.path(), &["clone", "-q", bare.to_str().unwrap(), "c"]);
+    let c = other.path().join("c");
+    isolate(&c);
+    git_in(&c, &["fetch", "-q", "origin", "refs/pull/7/head"]);
+    git_in(&c, &["checkout", "-q", "FETCH_HEAD"]);
+    fs::write(c.join("a.txt"), "3\n").unwrap();
+    git_in(&c, &["commit", "-qam", "review fix"]);
+    git_in(&c, &["push", "-q", "origin", "HEAD:refs/pull/7/head"]);
+    net::checkout_pull_request(&t.path, "origin", "github", 7, &mut |_| {}).unwrap();
+    assert_eq!(t.git(&["log", "-1", "--format=%s"]), "review fix");
+
+    // While it's checked out it isn't moved under the user.
+    git_in(&c, &["commit", "-q", "--allow-empty", "-m", "more"]);
+    git_in(&c, &["push", "-q", "origin", "HEAD:refs/pull/7/head"]);
+    let err = net::checkout_pull_request(&t.path, "origin", "github", 7, &mut |_| {}).unwrap_err().to_string();
+    assert!(err.contains("is checked out"), "{err}");
+    assert!(net::checkout_pull_request(&t.path, "origin", "gitlab", 7, &mut |_| {}).is_err());
+}

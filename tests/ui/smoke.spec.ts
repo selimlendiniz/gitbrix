@@ -437,3 +437,77 @@ test("drag: a click is still a click, and Escape cancels a drag", async ({ page 
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page.locator(".drag-ghost")).toHaveCount(0);
 });
+
+// --- pull / merge requests ---
+
+const mr = (number: number, over: Record<string, unknown> = {}) => ({
+  provider: "gitlab",
+  remote: "origin",
+  project: "gitlab.com/team/demo-app",
+  number,
+  title: `Merge request ${number}`,
+  author: "ada",
+  sourceBranch: "feature/ui",
+  targetBranch: "main",
+  sameRepo: true,
+  url: `https://gitlab.com/team/demo-app/-/merge_requests/${number}`,
+  draft: false,
+  created: "2026-10-29T10:00:00Z",
+  updated: "2026-10-29T10:00:00Z",
+  mine: false,
+  reviewRequested: false,
+  canApprove: true,
+  approvedByMe: false,
+  approved: false,
+  ...over,
+});
+
+test("pull requests: listed, new ones notify, approve and check out", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript((first) => {
+    window.__gitbrixPrs = { items: [first], problems: [], covered: true, projects: ["gitlab.com/team/demo-app"] };
+  }, mr(1, { title: "Polish the toolbar" }));
+  await page.goto("/?open");
+  const item = (text: string) => page.locator(".pr-item", { hasText: text });
+  await expect(item("Polish the toolbar")).toContainText("!1");
+  // Open when first seen: no notification.
+  expect(await calls(page)).not.toContain("plugin:notification|notify");
+
+  // Clicking selects the source branch's commit.
+  await item("Polish the toolbar").click();
+  await expect(page.locator(".graph-row.selected")).toBeVisible();
+
+  const fork = mr(2, { title: "Faster parser", sameRepo: false, reviewRequested: true });
+  await page.evaluate((items) => {
+    window.__gitbrixPrs = { items, problems: [], covered: true, projects: ["gitlab.com/team/demo-app"] };
+  }, [fork, mr(1, { title: "Polish the toolbar" })]);
+  await page.getByTitle("Check for requests").click();
+  await expect(item("Faster parser")).toContainText("review");
+  expect(await lastCall(page, "plugin:notification|notify")).toMatchObject({
+    options: { title: "Review requested: !2 Faster parser", body: expect.stringContaining("ada") },
+  });
+  await page.screenshot({ path: "test-results/shots/pull-requests.png" });
+
+  await item("Faster parser").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Approve…" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Approve" }).click();
+  await expect.poll(() => lastCall(page, "approve_pull_request")).toMatchObject({ remote: "origin", number: 2 });
+
+  // A fork's request checks out through the service's ref, a same-repo one tracks its branch.
+  await item("Faster parser").dblclick();
+  await expect.poll(() => lastCall(page, "checkout_pull_request")).toMatchObject({ remote: "origin", number: 2 });
+  await item("Polish the toolbar").dblclick();
+  await expect.poll(() => lastCall(page, "checkout_remote")).toMatchObject({ remoteBranch: "origin/feature/ui", local: "feature/ui" });
+  expect(errors).toEqual([]);
+});
+
+test("pull requests: hidden without an account, problems shown", async ({ page }) => {
+  await page.goto("/?open");
+  await expect(page.locator(".graph-row").first()).toBeVisible();
+  await expect(page.locator(".side-title", { hasText: "Pull Requests" })).toHaveCount(0);
+  await page.addInitScript(() => {
+    window.__gitbrixPrs = { items: [], problems: ["origin: add a github.com account in Settings to see its requests"], covered: false, projects: [] };
+  });
+  await page.goto("/?open");
+  await expect(page.locator(".side-note.error")).toContainText("add a github.com account");
+});

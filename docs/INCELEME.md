@@ -66,11 +66,12 @@ Kurulabilir paket (release derlemesi):
 14. Bir branch etiketinin üzerine gel → o dalın commit'leri öne çıkar.
 15. Ayarlar → Accounts → "Add account…": GitHub/GitLab token'ını ekle,
     sonra https remote'lu bir repoda push/pull dene.
+16. Hesabı olan bir repoda sol panelde "Pull Requests": çift tık checkout,
+    sağ tık → tarayıcıda aç / Approve. Başka biri onaylayabileceğin bir
+    MR açınca masaüstü bildirimi gelir (3 dakikada bir kontrol).
 
 ## Bilerek yapmadıklarım
 
-- GitHub/GitLab hesabı bağlama, pull request listesi: kimlik bilgisi ve
-  dış servis gerektiriyor; senin onayın olmadan eklemedim.
 - Gravatar avatarları: e-posta hash'ini dışarı göndermek demek; onun yerine
   baş harfler kullanılıyor.
 - Push/pull'u gerçek bir uzak sunucuya (GitHub) karşı denemedim; testler

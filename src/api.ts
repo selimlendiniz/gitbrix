@@ -237,6 +237,42 @@ export interface Account {
   name: string | null;
 }
 
+export interface PullRequest {
+  provider: Provider;
+  /** The remote it was found through. */
+  remote: string;
+  /** `host/owner/repo`, the same for every remote of the project. */
+  project: string;
+  /** GitHub PR number or GitLab MR iid. */
+  number: number;
+  title: string;
+  author: string;
+  sourceBranch: string;
+  targetBranch: string;
+  /** Not from a fork. */
+  sameRepo: boolean;
+  url: string;
+  draft: boolean;
+  /** ISO 8601. */
+  created: string;
+  updated: string;
+  mine: boolean;
+  reviewRequested: boolean;
+  canApprove: boolean;
+  approvedByMe: boolean;
+  approved: boolean;
+}
+
+export interface PullRequests {
+  items: PullRequest[];
+  /** Remotes that couldn't be listed, with the reason. */
+  problems: string[];
+  /** An account covers some remote. */
+  covered: boolean;
+  /** Projects listed without error, empty ones too. */
+  projects: string[];
+}
+
 export const api = {
   initialRepo: () => invoke<string | null>("initial_repo"),
   openRepo: (path: string) => invoke<RepoInfo>("open_repo", { path }),
@@ -340,6 +376,13 @@ export const api = {
   /** Checks the token with the service, then keeps it in the system keyring. */
   addAccount: (provider: Provider, url: string, token: string) => invoke<Account>("add_account", { provider, url, token }),
   removeAccount: (id: string) => invoke<void>("remove_account", { id }),
+
+  pullRequests: (repo: string) => invoke<PullRequests>("pull_requests", { repo }),
+  approvePullRequest: (repo: string, remote: string, number: number) =>
+    invoke<void>("approve_pull_request", { repo, remote, number }),
+  /** A fork's request on its own branch (pr/N or mr/N); returns the branch. */
+  checkoutPullRequest: (repo: string, remote: string, number: number) =>
+    invoke<string>("checkout_pull_request", { repo, remote, number }),
 };
 
 export function errorText(e: unknown): string {

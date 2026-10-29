@@ -17,6 +17,31 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — pull / merge requests and notifications
+
+- `forge.rs`: open pull requests (GitHub, one GraphQL query) and merge
+  requests (GitLab REST, plus each MR's approvals in parallel) for every
+  remote an account covers; ssh remotes map to the https host. Per request:
+  author, branches, draft, fork or not, whether the user may approve it
+  (GitHub: write access or asked to review; GitLab: `user_can_approve`),
+  approved by the user / overall. Token goes only to the account's host,
+  no redirects, 20 s timeout.
+- Sidebar "Pull Requests" section (hidden when no account covers the repo):
+  `#N`/`!N`, title, draft / review / approve / ✓ badges, problems shown in
+  place (missing account on github.com/gitlab.com, missing scope...). Click
+  selects the source branch's commit; double-click checks it out (same-repo:
+  tracks the remote branch; fork: fetches `refs/pull/N/head` or
+  `refs/merge-requests/N/head` onto `pr/N` / `mr/N`). Menu: open in browser,
+  check out, approve (asks first), copy link / branch.
+- Checked on opening a repository and every 3 min (Settings → Pull
+  requests) for all open tabs. A new request the user can approve (not
+  theirs, not a draft, not approved yet) raises a desktop notification
+  (tauri-plugin-notification); what was open when a project was first seen
+  doesn't. Settings → Notifications turns it off.
+- Live check (read only) against the GitLab test project: listed fine.
+
+Tests: 96 Rust, 49 unit, 38 Playwright UI, 18 e2e steps — all passing.
+
 ### 2026-10-29 — drag and drop everywhere
 
 - Drags are now tracked with mouse events (`src/dnd.ts`): HTML5 drag and

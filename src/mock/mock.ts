@@ -12,6 +12,8 @@ type Args = Record<string, unknown>;
 declare global {
   interface Window {
     __gitbrixCalls: { cmd: string; args: Args }[];
+    /** What `pull_requests` answers; tests set it. */
+    __gitbrixPrs?: unknown;
   }
 }
 
@@ -57,6 +59,7 @@ const READS: Record<string, (a: Args) => unknown> = {
     accounts = [...accounts.filter((x) => x.id !== account.id), account];
     return account;
   },
+  pull_requests: () => window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
   remove_account: (a) => {
     accounts = accounts.filter((x) => x.id !== a.id);
     return null;

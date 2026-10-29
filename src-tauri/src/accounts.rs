@@ -181,10 +181,15 @@ pub fn find_for(remote_url: &str, accounts: &[Account]) -> Option<Account> {
         .map(|(_, _, a)| a.clone())
 }
 
+/// The account's token from the keyring.
+pub fn token(account: &Account) -> Option<String> {
+    entry(&account.id).ok()?.get_password().ok()
+}
+
 /// Username and token to send for `remote_url`, if an account covers it.
 pub fn credentials_for(remote_url: &str) -> Option<(String, String)> {
     let account = find_for(remote_url, &list().ok()?)?;
-    let token = entry(&account.id).ok()?.get_password().ok()?;
+    let token = token(&account)?;
     Some((account.username, token))
 }
 

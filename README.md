@@ -58,6 +58,14 @@ is checked with the service, kept in the system keyring (KWallet, GNOME
 Keyring) and sent only to that host over https. `~/.git-credentials` is
 read as a fallback.
 
+**Pull / merge requests.** With an account, the sidebar lists the open pull
+requests (GitHub) or merge requests (GitLab) of the repository's remotes:
+check one out, open it in the browser or approve it. New ones you can
+approve raise a desktop notification (checked every 3 minutes for every
+open tab; Settings → Pull requests / Notifications). GitLab tokens need
+`read_api` (or `api` to approve); GitHub fine-grained tokens need "Pull
+requests" access.
+
 ## Development
 
 Tools are pinned in `mise.toml` (Rust, Node, pnpm, tauri-driver).
