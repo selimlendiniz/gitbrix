@@ -5,8 +5,18 @@ use serde::Serialize;
 
 use crate::error::{Error, Result};
 
+/// `~` and `~/…` typed by the user mean the home directory.
+pub fn expand_home(path: &Path) -> PathBuf {
+    let Some(s) = path.to_str() else { return path.to_path_buf() };
+    let rest = if s == "~" { Some("") } else { s.strip_prefix("~/") };
+    match (rest, std::env::var_os("HOME")) {
+        (Some(rest), Some(home)) => PathBuf::from(home).join(rest),
+        _ => path.to_path_buf(),
+    }
+}
+
 pub fn open(path: &Path) -> Result<Repository> {
-    let repo = Repository::discover(path)?;
+    let repo = Repository::discover(expand_home(path))?;
     if repo.is_bare() {
         return Err(Error::msg("Bare repositories are not supported"));
     }
@@ -100,4 +110,18 @@ pub fn info(repo: &Repository) -> Result<RepoInfo> {
         ahead,
         behind,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expands_home() {
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        assert_eq!(expand_home(Path::new("~/codes/x")), home.join("codes/x"));
+        assert_eq!(expand_home(Path::new("~")), home);
+        assert_eq!(expand_home(Path::new("/abs/~/x")), PathBuf::from("/abs/~/x"));
+        assert_eq!(expand_home(Path::new("~user/x")), PathBuf::from("~user/x"));
+    }
 }

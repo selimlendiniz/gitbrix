@@ -342,13 +342,14 @@ pub fn prune_worktrees(repo: String) -> Result<()> {
 
 #[tauri::command(async)]
 pub fn clone_repo(app: tauri::AppHandle, url: String, parent: String, name: String) -> Result<String> {
-    let dest = ops::clone(Path::new(&parent), url.trim(), name.trim(), &mut progress(&app))?;
+    let parent = repo::expand_home(Path::new(parent.trim()));
+    let dest = ops::clone(&parent, url.trim(), name.trim(), &mut progress(&app))?;
     Ok(dest.to_string_lossy().into_owned())
 }
 
 #[tauri::command(async)]
 pub fn init_repo(path: String) -> Result<String> {
-    let p = PathBuf::from(&path);
+    let p = repo::expand_home(Path::new(path.trim()));
     ops::init(&p)?;
     Ok(p.to_string_lossy().into_owned())
 }
