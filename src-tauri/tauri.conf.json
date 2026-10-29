@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost"
     }
   },
   "bundle": {
@@ -33,6 +33,20 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "A graph-first Git client",
+    "longDescription": "gitbrix is a desktop Git client with a commit graph, staging down to single lines, conflict resolution, interactive rebase and undo.",
+    "publisher": "Selim Arda Çevik",
+    "linux": {
+      "rpm": {
+        "release": "1"
+      },
+      "deb": {
+        "depends": [
+          "git"
+        ]
+      }
+    }
   }
 }

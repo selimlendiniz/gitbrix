@@ -133,6 +133,8 @@ try {
     await waitFor("details", async () => (await text(".commit-summary")) === "Wire parser into main");
     await click(".file-row");
     await waitFor("diff", () => js("return !!document.querySelector('.dl.add')"));
+    // Syntax colours load as separate chunks: proves the CSP allows them.
+    await waitFor("syntax highlighting", () => js("return !!document.querySelector('.diff-table [class*=hl-]')"));
     await shot("02-commit-diff");
   });
 
