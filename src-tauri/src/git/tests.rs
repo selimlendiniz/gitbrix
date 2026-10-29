@@ -718,14 +718,17 @@ fn record_ui_fixture() {
 
     let mut details = Map::new();
     let mut commit_diffs = Map::new();
-    for c in g.commits.iter().filter(|c| c.id != log::WIP_ID).take(80) {
-        let oid = git2::Oid::from_str(&c.id).unwrap();
+    let stash_ids: Vec<String> =
+        refs::stashes(&mut repo::open(Path::new(&repo_path)).unwrap()).unwrap().into_iter().map(|s| s.id).collect();
+    let ids = g.commits.iter().filter(|c| c.id != log::WIP_ID).take(80).map(|c| c.id.clone()).chain(stash_ids);
+    for id in ids {
+        let oid = git2::Oid::from_str(&id).unwrap();
         let d = diff::commit_details(&r, oid).unwrap();
         for f in &d.files {
             let fd = diff::commit_file_diff(&r, oid, &f.path, f.old_path.as_deref()).unwrap();
-            commit_diffs.insert(format!("{}:{}", c.id, f.path), serde_json::to_value(fd).unwrap());
+            commit_diffs.insert(format!("{}:{}", id, f.path), serde_json::to_value(fd).unwrap());
         }
-        details.insert(c.id.clone(), serde_json::to_value(d).unwrap());
+        details.insert(id.clone(), serde_json::to_value(d).unwrap());
     }
 
     let mut wip_diffs = Map::new();

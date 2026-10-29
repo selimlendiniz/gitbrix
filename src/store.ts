@@ -217,7 +217,8 @@ export const useStore = create<State>((set, get) => ({
 
       // Keep the selection if it still exists; otherwise fall back to HEAD.
       const { selectedId } = get();
-      if (selectedId && !graph.commits.some((c) => c.id === selectedId)) {
+      // Stashes aren't graph rows but can be selected from the sidebar.
+      if (selectedId && !graph.commits.some((c) => c.id === selectedId) && !stashes.some((st) => st.id === selectedId)) {
         get().select(info.headOid ?? graph.commits[0]?.id ?? null);
       }
 

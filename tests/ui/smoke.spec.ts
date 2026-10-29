@@ -128,3 +128,14 @@ test("interactive rebase editor builds a plan", async ({ page }) => {
   const steps = (call as { steps: { action: string }[] }).steps.map((s) => s.action);
   expect(steps).toEqual(["pick", "fixup"]);
 });
+
+test("selecting a stash shows its changes and actions", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".side-item", { hasText: "half-written docs" }).click();
+  await expect(page.locator(".stash-kicker")).toBeVisible();
+  await expect(page.locator(".commit-panel .file-row", { hasText: "guide.md" })).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/stash.png" });
+  await page.getByRole("button", { name: "Pop" }).first().click();
+  const cmds = await page.evaluate(() => window.__gitbrixCalls.map((c) => c.cmd));
+  expect(cmds).toContain("stash_apply");
+});

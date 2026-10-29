@@ -67,6 +67,7 @@ function RefItem({ r, label, indent = 0 }: { r: RefInfo; label: string; indent?:
 export function Sidebar() {
   const graph = useStore((s) => s.graph);
   const stashes = useStore((s) => s.stashes);
+  const selectedId = useStore((s) => s.selectedId);
   const select = useStore((s) => s.select);
   const showMenu = useStore((s) => s.showMenu);
   const [filter, setFilter] = useState("");
@@ -122,10 +123,10 @@ export function Sidebar() {
           {stashes.map((st) => (
             <div
               key={st.id}
-              className="side-item"
+              className={`side-item${selectedId === st.id ? " selected" : ""}`}
               style={{ paddingLeft: 24 }}
               title={st.message}
-              onClick={() => st.base && select(st.base, true)}
+              onClick={() => select(st.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 showMenu(e.clientX, e.clientY, stashMenu(st));

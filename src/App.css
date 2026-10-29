@@ -391,6 +391,10 @@ textarea {
   background: var(--bg-hover);
 }
 
+.side-item.selected {
+  background: var(--bg-select);
+}
+
 .side-item.head {
   font-weight: 600;
   color: var(--text);
@@ -786,6 +790,19 @@ textarea {
   font-weight: 600;
   line-height: 1.4;
   word-break: break-word;
+}
+
+.stash-kicker {
+  font-size: 11.5px;
+  font-family: var(--mono);
+  color: var(--warn);
+  margin-bottom: 4px;
+}
+
+.stash-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .commit-body {

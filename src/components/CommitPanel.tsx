@@ -1,3 +1,4 @@
+import { stashApply, stashDrop, stashPop } from "../actions";
 import { laneColor } from "../colors";
 import { fullTime, initials, shortId } from "../format";
 import { useStore } from "../store";
@@ -12,12 +13,14 @@ export function CommitPanel() {
   const select = useStore((s) => s.select);
   const toast = useStore((s) => s.toast);
   const showMenu = useStore((s) => s.showMenu);
+  const stashes = useStore((s) => s.stashes);
 
   if (!details || details.id !== selectedId) {
     return <div className="panel-loading">Loading commit…</div>;
   }
 
   const row = graph?.commits.find((c) => c.id === details.id);
+  const stash = stashes.find((st) => st.id === details.id);
   const [summary, ...bodyLines] = details.message.split("\n");
   const body = bodyLines.join("\n").trim();
   const sameCommitter =
@@ -28,8 +31,22 @@ export function CommitPanel() {
   return (
     <div className="commit-panel">
       <div className="commit-head">
-        <div className="commit-summary">{summary}</div>
-        {body && <pre className="commit-body">{body}</pre>}
+        {stash && <div className="stash-kicker">stash@{"{"}{stash.index}{"}"}</div>}
+        <div className="commit-summary">{stash ? stash.message : summary}</div>
+        {body && !stash && <pre className="commit-body">{body}</pre>}
+        {stash && (
+          <div className="stash-actions">
+            <button className="small-btn primary" onClick={() => stashPop(stash.index)}>
+              Pop
+            </button>
+            <button className="small-btn" onClick={() => stashApply(stash.index)}>
+              Apply
+            </button>
+            <button className="small-btn danger" onClick={() => stashDrop(stash)}>
+              Drop
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="commit-meta">
@@ -49,7 +66,7 @@ export function CommitPanel() {
         </div>
       </div>
 
-      <div className="commit-ids">
+      <div className="commit-ids" style={stash ? { display: "none" } : undefined}>
         <span className="dim">commit</span>
         <button
           className="sha"
