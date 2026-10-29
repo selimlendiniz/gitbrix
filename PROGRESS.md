@@ -17,6 +17,20 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — reflog, history search, file tree, first-commit fix, review 2
+
+- Reflog view (recover lost commits), whole-history search by file path or
+  code (`git log -S`), file lists as a folder tree, keyboard navigation in
+  file lists, open a folder by dropping it on the window, `~` in typed paths.
+- Fixed: a repository without commits had no WIP row, so the first commit
+  could not be made (found by a new e2e step).
+- A second independent review found 1 bug + 6 risks in the newer code; all
+  fixed (case-sensitive code search, symlinked .gitignore write-through,
+  safer undo of branch creation, background fetch takes the busy lock, …).
+- Turkish review guide for the user: `docs/INCELEME.md`.
+
+Tests: 63 Rust, 44 unit, 28 Playwright UI, 15 e2e steps — all passing.
+
 ### 2026-10-29 — stashes in graph, hide/solo, worktrees, submodules, polish
 
 - Stashes drawn in the graph above their base commit.
