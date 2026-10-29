@@ -139,6 +139,7 @@ let toastSeq = 0;
 let refreshSeq = 0;
 let detailsSeq = 0;
 let diffSeq = 0;
+let loadingMore = false;
 
 function sameSource(a: DiffSource | null, b: DiffSource | null): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -293,8 +294,14 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async loadMoreCommits() {
-    set((s) => ({ graphLimit: s.graphLimit + 2 * GRAPH_PAGE }));
-    await get().refresh();
+    if (loadingMore) return;
+    loadingMore = true;
+    try {
+      set((s) => ({ graphLimit: s.graphLimit + 2 * GRAPH_PAGE }));
+      await get().refresh();
+    } finally {
+      loadingMore = false;
+    }
   },
 
   select(id, scroll = false) {

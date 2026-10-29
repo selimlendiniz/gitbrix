@@ -135,6 +135,14 @@ export function CommitGraph() {
     });
   }, [commits, first, last, scrollTop, viewH, gw, selectedId, repo?.headOid, theme]);
 
+  // Reaching the end of a truncated history loads the next page.
+  const truncated = graph?.truncated ?? false;
+  useEffect(() => {
+    if (truncated && commits.length > 0 && last >= commits.length - 20 && !useStore.getState().busy) {
+      void useStore.getState().loadMoreCommits();
+    }
+  }, [truncated, last, commits.length]);
+
   // Bring the selection into view when something asks for it.
   useEffect(() => {
     const el = scrollRef.current;
