@@ -49,7 +49,7 @@ Tools are pinned in `mise.toml` (Rust, Node, pnpm, tauri-driver).
 ```bash
 pnpm install
 pnpm tauri dev               # run the app
-pnpm tauri dev -- -- <path>  # …opening a repository
+src-tauri/target/release/gitbrix <path>   # a built binary opens <path>
 pnpm dev                     # UI only in a browser, backed by a recorded fixture
                              #   http://localhost:1420/?open
 

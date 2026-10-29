@@ -1,0 +1,74 @@
+# gitbrix — inceleme rehberi
+
+Bu dosya, gece boyunca kendi başıma geliştirdiğim uygulamayı topluca
+incelemen için. Ayrıntılı geliştirme günlüğü `PROGRESS.md`'de (İngilizce).
+
+## Çalıştırma
+
+```bash
+cd ~/codes/gitbrix
+pnpm install                       # ilk sefer
+pnpm tauri dev                     # uygulamayı aç
+```
+
+Repoyu açılış ekranından seç, yolunu yapıştır ya da klasörü pencereye
+sürükleyip bırak. Derlenmiş binary yolu argüman olarak da alır:
+`src-tauri/target/release/gitbrix ~/codes/proje`.
+
+Denemek için hazır bir demo repo (branch'ler, merge'ler, stash, tag'ler,
+remote ve kaydedilmemiş değişiklikler):
+
+```bash
+scripts/demo-repo.sh /tmp/gitbrix-demo
+# sonra uygulamada /tmp/gitbrix-demo/demo-app'i aç
+```
+
+Kurulabilir paket (release derlemesi):
+`src-tauri/target/release/bundle/rpm/gitbrix-0.1.0-1.x86_64.rpm`
+(kurmak için `sudo dnf install <yol>` — bunu ben yapmadım).
+
+## Denenecekler (sırayla)
+
+1. **Graph**: branch'ler şeritlerde, main solda düz durmalı. Satıra tıkla:
+   sağda commit ayrıntısı. Ctrl/Shift+tık ile ikinci commit → karşılaştırma.
+2. **Diff**: dosyaya tıkla → renklendirilmiş diff; Unified/Split; History ve
+   Blame bağlantıları.
+3. **WIP satırı** (en üstte `// WIP`): dosyaları stage et (+ düğmesi, çift
+   tık ya da Space), diff'te satıra tıklayıp yalnızca o satırı stage et,
+   özet yazıp Ctrl+Enter ile commit.
+4. **Undo** (Ctrl+Z): az önceki commit'i geri al.
+5. **Sağ tık menüleri**: commit (cherry-pick, revert, reset, interactive
+   rebase…), branch etiketi (merge, rebase, push to…, worktree…), dosya
+   (ignore, history, blame, aç).
+6. **Sürükle-bırak**: bir branch etiketini HEAD etiketinin üstüne bırak →
+   merge/rebase menüsü.
+7. **Interactive rebase**: eski bir commit'e sağ tık → "Interactive rebase
+   from here…" → sırala, reword, squash, drop.
+8. **Conflict**: iki branch'te aynı satırı değiştirip merge et → conflict
+   görünümünde Ours/Theirs/Both → "Save & mark resolved" → üstteki
+   şeritten Continue.
+9. **Ctrl+K** komut paleti, **Ctrl+F** arama (Message / Files / Code
+   modları), **?** kısayol listesi.
+10. **Ayarlar** (sağ üstteki dişli): açık tema, tarih biçimi, dosya ağacı,
+    otomatik fetch.
+11. Repo menüsü (sol üstte repo adı): Clone, New repository, Reflog.
+
+## Bilerek yapmadıklarım
+
+- GitHub/GitLab hesabı bağlama, pull request listesi: kimlik bilgisi ve
+  dış servis gerektiriyor; senin onayın olmadan eklemedim.
+- Gravatar avatarları: e-posta hash'ini dışarı göndermek demek; onun yerine
+  baş harfler kullanılıyor.
+- Push/pull'u gerçek bir uzak sunucuya (GitHub) karşı denemedim; testler
+  yerel bare repolarla. Kendi anahtarınla bir kez denemen iyi olur.
+- Commit imzası yalnızca "signed" rozeti olarak gösteriliyor, doğrulanmıyor.
+
+## Bilmen gerekenler
+
+- Bütün yazma işlemleri gerçek `git` komutuyla yapılıyor; hook'ların,
+  credential helper'ın, imzalama ayarların aynen geçerli.
+- Otomatik fetch varsayılan olarak kapalı (ssh anahtarın agent'ta değilse
+  her seferinde parola penceresi açılırdı).
+- Testler: `pnpm test:rust`, `pnpm test:unit`, `pnpm test:ui`,
+  `pnpm test:e2e` (son ikisi Chrome ve Xvfb kullanıyor).
+- Hiçbir şeyi push etmedim; tüm commit'ler yerel `main` dalında.
