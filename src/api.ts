@@ -22,6 +22,7 @@ export interface RepoInfo {
 export type Seg = [from: number, to: number, color: number];
 
 export interface CommitRow {
+  kind: "commit" | "stash" | "wip";
   id: string;
   summary: string;
   authorName: string;

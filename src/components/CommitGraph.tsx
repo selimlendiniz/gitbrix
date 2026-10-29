@@ -1,14 +1,14 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CommitRow, WIP_ID } from "../api";
-import { checkoutRef, commitMenu, dropMenu, refMenu } from "../actions";
+import { checkoutRef, commitMenu, dropMenu, refMenu, stashMenu } from "../actions";
 import { laneColor } from "../colors";
 import { fullTime, relativeTime, shortTime } from "../format";
 import { useSettings } from "../settings";
 import { drawGraph, graphWidth, ROW_H } from "../graph/draw";
 import { primaryRef, RefPill, refsByCommit } from "../graph/refs";
 import { useStore } from "../store";
-import { IconClose, IconCloud, IconLaptop, IconSearch, IconTag } from "./Icons";
+import { IconClose, IconCloud, IconLaptop, IconSearch, IconStash, IconTag } from "./Icons";
 
 const REFS_W = 190;
 const MAX_GRAPH_W = 320;
@@ -192,7 +192,8 @@ export function CommitGraph() {
         onSelect={(id, extend) => (extend && selectedId && selectedId !== WIP_ID ? setCompare(id) : select(id))}
         onMenu={(x, y) => {
           select(c.id);
-          showMenu(x, y, commitMenu(c));
+          const stash = c.kind === "stash" ? useStore.getState().stashes.find((st) => st.id === c.id) : undefined;
+          showMenu(x, y, stash ? stashMenu(stash) : commitMenu(c));
         }}
       />,
     );
@@ -325,6 +326,10 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, pills, sele
             // WIP
             {wip.unstaged > 0 && <span className="wip-count">✎ {wip.unstaged}</span>}
             {wip.staged > 0 && <span className="wip-count staged">+ {wip.staged}</span>}
+          </span>
+        ) : c.kind === "stash" ? (
+          <span className="stash-row" title={c.summary}>
+            <IconStash size={12} /> {c.summary}
           </span>
         ) : (
           <span title={c.summary}>{c.summary}</span>

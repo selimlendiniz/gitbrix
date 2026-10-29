@@ -107,6 +107,31 @@ export function drawGraph(ctx: CanvasRenderingContext2D, o: DrawOptions) {
       continue;
     }
 
+    if (c.kind === "stash") {
+      // A stash: an open box in the lane colour.
+      const r = 6.5;
+      ctx.fillStyle = o.background;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x - r, y - r, r * 2, r * 2, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y - 1.5);
+      ctx.lineTo(x + 3, y - 1.5);
+      ctx.moveTo(x - 3, y + 1.5);
+      ctx.lineTo(x + 3, y + 1.5);
+      ctx.stroke();
+      if (selected) {
+        ctx.strokeStyle = o.ring;
+        ctx.beginPath();
+        ctx.roundRect(x - r - 3, y - r - 3, (r + 3) * 2, (r + 3) * 2, 5);
+        ctx.stroke();
+      }
+      continue;
+    }
+
     if (c.parents.length > 1) {
       ctx.fillStyle = color;
       ctx.beginPath();

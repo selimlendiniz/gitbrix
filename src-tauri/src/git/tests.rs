@@ -874,6 +874,29 @@ fn non_utf8_diffs_are_flagged() {
     assert!(!diff::workdir_file_diff(&t.open(), "utf8.txt", false).unwrap().lossy);
 }
 
+#[test]
+fn stashes_appear_in_the_graph_above_their_base() {
+    let t = TestRepo::new();
+    let first = t.commit("a.txt", "1\n", "first");
+    t.write("a.txt", "s1\n");
+    ops::stash_save(&t.path, Some("older"), false).unwrap();
+    t.write("a.txt", "s2\n");
+    ops::stash_save(&t.path, Some("newer"), false).unwrap();
+    t.commit("b.txt", "b\n", "second");
+
+    let g = log::graph(&t.open(), 100, false).unwrap();
+    let rows: Vec<(&str, &str)> = g.commits.iter().map(|c| (c.kind, c.summary.as_str())).collect();
+    assert_eq!(rows.len(), 4);
+    assert_eq!(rows[0], ("commit", "second"));
+    assert_eq!(rows[1].0, "stash");
+    assert!(rows[1].1.contains("newer"), "{rows:?}");
+    assert!(rows[2].1.contains("older"), "{rows:?}");
+    assert_eq!(rows[3], ("commit", "first"));
+    // Only the base as parent: index/untracked commits stay hidden.
+    assert_eq!(g.commits[1].parents, vec![first.clone()]);
+    assert_eq!(g.max_lanes, 2, "both stashes reuse the second lane");
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

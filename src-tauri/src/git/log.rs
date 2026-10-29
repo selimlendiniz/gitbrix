@@ -11,6 +11,8 @@ pub const WIP_ID: &str = "WIP";
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitRow {
+    /// `commit`, `stash` or `wip`.
+    pub kind: &'static str,
     pub id: String,
     pub summary: String,
     pub author_name: String,
@@ -52,13 +54,7 @@ pub fn graph(repo: &Repository, limit: usize, wip: bool) -> Result<Graph> {
     }
 
     let mut commits = Vec::new();
-    let mut nodes: Vec<(String, Vec<String>)> = Vec::new();
     let mut truncated = false;
-
-    let wip_row = wip && head.is_some();
-    if wip_row {
-        nodes.push((WIP_ID.to_owned(), vec![head.unwrap().to_string()]));
-    }
 
     for oid in walk {
         if commits.len() >= limit {
@@ -68,8 +64,8 @@ pub fn graph(repo: &Repository, limit: usize, wip: bool) -> Result<Graph> {
         let commit = repo.find_commit(oid?)?;
         let parents: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
         let author = commit.author();
-        nodes.push((commit.id().to_string(), parents.clone()));
         commits.push(CommitRow {
+            kind: "commit",
             id: commit.id().to_string(),
             summary: commit.summary().ok().flatten().unwrap_or("").to_owned(),
             author_name: author.name().unwrap_or("").to_owned(),
@@ -83,10 +79,14 @@ pub fn graph(repo: &Repository, limit: usize, wip: bool) -> Result<Graph> {
         });
     }
 
+    insert_stashes(repo, &mut commits)?;
+
+    let wip_row = wip && head.is_some();
     if wip_row {
         commits.insert(
             0,
             CommitRow {
+                kind: "wip",
                 id: WIP_ID.to_owned(),
                 summary: String::new(),
                 author_name: String::new(),
@@ -101,6 +101,7 @@ pub fn graph(repo: &Repository, limit: usize, wip: bool) -> Result<Graph> {
         );
     }
 
+    let nodes: Vec<(String, Vec<String>)> = commits.iter().map(|c| (c.id.clone(), c.parents.clone())).collect();
     let layout = graph::layout(&nodes);
     for (row, l) in commits.iter_mut().zip(layout.rows) {
         row.lane = l.lane;
@@ -110,4 +111,45 @@ pub fn graph(repo: &Repository, limit: usize, wip: bool) -> Result<Graph> {
     }
 
     Ok(Graph { commits, refs, max_lanes: layout.max_lanes, truncated })
+}
+
+/// Show each stash as a row right above the commit it was made on, with
+/// only that commit as parent (its index and untracked-files commits are
+/// git internals). Stashes whose base isn't loaded are left out.
+fn insert_stashes(repo: &Repository, commits: &mut Vec<CommitRow>) -> Result<()> {
+    let Ok(reflog) = repo.reflog("refs/stash") else { return Ok(()) };
+    let index: std::collections::HashMap<&str, usize> =
+        commits.iter().enumerate().map(|(i, c)| (c.id.as_str(), i)).collect();
+    let mut inserts: Vec<(usize, usize, CommitRow)> = Vec::new();
+    for (age, entry) in reflog.iter().enumerate() {
+        let Ok(stash) = repo.find_commit(entry.id_new()) else { continue };
+        let Ok(base) = stash.parent_id(0) else { continue };
+        let base = base.to_string();
+        let Some(&pos) = index.get(base.as_str()) else { continue };
+        let author = stash.author();
+        inserts.push((
+            pos,
+            age,
+            CommitRow {
+                kind: "stash",
+                id: stash.id().to_string(),
+                summary: entry.message().ok().flatten().unwrap_or("").to_owned(),
+                author_name: author.name().unwrap_or("").to_owned(),
+                author_email: author.email().unwrap_or("").to_owned(),
+                time: author.when().seconds(),
+                parents: vec![base],
+                lane: 0,
+                color: 0,
+                up: Vec::new(),
+                down: Vec::new(),
+            },
+        ));
+    }
+    // Insert from the bottom up so earlier positions stay valid. On the
+    // same base, insert the oldest first so the newest ends up on top.
+    inserts.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+    for (pos, _, row) in inserts {
+        commits.insert(pos, row);
+    }
+    Ok(())
 }

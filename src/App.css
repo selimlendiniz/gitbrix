@@ -939,6 +939,14 @@ textarea {
   font-size: 12px;
 }
 
+.stash-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
 .wip-label {
   font-style: italic;
   color: var(--text-dim);
