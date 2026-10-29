@@ -27,6 +27,7 @@ pub fn run() {
             commands::file_history,
             commands::blame,
             commands::reflog,
+            commands::search_history,
             commands::stage,
             commands::stage_all,
             commands::unstage,

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { CommitRow, WIP_ID } from "../api";
+import { api, CommitRow, errorText, WIP_ID } from "../api";
 import { checkoutRef, commitMenu, dropMenu, refMenu, stashMenu } from "../actions";
 import { laneColor } from "../colors";
 import { fullTime, relativeTime, shortTime } from "../format";
@@ -18,6 +18,8 @@ const DATE_W = 110;
  *  clipped instead (its leftmost lanes are the important ones). */
 const MIN_MESSAGE_W = 220;
 const OVERSCAN = 6;
+
+type SearchMode = "message" | "files" | "code";
 
 /** Does a commit match the search text? Message, author or SHA prefix. */
 export function commitMatches(c: CommitRow, q: string): boolean {
@@ -55,17 +57,45 @@ export function CommitGraph() {
   const [viewW, setViewW] = useState(1000);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<SearchMode>("message");
   const searchRef = useRef<HTMLInputElement>(null);
+  // Results of a whole-history search (files / code), by commit id.
+  const [remote, setRemote] = useState<{ q: string; ids: Set<string> } | null>(null);
+  const [searching, setSearching] = useState(false);
 
   const commits = graph?.commits ?? [];
   const pills = useMemo(() => refsByCommit(graph?.refs ?? []), [graph]);
   const q = searchOpen ? query.trim().toLowerCase() : "";
+
+  useEffect(() => {
+    if (mode === "message" || !q || !repo) {
+      setRemote(null);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      setSearching(true);
+      api
+        .searchHistory(repo.path, mode, q, 2000)
+        .then((ids) => live && setRemote({ q, ids: new Set(ids) }))
+        .catch((e) => live && useStore.getState().toast("error", errorText(e)))
+        .finally(() => live && setSearching(false));
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [mode, q, repo?.path, repo?.headOid]);
+
   const matches = useMemo(() => {
     if (!q) return null;
     const out: number[] = [];
-    commits.forEach((c, i) => commitMatches(c, q) && out.push(i));
+    if (mode === "message") commits.forEach((c, i) => commitMatches(c, q) && out.push(i));
+    else if (remote) commits.forEach((c, i) => remote.ids.has(c.id) && out.push(i));
+    else return null;
     return out;
-  }, [commits, q]);
+  }, [commits, q, mode, remote]);
+  const notLoaded = mode !== "message" && remote && matches ? remote.ids.size - matches.length : 0;
   const matchSet = useMemo(() => (matches ? new Set(matches) : null), [matches]);
   const selectedIndex = commits.findIndex((c) => c.id === selectedId);
   const matchPos = matches ? matches.indexOf(selectedIndex) : -1;
@@ -228,10 +258,18 @@ export function CommitGraph() {
       <FilterBanner />
       {searchOpen && (
         <div className="graph-search">
-          <IconSearch size={13} />
+          <span className="segmented search-mode">
+            {(["message", "files", "code"] as const).map((m) => (
+              <button key={m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>
+                {m === "message" ? "Message" : m === "files" ? "Files" : "Code"}
+              </button>
+            ))}
+          </span>
           <input
             ref={searchRef}
-            placeholder="Search message, author or SHA"
+            placeholder={
+              mode === "message" ? "Search message, author or SHA" : mode === "files" ? "File path contains… (all history)" : "Text added or removed… (all history)"
+            }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -247,7 +285,12 @@ export function CommitGraph() {
             }}
           />
           <span className="search-count">
-            {matches ? (matches.length ? `${matchPos >= 0 ? matchPos + 1 : "–"} of ${matches.length}` : "no matches") : ""}
+            {searching
+              ? "searching…"
+              : matches
+                ? (matches.length ? `${matchPos >= 0 ? matchPos + 1 : "–"} of ${matches.length}` : "no matches") +
+                  (notLoaded > 0 ? ` · ${notLoaded} older not loaded` : "")
+                : ""}
           </span>
           <button className="icon-btn" title="Previous (Shift+Enter)" disabled={!matches?.length} onClick={() => jump(-1)}>
             ↑

@@ -274,3 +274,14 @@ test("file lists switch to a tree", async ({ page }) => {
   await expect(page.locator(".wip-panel .file-row", { hasText: "main.rs" })).toBeHidden();
   await page.screenshot({ path: "test-results/shots/file-tree.png" });
 });
+
+test("search by file path across history", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".graph-row").first().waitFor();
+  await page.keyboard.press("Control+f");
+  await page.locator(".search-mode").getByRole("button", { name: "Files" }).click();
+  await page.getByPlaceholder(/File path contains/).fill("parser.rs");
+  await expect(page.locator(".search-count")).toHaveText(/of [1-9]/);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".graph-row.selected")).toContainText(/[Pp]arser/);
+});

@@ -38,6 +38,11 @@ const READS: Record<string, (a: Args) => unknown> = {
   get_worktrees: () => fixture.worktrees,
   get_submodules: () => [],
   reflog: () => fixture.reflog,
+  // Files mode: commits whose recorded file lists mention the text.
+  search_history: (a) =>
+    Object.entries(fixture.details as Record<string, { files: { path: string }[] }>)
+      .filter(([, d]) => d.files.some((f) => f.path.toLowerCase().includes(String(a.query).toLowerCase())))
+      .map(([id]) => id),
   // Not recorded: approximate a comparison by the newer commit's own changes.
   compare_commits: (a) => ((fixture.details as Record<string, { files: unknown[] }>)[a.to as string]?.files ?? []),
   compare_file_diff: (a) =>

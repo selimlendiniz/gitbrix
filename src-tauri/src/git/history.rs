@@ -50,6 +50,38 @@ pub fn parse_history(text: &str) -> Vec<HistoryEntry> {
         .collect()
 }
 
+/// Commits in all history (every ref) matching `query`: `files` — touching
+/// a path containing it; `code` — adding or removing that text
+/// (`git log -S`). Newest first, at most `limit`.
+pub fn search(repo: &Path, mode: &str, query: &str, limit: usize) -> Result<Vec<String>> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+    let limit = format!("-n{limit}");
+    let pattern;
+    let args: Vec<&str> = match mode {
+        "files" => {
+            // Case-insensitive substring of the path, as a glob pathspec.
+            pattern = format!(":(icase,glob)**/*{}*", glob_escape(query));
+            vec!["log", "--all", &limit, "--format=%H", "--", &pattern]
+        }
+        "code" => {
+            pattern = format!("-S{query}");
+            vec!["log", "--all", &limit, "--format=%H", &pattern]
+        }
+        other => return Err(Error::msg(format!("Unknown search mode {other}"))),
+    };
+    let out = run(repo, &args)?;
+    Ok(out.stdout.lines().map(str::to_owned).collect())
+}
+
+fn glob_escape(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| if matches!(c, '*' | '?' | '[' | ']' | '\\') { vec!['\\', c] } else { vec![c] })
+        .collect()
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReflogEntry {

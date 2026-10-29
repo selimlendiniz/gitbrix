@@ -244,6 +244,8 @@ export const api = {
   workdirFileDiff: (repo: string, path: string, staged: boolean) =>
     invoke<FileDiff>("workdir_file_diff", { repo, path, staged }),
   fileHistory: (repo: string, path: string, limit: number) => invoke<HistoryEntry[]>("file_history", { repo, path, limit }),
+  searchHistory: (repo: string, mode: "files" | "code", query: string, limit: number) =>
+    invoke<string[]>("search_history", { repo, mode, query, limit }),
   reflog: (repo: string, limit: number) => invoke<ReflogEntry[]>("reflog", { repo, limit }),
   blame: (repo: string, path: string, rev: string | null) => invoke<Blame>("blame", { repo, path, rev }),
   headMessage: (repo: string) => invoke<string>("head_message", { repo }),

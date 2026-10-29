@@ -994,6 +994,26 @@ fn reflog_remembers_commits_lost_by_reset() {
     assert_eq!(history::reflog(&t.open(), 1).unwrap().len(), 1);
 }
 
+#[test]
+fn search_history_by_file_and_code() {
+    use super::history;
+    let t = TestRepo::new();
+    let a = t.commit("src/Parser.rs", "fn parse() {}\n", "add parser");
+    let b = t.commit("README.md", "docs\n", "docs");
+    t.git(&["switch", "-q", "-c", "side"]);
+    let c = t.commit("src/parser_util.rs", "fn tokenize() {}\n", "util on side");
+    t.git(&["switch", "-q", "main"]);
+
+    // Path substring, case-insensitive, across all branches.
+    assert_eq!(history::search(&t.path, "files", "parser", 100).unwrap(), vec![c.clone(), a.clone()]);
+    assert_eq!(history::search(&t.path, "files", "readme", 100).unwrap(), vec![b]);
+    // Pickaxe: commits adding/removing the text.
+    assert_eq!(history::search(&t.path, "code", "tokenize", 100).unwrap(), vec![c]);
+    assert!(history::search(&t.path, "files", "*", 100).unwrap().is_empty(), "glob chars are literal");
+    assert!(history::search(&t.path, "code", "  ", 100).unwrap().is_empty());
+    assert!(history::search(&t.path, "nope", "x", 100).is_err());
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

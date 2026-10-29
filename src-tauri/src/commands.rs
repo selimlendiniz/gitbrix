@@ -100,6 +100,11 @@ pub fn file_history(repo: String, path: String, limit: usize) -> Result<Vec<hist
 }
 
 #[tauri::command(async)]
+pub fn search_history(repo: String, mode: String, query: String, limit: usize) -> Result<Vec<String>> {
+    history::search(&workdir(&repo)?, &mode, &query, limit)
+}
+
+#[tauri::command(async)]
 pub fn reflog(repo: String, limit: usize) -> Result<Vec<history::ReflogEntry>> {
     history::reflog(&open(&repo)?, limit)
 }
