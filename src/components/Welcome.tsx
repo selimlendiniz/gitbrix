@@ -53,7 +53,7 @@ export function Welcome() {
             if (path.trim()) openRepo(path.trim());
           }}
         >
-          <input placeholder="…or paste a path, e.g. ~/codes/project" value={path} onChange={(e) => setPath(e.target.value)} />
+          <input placeholder="…paste a path, or drop a folder on the window" value={path} onChange={(e) => setPath(e.target.value)} />
           <button className="small-btn" type="submit" disabled={!path.trim() || loading}>
             Open
           </button>

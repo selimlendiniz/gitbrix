@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useEffect, useLayoutEffect, useState } from "react";
 
 import "./App.css";
@@ -90,6 +91,21 @@ function useWindowWidth(): number {
   return w;
 }
 
+/** Drop a folder on the window to open it as a repository. */
+function useFolderDrop() {
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return; // browser mode
+    let unlisten: (() => void) | undefined;
+    getCurrentWebview()
+      .onDragDropEvent((e) => {
+        if (e.payload.type === "drop" && e.payload.paths[0]) void useStore.getState().openRepo(e.payload.paths[0]);
+      })
+      .then((f) => (unlisten = f))
+      .catch(() => {});
+    return () => unlisten?.();
+  }, []);
+}
+
 function useAutoFetch() {
   const minutes = useSettings((s) => s.autoFetch);
   const repoPath = useStore((s) => s.repo?.path);
@@ -122,6 +138,7 @@ export default function App() {
   const detailsWidth = Math.min(useSettings((s) => s.detailsWidth), Math.round(winW * 0.34));
   useTheme();
   useAutoFetch();
+  useFolderDrop();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);
   const diffSource = useStore((s) => s.diffSource);
