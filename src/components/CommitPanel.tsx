@@ -11,6 +11,7 @@ export function CommitPanel() {
   const openDiff = useStore((s) => s.openDiff);
   const select = useStore((s) => s.select);
   const toast = useStore((s) => s.toast);
+  const showMenu = useStore((s) => s.showMenu);
 
   if (!details || details.id !== selectedId) {
     return <div className="panel-loading">Loading commit…</div>;
@@ -77,6 +78,19 @@ export function CommitPanel() {
         files={details.files}
         activePath={diffSource?.kind === "commit" ? diffSource.path : null}
         onOpen={(f) => openDiff({ kind: "commit", id: details.id, path: f.path, oldPath: f.oldPath })}
+        onMenu={(f, x, y) =>
+          showMenu(x, y, [
+            { label: "Show diff", onSelect: () => openDiff({ kind: "commit", id: details.id, path: f.path, oldPath: f.oldPath }) },
+            { label: "File history", onSelect: () => openDiff({ kind: "history", path: f.path }) },
+            {
+              label: "Blame at this commit",
+              disabled: f.status === "deleted",
+              onSelect: () => openDiff({ kind: "blame", path: f.path, rev: details.id }),
+            },
+            { separator: true, label: "" },
+            { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(f.path).then(() => toast("info", "Copied path")) },
+          ])
+        }
       />
     </div>
   );

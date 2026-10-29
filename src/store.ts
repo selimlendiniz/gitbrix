@@ -18,7 +18,9 @@ const GRAPH_LIMIT = 20_000;
 export type DiffSource =
   | { kind: "commit"; id: string; path: string; oldPath: string | null }
   | { kind: "wip"; path: string; staged: boolean }
-  | { kind: "conflict"; path: string };
+  | { kind: "conflict"; path: string }
+  | { kind: "history"; path: string }
+  | { kind: "blame"; path: string; rev: string | null };
 
 export interface Toast {
   id: number;
@@ -216,7 +218,10 @@ export const useStore = create<State>((set, get) => ({
       details: null,
       scrollRequest: scroll ? s.scrollRequest + 1 : s.scrollRequest,
     }));
-    if (get().diffSource?.kind === "commit" || (id !== WIP_ID && get().diffSource)) get().closeDiff();
+    // A commit's file diff belongs to that commit; history and blame
+    // views stay open while you click through commits.
+    const src = get().diffSource;
+    if (src && src.kind !== "history" && src.kind !== "blame" && (src.kind === "commit" || id !== WIP_ID)) get().closeDiff();
     if (!repo || !id || id === WIP_ID) return;
     const seq = ++detailsSeq;
     api
@@ -232,8 +237,8 @@ export const useStore = create<State>((set, get) => ({
     if (!repo) return;
     const seq = ++diffSeq;
     if (!sameSource(source, get().diffSource)) set({ diffSource: source, diff: null, diffError: null });
-    // The conflict view loads its own data.
-    if (source.kind === "conflict") return;
+    // These views load their own data.
+    if (source.kind === "conflict" || source.kind === "history" || source.kind === "blame") return;
     try {
       const diff =
         source.kind === "commit"

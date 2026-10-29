@@ -30,6 +30,9 @@ const READS: Record<string, (a: Args) => unknown> = {
   workdir_file_diff: (a) =>
     (fixture.wipDiffs as Record<string, unknown>)[`${a.staged ? "staged" : "unstaged"}:${a.path}`] ??
     fail(`No changes for ${a.path}`),
+  file_history: (a) => (fixture.histories as Record<string, unknown>)[a.path as string] ?? [],
+  // Blame is recorded for the working tree only; good enough for the UI.
+  blame: (a) => (fixture.blames as Record<string, unknown>)[a.path as string] ?? fail(`No blame for ${a.path}`),
   "plugin:dialog|open": () => fixture.info.path,
 };
 

@@ -76,3 +76,31 @@ test("selecting diff lines stages just those lines", async ({ page }) => {
   expect(call).toMatchObject({ target: "index", reverse: false, intentToAdd: null });
   expect(call!.patch as string).toContain("+// unstaged edit");
 });
+
+test("search highlights matching commits", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".graph-row").first().waitFor();
+  await page.keyboard.press("Control+f");
+  await page.getByPlaceholder("Search message, author or SHA").fill("parser");
+  await expect(page.locator(".search-count")).toHaveText(/of 5/);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".graph-row.selected")).toContainText(/parser/i);
+  await page.screenshot({ path: "test-results/shots/search.png" });
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".graph-search")).toBeHidden();
+});
+
+test("file history and blame", async ({ page }) => {
+  await page.goto("/?open");
+  await page.getByText("Wire parser into main").click();
+  await page.locator(".commit-panel .file-row", { hasText: "main.rs" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "File history" }).click();
+  await expect(page.getByTestId("history")).toBeVisible();
+  await expect(page.locator(".history-item")).toHaveCount(3);
+  await expect(page.locator(".dl.add").first()).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/history.png" });
+  await page.getByRole("button", { name: /Blame at/ }).click();
+  await expect(page.getByTestId("blame")).toBeVisible();
+  await expect(page.locator(".blame-line").first()).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/blame.png" });
+});

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use git2::Oid;
 
 use crate::error::{Error, Result};
-use crate::git::{diff, log, ops, refs, repo, status};
+use crate::git::{diff, history, log, ops, refs, repo, status};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -82,6 +82,16 @@ pub fn commit_file_diff(repo: String, id: String, path: String, old_path: Option
 #[tauri::command(async)]
 pub fn workdir_file_diff(repo: String, path: String, staged: bool) -> Result<diff::FileDiff> {
     diff::workdir_file_diff(&open(&repo)?, &path, staged)
+}
+
+#[tauri::command(async)]
+pub fn file_history(repo: String, path: String, limit: usize) -> Result<Vec<history::HistoryEntry>> {
+    history::file_history(&workdir(&repo)?, &path, limit)
+}
+
+#[tauri::command(async)]
+pub fn blame(repo: String, path: String, rev: Option<String>) -> Result<history::Blame> {
+    history::blame(&workdir(&repo)?, &path, rev.as_deref())
 }
 
 #[tauri::command(async)]

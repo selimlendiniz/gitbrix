@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod diff;
 pub mod graph;
+pub mod history;
 pub mod log;
 pub mod ops;
 pub mod refs;

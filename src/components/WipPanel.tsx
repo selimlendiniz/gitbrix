@@ -92,6 +92,9 @@ export function WipPanel() {
               { label: "Stage file", onSelect: () => stage([f.path]) },
               { label: "Discard changes…", danger: true, disabled: f.status === "conflicted", onSelect: () => discardFiles([f.path]) },
               { separator: true, label: "" },
+              { label: "File history", disabled: f.status === "untracked", onSelect: () => openDiff({ kind: "history", path: f.path }) },
+              { label: "Blame", disabled: f.status === "untracked" || f.status === "deleted", onSelect: () => openDiff({ kind: "blame", path: f.path, rev: null }) },
+              { separator: true, label: "" },
               { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(f.path).then(() => toast("info", "Copied path")) },
             ])
           }

@@ -17,6 +17,22 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — steps 9–11: watcher, hunk/line staging, conflicts
+
+- File watcher (`src-tauri/src/watch.rs`): edits and terminal commits show
+  up without pressing refresh.
+- Hunk and line staging/unstaging/discarding in the diff view (click a
+  line, Shift+click for a range). Patches built in `src/diff/patch.ts`,
+  applied with `git apply --cached [--reverse] --recount`.
+- Merge conflict view: per-block ours / theirs / both, take-whole-file,
+  save & mark resolved, then Continue from the banner.
+- Real-app e2e (`pnpm test:e2e`): Xvfb + tauri-driver + WebKitWebDriver.
+  7 steps incl. commit, branch, hunk staging, external change, conflict.
+  Note: WebKitWebDriver's element-text endpoint returns "" — the runner
+  reads `textContent` via script.
+
+Tests: 32 Rust, 20 unit, 5 Playwright UI, 7 e2e steps — all passing.
+
 ### 2026-10-29 — step 1–8 foundation
 
 Done:

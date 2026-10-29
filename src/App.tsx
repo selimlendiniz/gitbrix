@@ -7,6 +7,7 @@ import { CommitGraph } from "./components/CommitGraph";
 import { CommitPanel } from "./components/CommitPanel";
 import { ConflictView } from "./components/ConflictView";
 import { DiffView } from "./components/DiffView";
+import { BlameView, HistoryView } from "./components/FileViews";
 import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { Sidebar } from "./components/Sidebar";
 import { Toolbar } from "./components/Toolbar";
@@ -21,6 +22,10 @@ function useGlobalKeys() {
       if (e.key === "F5" || (e.key === "r" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         void s.refresh();
+      } else if (e.key === "f" && (e.ctrlKey || e.metaKey) && s.repo) {
+        e.preventDefault();
+        s.closeDiff();
+        window.dispatchEvent(new Event("gitbrix:find"));
       } else if (e.key === "Escape" && s.diffSource && !s.dialog && !s.menu) {
         s.closeDiff();
       } else if (e.key === "o" && (e.ctrlKey || e.metaKey)) {
@@ -60,7 +65,17 @@ export default function App() {
           <div className="main">
             <Sidebar />
             <section className="center">
-              {diffSource?.kind === "conflict" ? <ConflictView /> : diffSource ? <DiffView /> : <CommitGraph />}
+              {diffSource?.kind === "conflict" ? (
+                <ConflictView />
+              ) : diffSource?.kind === "history" ? (
+                <HistoryView />
+              ) : diffSource?.kind === "blame" ? (
+                <BlameView />
+              ) : diffSource ? (
+                <DiffView />
+              ) : (
+                <CommitGraph />
+              )}
             </section>
             <aside className="details">
               {selectedId === WIP_ID ? <WipPanel /> : selectedId ? <CommitPanel /> : <div className="panel-loading">Select a commit</div>}

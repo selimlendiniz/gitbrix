@@ -145,6 +145,28 @@ export interface ConflictFile {
   binary: boolean;
 }
 
+export interface HistoryEntry {
+  id: string;
+  authorName: string;
+  time: number;
+  summary: string;
+  path: string;
+}
+
+export interface BlameCommit {
+  id: string;
+  authorName: string;
+  authorEmail: string;
+  time: number;
+  summary: string;
+}
+
+export interface Blame {
+  path: string;
+  lines: { id: string; line: number; text: string }[];
+  commits: Record<string, BlameCommit>;
+}
+
 export type PullMode = "ff-only" | "merge" | "rebase";
 export type ResetMode = "soft" | "mixed" | "hard";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -163,6 +185,8 @@ export const api = {
     invoke<FileDiff>("commit_file_diff", { repo, id, path, oldPath }),
   workdirFileDiff: (repo: string, path: string, staged: boolean) =>
     invoke<FileDiff>("workdir_file_diff", { repo, path, staged }),
+  fileHistory: (repo: string, path: string, limit: number) => invoke<HistoryEntry[]>("file_history", { repo, path, limit }),
+  blame: (repo: string, path: string, rev: string | null) => invoke<Blame>("blame", { repo, path, rev }),
   headMessage: (repo: string) => invoke<string>("head_message", { repo }),
 
   stage: (repo: string, paths: string[]) => invoke<void>("stage", { repo, paths }),

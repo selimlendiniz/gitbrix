@@ -27,7 +27,9 @@ export function DiffView() {
   const run = useStore((s) => s.run);
   const [mode, setMode] = useState<Mode>(loadMode);
 
-  if (!source || source.kind === "conflict") return null;
+  const openDiff = useStore((s) => s.openDiff);
+
+  if (!source || (source.kind !== "commit" && source.kind !== "wip")) return null;
 
   function changeMode(m: Mode) {
     setMode(m);
@@ -68,6 +70,17 @@ export function DiffView() {
                 </button>
               </>
             ))}
+          <button className="link-btn" onClick={() => openDiff({ kind: "history", path: source.path })}>
+            History
+          </button>
+          <button
+            className="link-btn"
+            onClick={() =>
+              openDiff({ kind: "blame", path: source.path, rev: source.kind === "commit" ? source.id : null })
+            }
+          >
+            Blame
+          </button>
           <span className="segmented">
             <button className={mode === "unified" ? "on" : ""} onClick={() => changeMode("unified")}>
               Unified
@@ -102,7 +115,7 @@ interface Selection {
   anchor: number;
 }
 
-function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; wip: WipSource | null }) {
+export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; wip: WipSource | null }) {
   const run = useStore((s) => s.run);
   const confirm = useStore((s) => s.confirm);
   const [sel, setSel] = useState<Selection | null>(null);

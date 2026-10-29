@@ -547,6 +547,34 @@ fn resolve_delete_modify_conflict_by_deleting() {
     assert!(status::status(&t.open()).unwrap().conflicted.is_empty());
 }
 
+#[test]
+fn file_history_follows_renames_and_blame_attributes_lines() {
+    use super::history;
+    let t = TestRepo::new();
+    t.commit("old.txt", "one\n", "create");
+    t.commit("old.txt", "one\ntwo\n", "add two");
+    t.git(&["mv", "old.txt", "new.txt"]);
+    t.git(&["commit", "-q", "-m", "rename"]);
+    t.commit("other.txt", "x\n", "unrelated");
+
+    let h = history::file_history(&t.path, "new.txt", 100).unwrap();
+    let got: Vec<(&str, &str)> = h.iter().map(|e| (e.summary.as_str(), e.path.as_str())).collect();
+    assert_eq!(got, vec![("rename", "new.txt"), ("add two", "old.txt"), ("create", "old.txt")]);
+    assert_eq!(h[0].author_name, "Test User");
+
+    let b = history::blame(&t.path, "new.txt", None).unwrap();
+    assert_eq!(b.lines.len(), 2);
+    let first = &b.commits[&b.lines[0].id];
+    let second = &b.commits[&b.lines[1].id];
+    assert_eq!((first.summary.as_str(), second.summary.as_str()), ("create", "add two"));
+
+    // Blame at an older commit, under the old name.
+    let at = h[1].id.clone();
+    let old = history::blame(&t.path, "old.txt", Some(&at)).unwrap();
+    assert_eq!(old.lines.len(), 2);
+    assert!(history::blame(&t.path, "new.txt", Some("--evil")).is_err());
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.
@@ -590,6 +618,26 @@ fn record_ui_fixture() {
         }
     }
 
+    // History and working-tree blame for every file in HEAD.
+    let mut histories = Map::new();
+    let mut blames = Map::new();
+    let head_tree = r.head().unwrap().peel_to_tree().unwrap();
+    head_tree
+        .walk(git2::TreeWalkMode::PreOrder, |dir, entry| {
+            if entry.kind() == Some(git2::ObjectType::Blob) {
+                let path = format!("{dir}{}", entry.name().unwrap_or(""));
+                let wd = Path::new(&repo_path);
+                if let Ok(h) = super::history::file_history(wd, &path, 500) {
+                    histories.insert(path.clone(), serde_json::to_value(h).unwrap());
+                }
+                if let Ok(b) = super::history::blame(wd, &path, None) {
+                    blames.insert(path, serde_json::to_value(b).unwrap());
+                }
+            }
+            git2::TreeWalkResult::Ok
+        })
+        .unwrap();
+
     let head_message = r.head().unwrap().peel_to_commit().unwrap().message().unwrap_or("").to_owned();
     let fixture: Value = json!({
         "info": info,
@@ -600,6 +648,8 @@ fn record_ui_fixture() {
         "commitDiffs": commit_diffs,
         "wipDiffs": wip_diffs,
         "headMessage": head_message,
+        "histories": histories,
+        "blames": blames,
     });
     fs::write(&out, serde_json::to_string(&fixture).unwrap()).unwrap();
 }

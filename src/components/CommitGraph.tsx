@@ -7,11 +7,22 @@ import { relativeTime, fullTime } from "../format";
 import { drawGraph, graphWidth, ROW_H } from "../graph/draw";
 import { primaryRef, RefPill, refsByCommit } from "../graph/refs";
 import { useStore } from "../store";
-import { IconCloud, IconLaptop, IconTag } from "./Icons";
+import { IconClose, IconCloud, IconLaptop, IconSearch, IconTag } from "./Icons";
 
 const REFS_W = 190;
 const MAX_GRAPH_W = 320;
 const OVERSCAN = 6;
+
+/** Does a commit match the search text? Message, author or SHA prefix. */
+export function commitMatches(c: CommitRow, q: string): boolean {
+  if (c.id === WIP_ID || !q) return false;
+  return (
+    c.summary.toLowerCase().includes(q) ||
+    c.authorName.toLowerCase().includes(q) ||
+    c.authorEmail.toLowerCase().includes(q) ||
+    (q.length >= 4 && c.id.startsWith(q))
+  );
+}
 
 function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -31,9 +42,41 @@ export function CommitGraph() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewH, setViewH] = useState(600);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const commits = graph?.commits ?? [];
   const pills = useMemo(() => refsByCommit(graph?.refs ?? []), [graph]);
+  const q = searchOpen ? query.trim().toLowerCase() : "";
+  const matches = useMemo(() => {
+    if (!q) return null;
+    const out: number[] = [];
+    commits.forEach((c, i) => commitMatches(c, q) && out.push(i));
+    return out;
+  }, [commits, q]);
+  const matchSet = useMemo(() => (matches ? new Set(matches) : null), [matches]);
+  const selectedIndex = commits.findIndex((c) => c.id === selectedId);
+  const matchPos = matches ? matches.indexOf(selectedIndex) : -1;
+
+  // Ctrl+F (handled globally) asks the graph to open its search box.
+  useEffect(() => {
+    const open = () => {
+      setSearchOpen(true);
+      setTimeout(() => searchRef.current?.select(), 0);
+    };
+    window.addEventListener("gitbrix:find", open);
+    return () => window.removeEventListener("gitbrix:find", open);
+  }, []);
+
+  function jump(dir: 1 | -1) {
+    if (!matches?.length) return;
+    const next =
+      dir === 1
+        ? (matches.find((i) => i > selectedIndex) ?? matches[0])
+        : ([...matches].reverse().find((i) => i < selectedIndex) ?? matches[matches.length - 1]);
+    select(commits[next].id, true);
+  }
   const gw = Math.min(MAX_GRAPH_W, graphWidth(graph?.maxLanes ?? 1));
 
   useLayoutEffect(() => {
@@ -116,6 +159,7 @@ export function CommitGraph() {
         graphW={gw}
         pills={pills.get(c.id)}
         selected={c.id === selectedId}
+        dim={!!matchSet && !matchSet.has(i)}
         wip={c.id === WIP_ID ? wipCounts : null}
         onSelect={select}
         onMenu={(x, y) => {
@@ -131,10 +175,58 @@ export function CommitGraph() {
       <div className="graph-header" style={{ gridTemplateColumns: `${REFS_W}px ${gw}px 1fr 160px 120px` }}>
         <span>Branch / Tag</span>
         <span>Graph</span>
-        <span>Commit message</span>
+        <span className="graph-header-msg">
+          Commit message
+          {!searchOpen && (
+            <button className="icon-btn" title="Search commits (Ctrl+F)" onClick={() => window.dispatchEvent(new Event("gitbrix:find"))}>
+              <IconSearch size={12} />
+            </button>
+          )}
+        </span>
         <span>Author</span>
         <span>Date</span>
       </div>
+      {searchOpen && (
+        <div className="graph-search">
+          <IconSearch size={13} />
+          <input
+            ref={searchRef}
+            placeholder="Search message, author or SHA"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                jump(e.shiftKey ? -1 : 1);
+              } else if (e.key === "Escape") {
+                e.stopPropagation();
+                setSearchOpen(false);
+                setQuery("");
+                scrollRef.current?.focus();
+              }
+            }}
+          />
+          <span className="search-count">
+            {matches ? (matches.length ? `${matchPos >= 0 ? matchPos + 1 : "–"} of ${matches.length}` : "no matches") : ""}
+          </span>
+          <button className="icon-btn" title="Previous (Shift+Enter)" disabled={!matches?.length} onClick={() => jump(-1)}>
+            ↑
+          </button>
+          <button className="icon-btn" title="Next (Enter)" disabled={!matches?.length} onClick={() => jump(1)}>
+            ↓
+          </button>
+          <button
+            className="icon-btn"
+            title="Close (Esc)"
+            onClick={() => {
+              setSearchOpen(false);
+              setQuery("");
+            }}
+          >
+            <IconClose size={12} />
+          </button>
+        </div>
+      )}
       <div
         className="graph-scroll"
         ref={scrollRef}
@@ -163,16 +255,17 @@ interface RowProps {
   graphW: number;
   pills: RefPill[] | undefined;
   selected: boolean;
+  dim: boolean;
   wip: { staged: number; unstaged: number } | null;
   onSelect: (id: string) => void;
   onMenu: (x: number, y: number) => void;
 }
 
-const GraphRow = memo(function GraphRow({ commit: c, index, graphW, pills, selected, wip, onSelect, onMenu }: RowProps) {
+const GraphRow = memo(function GraphRow({ commit: c, index, graphW, pills, selected, dim, wip, onSelect, onMenu }: RowProps) {
   const color = laneColor(c.color);
   return (
     <div
-      className={`graph-row${selected ? " selected" : ""}${wip ? " wip" : ""}`}
+      className={`graph-row${selected ? " selected" : ""}${wip ? " wip" : ""}${dim ? " dim" : ""}`}
       style={{ top: index * ROW_H, height: ROW_H, gridTemplateColumns: `${REFS_W}px ${graphW}px 1fr 160px 120px` }}
       data-commit={c.id}
       onMouseDown={(e) => {
