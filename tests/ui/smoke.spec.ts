@@ -186,3 +186,15 @@ test("settings: light theme and absolute dates", async ({ page }) => {
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
+
+test("remote and branch menus offer remote operations", async ({ page }) => {
+  await page.goto("/?open");
+  await page.locator(".side-item.group", { hasText: "origin" }).click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "Fetch origin" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Fetch origin" }).click();
+  await page.locator(".side-item", { hasText: "feature/parser" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Push to origin" }).click();
+  const calls = await page.evaluate(() => window.__gitbrixCalls.map((c) => [c.cmd, c.args]));
+  expect(calls).toContainEqual(["fetch_remote", expect.objectContaining({ remote: "origin" })]);
+  expect(calls).toContainEqual(["push_branch", expect.objectContaining({ remote: "origin", branch: "feature/parser" })]);
+});

@@ -721,6 +721,51 @@ fn undo_building_blocks_keep_reset_and_stash_store() {
     assert_eq!(back[0].message, st.message);
 }
 
+#[test]
+fn remote_management_and_targeted_push() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    let bare = t.add_origin();
+    let none: &mut dyn FnMut(&str) = &mut |_| {};
+
+    let list = refs::remotes(&t.open()).unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].name, "origin");
+    assert_eq!(list[0].url.as_deref(), bare.to_str());
+
+    // Second remote: add, push a branch to it, rename, change URL, remove.
+    let backup = t.path.parent().unwrap().join("backup.git");
+    git_in(t.path.parent().unwrap(), &["init", "-q", "--bare", "backup.git"]);
+    ops::add_remote(&t.path, "backup", backup.to_str().unwrap()).unwrap();
+    assert!(ops::add_remote(&t.path, "backup", "x").is_err(), "duplicate");
+    ops::create_branch(&t.path, "topic", None, false).unwrap();
+    ops::push_branch(&t.path, "backup", "topic", false, none).unwrap();
+    assert_eq!(git_in(&backup, &["branch", "--list", "topic"]).trim(), "topic");
+    let topic = refs::list(&t.open()).unwrap().into_iter().find(|r| r.name == "topic").unwrap();
+    assert_eq!(topic.upstream.as_deref(), Some("backup/topic"));
+
+    ops::set_upstream(&t.path, "topic", None).unwrap();
+    let topic = refs::list(&t.open()).unwrap().into_iter().find(|r| r.name == "topic").unwrap();
+    assert_eq!(topic.upstream, None);
+    ops::set_upstream(&t.path, "topic", Some("backup/topic")).unwrap();
+
+    ops::fetch_remote(&t.path, "backup", none).unwrap();
+    ops::rename_remote(&t.path, "backup", "mirror").unwrap();
+    ops::set_remote_url(&t.path, "mirror", "/somewhere/else.git").unwrap();
+    let list = refs::remotes(&t.open()).unwrap();
+    let mirror = list.iter().find(|r| r.name == "mirror").unwrap();
+    assert_eq!(mirror.url.as_deref(), Some("/somewhere/else.git"));
+    ops::remove_remote(&t.path, "mirror").unwrap();
+    assert_eq!(refs::remotes(&t.open()).unwrap().len(), 1);
+
+    // Tags: push and delete on the remote.
+    ops::create_tag(&t.path, "v1", "HEAD", None).unwrap();
+    ops::push_tag(&t.path, "origin", "v1", false, none).unwrap();
+    assert_eq!(git_in(&bare, &["tag"]).trim(), "v1");
+    ops::push_tag(&t.path, "origin", "v1", true, none).unwrap();
+    assert_eq!(git_in(&bare, &["tag"]).trim(), "");
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.
@@ -797,6 +842,7 @@ fn record_ui_fixture() {
         "commitDiffs": commit_diffs,
         "wipDiffs": wip_diffs,
         "headMessage": head_message,
+        "remotes": refs::remotes(&r).unwrap(),
         "histories": histories,
         "blames": blames,
         "rebaseCommits": super::rebase::commits(&r, &r.revparse_single("HEAD~2").unwrap().id().to_string()).unwrap(),

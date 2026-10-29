@@ -122,3 +122,23 @@ pub fn stashes(repo: &mut Repository) -> Result<Vec<StashInfo>> {
         })
         .collect())
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteInfo {
+    pub name: String,
+    pub url: Option<String>,
+    /// Only when it differs from `url`.
+    pub push_url: Option<String>,
+}
+
+pub fn remotes(repo: &Repository) -> Result<Vec<RemoteInfo>> {
+    let mut out = Vec::new();
+    for name in repo.remotes()?.iter().filter_map(|n| n.ok().flatten()) {
+        let r = repo.find_remote(name)?;
+        let url = r.url().ok().map(str::to_owned);
+        let push_url = r.pushurl().ok().flatten().map(str::to_owned).filter(|p| Some(p) != url.as_ref());
+        out.push(RemoteInfo { name: name.to_owned(), url, push_url });
+    }
+    Ok(out)
+}

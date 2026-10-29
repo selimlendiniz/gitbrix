@@ -34,6 +34,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   // Blame is recorded for the working tree only; good enough for the UI.
   blame: (a) => (fixture.blames as Record<string, unknown>)[a.path as string] ?? fail(`No blame for ${a.path}`),
   rebase_commits: () => fixture.rebaseCommits,
+  get_remotes: () => fixture.remotes,
   "plugin:dialog|open": () => fixture.info.path,
 };
 

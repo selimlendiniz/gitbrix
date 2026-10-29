@@ -178,6 +178,12 @@ export interface RebaseStep {
   message: string | null;
 }
 
+export interface RemoteInfo {
+  name: string;
+  url: string | null;
+  pushUrl: string | null;
+}
+
 export type PullMode = "ff-only" | "merge" | "rebase";
 export type ResetMode = "soft" | "mixed" | "hard" | "keep";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -231,6 +237,16 @@ export const api = {
   pull: (repo: string, mode: PullMode) => invoke<void>("pull", { repo, mode }),
   push: (repo: string, force: boolean) => invoke<void>("push", { repo, force }),
 
+  remotes: (repo: string) => invoke<RemoteInfo[]>("get_remotes", { repo }),
+  addRemote: (repo: string, name: string, url: string) => invoke<void>("add_remote", { repo, name, url }),
+  removeRemote: (repo: string, name: string) => invoke<void>("remove_remote", { repo, name }),
+  renameRemote: (repo: string, old: string, newName: string) => invoke<void>("rename_remote", { repo, old, new: newName }),
+  setRemoteUrl: (repo: string, name: string, url: string) => invoke<void>("set_remote_url", { repo, name, url }),
+  fetchRemote: (repo: string, remote: string) => invoke<void>("fetch_remote", { repo, remote }),
+  pushBranch: (repo: string, remote: string, branch: string, force: boolean) =>
+    invoke<void>("push_branch", { repo, remote, branch, force }),
+  setUpstream: (repo: string, branch: string, upstream: string | null) => invoke<void>("set_upstream", { repo, branch, upstream }),
+  pushTag: (repo: string, remote: string, tag: string, del: boolean) => invoke<void>("push_tag", { repo, remote, tag, delete: del }),
   cloneRepo: (url: string, parent: string, name: string) => invoke<string>("clone_repo", { url, parent, name }),
   initRepo: (path: string) => invoke<string>("init_repo", { path }),
 

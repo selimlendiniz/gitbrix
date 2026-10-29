@@ -2,7 +2,7 @@
 // Each one asks for input or confirmation where needed, then runs through
 // the store so errors become toasts and the view refreshes afterwards.
 
-import { api, CommitRow, PullMode, RefInfo, ResetMode, StashInfo, WIP_ID } from "./api";
+import { api, CommitRow, PullMode, RefInfo, RemoteInfo, ResetMode, StashInfo, WIP_ID } from "./api";
 import { shortId } from "./format";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
@@ -296,6 +296,8 @@ export function refMenu(ref: RefInfo): MenuItem[] {
       { label: `Merge ${ref.name} into ${head ?? "HEAD"}`, disabled: ref.isHead, onSelect: () => mergeInto(ref.name, ref.name) },
       { label: `Rebase ${head ?? "HEAD"} onto ${ref.name}`, disabled: ref.isHead, onSelect: () => rebaseOnto(ref.name, ref.name) },
       { separator: true, label: "" },
+      ...branchRemoteItems(ref),
+      { separator: true, label: "" },
       { label: "Rename…", onSelect: () => renameBranch(ref) },
       { label: "Delete…", danger: true, disabled: ref.isHead, onSelect: () => deleteBranch(ref) },
       { separator: true, label: "" },
@@ -316,6 +318,8 @@ export function refMenu(ref: RefInfo): MenuItem[] {
     items.push(
       { label: `Check out ${ref.name}`, onSelect: () => checkoutRef(ref) },
       { label: "Create branch here…", onSelect: () => createBranch(ref.name, ref.name) },
+      { separator: true, label: "" },
+      ...tagRemoteItems(ref),
       { separator: true, label: "" },
       { label: "Delete tag…", danger: true, onSelect: () => deleteTag(ref) },
       { label: "Copy tag name", onSelect: () => copy(ref.name) },
@@ -358,4 +362,110 @@ export function commitMenu(c: CommitRow): MenuItem[] {
     { label: "Copy commit SHA", onSelect: () => copy(c.id) },
     { label: "Copy commit message", onSelect: () => copy(c.summary) },
   ];
+}
+
+// ---------- remotes ----------
+
+export async function addRemote() {
+  const res = await s().prompt({
+    title: "Add remote",
+    label: "Name",
+    initial: s().remotes.length ? "" : "origin",
+    placeholder: "upstream",
+    confirmLabel: "Add remote",
+    textarea: { label: "URL", placeholder: "git@github.com:owner/project.git" },
+  });
+  const name = res?.value.trim();
+  const url = res?.text.trim();
+  if (!res || !name || !url) return;
+  const ok = await s().run(`Adding ${name}`, (r) => api.addRemote(r, name, url), `Added remote ${name}`);
+  if (ok) await s().run(`Fetching ${name}`, (r) => api.fetchRemote(r, name));
+}
+
+export function remoteMenu(remote: RemoteInfo): MenuItem[] {
+  return [
+    { label: `Fetch ${remote.name}`, onSelect: () => s().run(`Fetching ${remote.name}`, (r) => api.fetchRemote(r, remote.name), `Fetched ${remote.name}`) },
+    { separator: true, label: "" },
+    {
+      label: "Edit URL…",
+      onSelect: async () => {
+        const res = await s().prompt({ title: `URL of ${remote.name}`, label: "URL", initial: remote.url ?? "", confirmLabel: "Save" });
+        const url = res?.value.trim();
+        if (res && url && url !== remote.url) await s().run("Saving URL", (r) => api.setRemoteUrl(r, remote.name, url));
+      },
+    },
+    {
+      label: "Rename…",
+      onSelect: async () => {
+        const res = await s().prompt({ title: `Rename ${remote.name}`, label: "New name", initial: remote.name, confirmLabel: "Rename" });
+        const name = res?.value.trim();
+        if (res && name && name !== remote.name) await s().run("Renaming remote", (r) => api.renameRemote(r, remote.name, name));
+      },
+    },
+    {
+      label: "Remove…",
+      danger: true,
+      onSelect: async () => {
+        const ok = await s().confirm({
+          title: "Remove remote",
+          message: `Remove ${remote.name} and its remote-tracking branches from this repository? Nothing is deleted on the server.`,
+          confirmLabel: "Remove",
+          danger: true,
+        });
+        if (ok) await s().run(`Removing ${remote.name}`, (r) => api.removeRemote(r, remote.name), `Removed ${remote.name}`);
+      },
+    },
+    { separator: true, label: "" },
+    { label: "Copy URL", disabled: !remote.url, onSelect: () => remote.url && copy(remote.url) },
+  ];
+}
+
+async function pushBranchTo(ref: RefInfo, remote: string) {
+  await s().run(`Pushing ${ref.name} to ${remote}`, (r) => api.pushBranch(r, remote, ref.name, false), `Pushed ${ref.name} to ${remote}`);
+}
+
+async function setUpstream(ref: RefInfo) {
+  const remoteBranches = (s().graph?.refs ?? []).filter((r) => r.kind === "remote").map((r) => r.name);
+  const guess = remoteBranches.find((n) => remoteOf({ name: n } as RefInfo).branch === ref.name) ?? `origin/${ref.name}`;
+  const res = await s().prompt({
+    title: `Upstream of ${ref.name}`,
+    label: "Remote branch",
+    initial: ref.upstream ?? guess,
+    placeholder: "origin/main",
+    confirmLabel: "Set upstream",
+  });
+  const up = res?.value.trim();
+  if (res && up) await s().run("Setting upstream", (r) => api.setUpstream(r, ref.name, up), `${ref.name} now tracks ${up}`);
+}
+
+export function branchRemoteItems(ref: RefInfo): MenuItem[] {
+  const remotes = s().remotes;
+  return [
+    ...remotes.map((rm) => ({ label: `Push to ${rm.name}`, onSelect: () => pushBranchTo(ref, rm.name) })),
+    { label: "Set upstream…", disabled: remotes.length === 0, onSelect: () => setUpstream(ref) },
+    {
+      label: "Unset upstream",
+      disabled: !ref.upstream,
+      onSelect: () => s().run("Unsetting upstream", (r) => api.setUpstream(r, ref.name, null)),
+    },
+  ];
+}
+
+export function tagRemoteItems(ref: RefInfo): MenuItem[] {
+  return s().remotes.flatMap((rm) => [
+    { label: `Push tag to ${rm.name}`, onSelect: () => s().run(`Pushing ${ref.name}`, (r) => api.pushTag(r, rm.name, ref.name, false), `Pushed ${ref.name} to ${rm.name}`) },
+    {
+      label: `Delete tag from ${rm.name}…`,
+      danger: true,
+      onSelect: async () => {
+        const ok = await s().confirm({
+          title: "Delete remote tag",
+          message: `Delete tag ${ref.name} on ${rm.name}? This affects everyone using that remote.`,
+          confirmLabel: "Delete on remote",
+          danger: true,
+        });
+        if (ok) await s().run(`Deleting ${ref.name} on ${rm.name}`, (r) => api.pushTag(r, rm.name, ref.name, true));
+      },
+    },
+  ]);
 }

@@ -1,7 +1,7 @@
 import { ReactNode, useMemo, useState } from "react";
 
-import { RefInfo } from "../api";
-import { checkoutRef, createBranch, refMenu, remoteOf, stashMenu } from "../actions";
+import { RefInfo, RemoteInfo } from "../api";
+import { addRemote, checkoutRef, createBranch, refMenu, remoteMenu, remoteOf, stashMenu } from "../actions";
 import { useStore } from "../store";
 import { IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconStash, IconTag } from "./Icons";
 
@@ -88,6 +88,7 @@ export function Sidebar() {
   }, [graph, filter]);
 
   const remoteCount = [...remotes.values()].reduce((n, l) => n + l.length, 0);
+  const allRemotes = useStore((s) => s.remotes);
 
   return (
     <aside className="sidebar">
@@ -109,9 +110,18 @@ export function Sidebar() {
             <RefItem key={r.fullName} r={r} label={r.name} />
           ))}
         </Section>
-        <Section title="Remote" icon={<IconCloud size={13} />} count={remoteCount}>
-          {[...remotes.entries()].map(([remote, list]) => (
-            <RemoteGroup key={remote} remote={remote} list={list} />
+        <Section
+          title="Remote"
+          icon={<IconCloud size={13} />}
+          count={remoteCount}
+          action={
+            <button className="icon-btn" title="Add remote" onClick={() => addRemote()}>
+              <IconPlus size={12} />
+            </button>
+          }
+        >
+          {allRemotes.map((rm) => (
+            <RemoteGroup key={rm.name} remote={rm} list={remotes.get(rm.name) ?? []} />
           ))}
         </Section>
         <Section title="Tags" icon={<IconTag size={13} />} count={tags.length}>
@@ -141,14 +151,25 @@ export function Sidebar() {
   );
 }
 
-function RemoteGroup({ remote, list }: { remote: string; list: RefInfo[] }) {
+function RemoteGroup({ remote, list }: { remote: RemoteInfo; list: RefInfo[] }) {
   const [open, setOpen] = useState(true);
+  const showMenu = useStore((s) => s.showMenu);
   return (
     <>
-      <div className="side-item group" style={{ paddingLeft: 18 }} onClick={() => setOpen(!open)}>
+      <div
+        className="side-item group"
+        style={{ paddingLeft: 18 }}
+        title={remote.url ?? undefined}
+        onClick={() => setOpen(!open)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          showMenu(e.clientX, e.clientY, remoteMenu(remote));
+        }}
+      >
         <IconChevron size={11} open={open} />
         <IconBranch size={12} />
-        <span className="side-item-label">{remote}</span>
+        <span className="side-item-label">{remote.name}</span>
+        {list.length === 0 && <span className="side-count">not fetched</span>}
       </div>
       {open && list.map((r) => <RefItem key={r.fullName} r={r} label={remoteOf(r).branch} indent={1} />)}
     </>

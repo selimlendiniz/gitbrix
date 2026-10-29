@@ -6,6 +6,7 @@ import {
   errorText,
   FileDiff,
   Graph,
+  RemoteInfo,
   RepoInfo,
   StashInfo,
   WIP_ID,
@@ -81,6 +82,7 @@ interface State {
   graph: Graph | null;
   status: WorkingStatus | null;
   stashes: StashInfo[];
+  remotes: RemoteInfo[];
   selectedId: string | null;
   details: CommitDetails | null;
   diffSource: DiffSource | null;
@@ -143,6 +145,7 @@ export const useStore = create<State>((set, get) => ({
   graph: null,
   status: null,
   stashes: [],
+  remotes: [],
   selectedId: null,
   details: null,
   diffSource: null,
@@ -236,15 +239,16 @@ export const useStore = create<State>((set, get) => ({
         }
         // The WIP row has to appear or disappear: fall through to a full load.
       }
-      const [info, graph, status, stashes] = await Promise.all([
+      const [info, graph, status, stashes, remotes] = await Promise.all([
         api.repoInfo(repo.path),
         api.graph(repo.path, get().graphLimit),
         api.status(repo.path),
         api.stashes(repo.path),
+        api.remotes(repo.path),
       ]);
       if (seq !== refreshSeq || get().repo?.path !== repo.path) return;
       const stopped = get().repo?.state === "clean" && info.state !== "clean" && status.conflicted.length > 0;
-      set({ repo: info, graph, status, stashes });
+      set({ repo: info, graph, status, stashes, remotes });
       // An operation just stopped on conflicts: show them.
       if (stopped) get().select(WIP_ID, true);
 

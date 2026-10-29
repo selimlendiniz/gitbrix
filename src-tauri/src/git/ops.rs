@@ -264,6 +264,73 @@ pub fn push(repo: &Path, force: bool, progress: Progress) -> Result<()> {
     Ok(())
 }
 
+pub fn add_remote(repo: &Path, name: &str, url: &str) -> Result<()> {
+    check_name(name)?;
+    check_name(url)?;
+    run(repo, &["remote", "add", name, url])?;
+    Ok(())
+}
+
+pub fn remove_remote(repo: &Path, name: &str) -> Result<()> {
+    check_name(name)?;
+    run(repo, &["remote", "remove", name])?;
+    Ok(())
+}
+
+pub fn rename_remote(repo: &Path, old: &str, new: &str) -> Result<()> {
+    check_name(old)?;
+    check_name(new)?;
+    run(repo, &["remote", "rename", old, new])?;
+    Ok(())
+}
+
+pub fn set_remote_url(repo: &Path, name: &str, url: &str) -> Result<()> {
+    check_name(name)?;
+    check_name(url)?;
+    run(repo, &["remote", "set-url", name, url])?;
+    Ok(())
+}
+
+pub fn fetch_remote(repo: &Path, remote: &str, progress: Progress) -> Result<()> {
+    check_name(remote)?;
+    run_progress(repo, &["fetch", "--prune", "--tags", "--progress", remote], progress)?;
+    Ok(())
+}
+
+/// Push a local branch to `remote` under the same name and track it.
+pub fn push_branch(repo: &Path, remote: &str, branch: &str, force: bool, progress: Progress) -> Result<()> {
+    check_name(remote)?;
+    check_name(branch)?;
+    let spec = format!("refs/heads/{branch}:refs/heads/{branch}");
+    let mut args = vec!["push", "--progress", "-u"];
+    if force {
+        args.push("--force-with-lease");
+    }
+    args.extend([remote, spec.as_str()]);
+    run_progress(repo, &args, progress)?;
+    Ok(())
+}
+
+pub fn set_upstream(repo: &Path, branch: &str, upstream: Option<&str>) -> Result<()> {
+    check_name(branch)?;
+    match upstream {
+        Some(u) => {
+            check_name(u)?;
+            run(repo, &["branch", "--set-upstream-to", u, branch])?
+        }
+        None => run(repo, &["branch", "--unset-upstream", branch])?,
+    };
+    Ok(())
+}
+
+pub fn push_tag(repo: &Path, remote: &str, tag: &str, delete: bool, progress: Progress) -> Result<()> {
+    check_name(remote)?;
+    check_name(tag)?;
+    let spec = if delete { format!(":refs/tags/{tag}") } else { format!("refs/tags/{tag}") };
+    run_progress(repo, &["push", "--progress", remote, &spec], progress)?;
+    Ok(())
+}
+
 pub fn stash_save(repo: &Path, message: Option<&str>, include_untracked: bool) -> Result<()> {
     let mut args = vec!["stash", "push"];
     if include_untracked {

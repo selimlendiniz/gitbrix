@@ -241,6 +241,51 @@ pub fn push(app: tauri::AppHandle, repo: String, force: bool) -> Result<()> {
 }
 
 #[tauri::command(async)]
+pub fn get_remotes(repo: String) -> Result<Vec<refs::RemoteInfo>> {
+    refs::remotes(&open(&repo)?)
+}
+
+#[tauri::command(async)]
+pub fn add_remote(repo: String, name: String, url: String) -> Result<()> {
+    ops::add_remote(&workdir(&repo)?, name.trim(), url.trim())
+}
+
+#[tauri::command(async)]
+pub fn remove_remote(repo: String, name: String) -> Result<()> {
+    ops::remove_remote(&workdir(&repo)?, &name)
+}
+
+#[tauri::command(async)]
+pub fn rename_remote(repo: String, old: String, new: String) -> Result<()> {
+    ops::rename_remote(&workdir(&repo)?, &old, new.trim())
+}
+
+#[tauri::command(async)]
+pub fn set_remote_url(repo: String, name: String, url: String) -> Result<()> {
+    ops::set_remote_url(&workdir(&repo)?, &name, url.trim())
+}
+
+#[tauri::command(async)]
+pub fn fetch_remote(app: tauri::AppHandle, repo: String, remote: String) -> Result<()> {
+    ops::fetch_remote(&workdir(&repo)?, &remote, &mut progress(&app))
+}
+
+#[tauri::command(async)]
+pub fn push_branch(app: tauri::AppHandle, repo: String, remote: String, branch: String, force: bool) -> Result<()> {
+    ops::push_branch(&workdir(&repo)?, &remote, &branch, force, &mut progress(&app))
+}
+
+#[tauri::command(async)]
+pub fn set_upstream(repo: String, branch: String, upstream: Option<String>) -> Result<()> {
+    ops::set_upstream(&workdir(&repo)?, &branch, upstream.as_deref())
+}
+
+#[tauri::command(async)]
+pub fn push_tag(app: tauri::AppHandle, repo: String, remote: String, tag: String, delete: bool) -> Result<()> {
+    ops::push_tag(&workdir(&repo)?, &remote, &tag, delete, &mut progress(&app))
+}
+
+#[tauri::command(async)]
 pub fn clone_repo(app: tauri::AppHandle, url: String, parent: String, name: String) -> Result<String> {
     let dest = ops::clone(Path::new(&parent), url.trim(), name.trim(), &mut progress(&app))?;
     Ok(dest.to_string_lossy().into_owned())
