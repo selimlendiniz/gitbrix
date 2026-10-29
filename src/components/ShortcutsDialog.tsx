@@ -10,6 +10,8 @@ const SHORTCUTS: [string, string][] = [
   ["Ctrl/Shift+click", "Compare two commits"],
   ["Ctrl+Z", "Undo last action"],
   ["Ctrl+Enter", "Commit (in the message box)"],
+  ["↑ ↓, Space", "File lists: move, stage / unstage"],
+  ["Double-click", "File: stage / unstage · Commit with branch: check out"],
   ["Click, Shift+click", "Select diff lines to stage"],
   ["F5, Ctrl+R", "Refresh"],
   ["Ctrl+O", "Open repository"],

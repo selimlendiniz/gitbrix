@@ -11,8 +11,11 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
   the same commit share one label
 - Commit details, file lists with line counts, unified and split diffs with
   syntax highlighting and intra-line change marks
-- Search (Ctrl+F) by message, author or SHA; compare any two commits
+- Search (Ctrl+F) by message, author or SHA, or across all history by file
+  path or by code (`git log -S`); compare any two commits
   (Ctrl/Shift+click); file history that follows renames; blame
+- Stashes drawn in the graph; hide or solo branches; reflog view to
+  recover lost commits
 
 **Changes**
 - Stage, unstage and discard whole files, single hunks or selected lines
@@ -27,7 +30,7 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
 - Interactive rebase editor: reorder, reword, squash, fixup, drop
 - Fetch, pull (fast-forward / merge / rebase), push (force-with-lease),
   with live progress; add, edit and remove remotes; push tags
-- Clone and create repositories
+- Clone and create repositories; worktrees; submodules
 
 **Comfort**
 - Undo (Ctrl+Z) for commits, checkouts, merges, rebases, resets, branch
