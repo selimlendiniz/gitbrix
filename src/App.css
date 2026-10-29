@@ -800,6 +800,12 @@ textarea {
   color: var(--text-dim);
 }
 
+.settings-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .side-note {
   padding: 2px 12px 2px 24px;
   font-size: 11px;

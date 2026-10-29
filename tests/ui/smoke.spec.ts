@@ -554,4 +554,9 @@ test("pull requests window: points to Settings without accounts", async ({ page 
   await page.locator(".pr-button").click();
   await page.getByRole("dialog", { name: "Pull requests" }).getByRole("button", { name: "Open Settings" }).click();
   await expect(page.getByTestId("accounts")).toBeVisible();
+  // Settings can show a sample notification.
+  await page.getByRole("button", { name: "Test", exact: true }).click();
+  expect(await lastCall(page, "plugin:notification|notify")).toMatchObject({
+    options: { title: "Review requested: !1 Example merge request" },
+  });
 });

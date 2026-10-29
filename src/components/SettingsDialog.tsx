@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { PullMode } from "../api";
 import { DEFAULTS, Settings, updateSettings, useSettings } from "../settings";
+import { testNotification } from "../prs";
 import { AccountsSection } from "./Accounts";
 
 export const useSettingsDialog = create<{ open: boolean }>(() => ({ open: false }));
@@ -105,14 +106,19 @@ export function SettingsDialog() {
             ]}
           />
           <span>Notifications</span>
-          <Choice
-            value={settings.prNotify ? "on" : "off"}
-            onChange={(v) => set({ prNotify: v === "on" })}
-            options={[
-              { value: "on", label: "New requests I can approve" },
-              { value: "off", label: "Off" },
-            ]}
-          />
+          <span className="settings-inline">
+            <Choice
+              value={settings.prNotify ? "on" : "off"}
+              onChange={(v) => set({ prNotify: v === "on" })}
+              options={[
+                { value: "on", label: "New requests I can approve" },
+                { value: "off", label: "Off" },
+              ]}
+            />
+            <button type="button" className="small-btn" title="Show a notification now" onClick={testNotification}>
+              Test
+            </button>
+          </span>
           <span>Panels</span>
           <span>
             <button

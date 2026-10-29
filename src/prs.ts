@@ -111,6 +111,42 @@ export function newForReview(sources: Source[], mem: Memory): { fresh: PullReque
 
 function notify(prs: PullRequest[]) {
   if (!prs.length || !useSettings.getState().prNotify) return;
+  show(prs);
+}
+
+/** A notification about the newest listed request (or a made-up one), to see what they look like. */
+export function testNotification() {
+  const s = usePrs.getState();
+  const latest = [...(s.inbox?.items ?? []), ...Object.values(s.byRepo).flatMap((r) => r.items)].sort((a, b) =>
+    b.created.localeCompare(a.created),
+  )[0];
+  show([
+    latest ?? {
+      provider: "gitlab",
+      remote: "",
+      account: "",
+      project: "gitlab.com/example/app",
+      number: 1,
+      title: "Example merge request",
+      author: "someone",
+      sourceBranch: "feature",
+      targetBranch: "main",
+      sameRepo: true,
+      url: "",
+      draft: false,
+      created: "",
+      updated: "",
+      mine: false,
+      reviewRequested: true,
+      assigned: false,
+      canApprove: true,
+      approvedByMe: false,
+      approved: false,
+    },
+  ]);
+}
+
+function show(prs: PullRequest[]) {
   const name = (pr: PullRequest) => pr.project.split("/").pop();
   const options =
     prs.length === 1
