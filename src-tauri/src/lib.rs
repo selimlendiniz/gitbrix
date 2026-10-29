@@ -21,6 +21,7 @@ pub fn run() {
             commands::commit_details,
             commands::commit_file_diff,
             commands::workdir_file_diff,
+            commands::file_base64,
             commands::compare_commits,
             commands::compare_file_diff,
             commands::head_message,

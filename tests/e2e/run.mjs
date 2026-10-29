@@ -390,6 +390,27 @@ try {
     );
   });
 
+  await step("shows image changes side by side", async () => {
+    await js(`[...document.querySelectorAll('.tab')].find(t => t.textContent === 'demo-app').click()`);
+    await waitFor("demo tab", async () => (await text(".repo-name")) === "demo-app");
+    // 1x1 PNGs: red, then blue.
+    const red = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+    const blue = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwADBwIAMCbHYQAAAABJRU5ErkJggg==";
+    writeFileSync(join(repo, "logo.png"), Buffer.from(red, "base64"));
+    git("add", "logo.png");
+    git("commit", "-q", "-m", "Add logo");
+    writeFileSync(join(repo, "logo.png"), Buffer.from(blue, "base64"));
+    git("commit", "-q", "-am", "Recolour logo");
+    await waitFor("commit row", () => js("return [...document.querySelectorAll('.graph-row')].some(r => r.textContent.includes('Recolour logo'))"));
+    await js(`[...document.querySelectorAll('.graph-row')].find(r => r.textContent.includes('Recolour logo')).dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}))`);
+    await waitFor("file list", () => js("return [...document.querySelectorAll('.commit-panel .file-row')].some(r => r.textContent.includes('logo.png'))"));
+    await js(`[...document.querySelectorAll('.commit-panel .file-row')].find(r => r.textContent.includes('logo.png')).click()`);
+    await waitFor("both images decoded", () =>
+      js("const imgs = [...document.querySelectorAll('.image-diff img')]; return imgs.length === 2 && imgs.every(i => i.complete && i.naturalWidth === 1)"),
+    );
+    await shot("18-image-diff");
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

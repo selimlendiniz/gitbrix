@@ -241,6 +241,7 @@ export const api = {
   compareCommits: (repo: string, from: string, to: string) => invoke<FileChange[]>("compare_commits", { repo, from, to }),
   compareFileDiff: (repo: string, from: string, to: string, path: string, oldPath: string | null, ignoreWs = false) =>
     invoke<FileDiff>("compare_file_diff", { repo, from, to, path, oldPath, ignoreWs }),
+  fileBase64: (repo: string, rev: string | null, path: string) => invoke<string | null>("file_base64", { repo, rev, path }),
   workdirFileDiff: (repo: string, path: string, staged: boolean) =>
     invoke<FileDiff>("workdir_file_diff", { repo, path, staged }),
   fileHistory: (repo: string, path: string, limit: number) => invoke<HistoryEntry[]>("file_history", { repo, path, limit }),

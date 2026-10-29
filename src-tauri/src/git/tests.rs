@@ -1054,6 +1054,22 @@ fn reword_head_keeps_staged_changes_and_whitespace_can_be_ignored() {
     assert_eq!(changed(&ws), 1, "only the addition");
 }
 
+#[test]
+fn file_contents_for_image_diffs() {
+    let t = TestRepo::new();
+    fs::write(t.path.join("img.png"), [0x89, b'P', b'N', b'G', 0, 1]).unwrap();
+    t.git(&["add", "-A"]);
+    t.git(&["commit", "-q", "-m", "add image"]);
+    let first = t.git(&["rev-parse", "HEAD"]);
+    fs::write(t.path.join("img.png"), [0x89, b'P', b'N', b'G', 9, 9]).unwrap();
+    let r = t.open();
+    assert_eq!(diff::file_base64(&r, Some(&first), "img.png").unwrap().as_deref(), Some("iVBORwAB"));
+    assert_eq!(diff::file_base64(&r, None, "img.png").unwrap().as_deref(), Some("iVBORwkJ"));
+    assert_eq!(diff::file_base64(&r, Some(":"), "img.png").unwrap().as_deref(), Some("iVBORwAB"));
+    assert_eq!(diff::file_base64(&r, Some(&format!("{first}^")), "img.png").unwrap(), None, "root commit has no parent");
+    assert_eq!(diff::file_base64(&r, Some(&first), "missing.png").unwrap(), None);
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.

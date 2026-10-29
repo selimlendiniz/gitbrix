@@ -102,6 +102,19 @@ pub fn compare_file_diff(
     diff::compare_file_diff(&open(&repo)?, oid(&from)?, oid(&to)?, &path, old_path.as_deref(), ignore_ws.unwrap_or(false))
 }
 
+/// `rev`: commit id, `<id>^`, `:` (index) or none (work tree).
+#[tauri::command(async)]
+pub fn file_base64(repo: String, rev: Option<String>, path: String) -> Result<Option<String>> {
+    ops::check_path(&path)?;
+    if let Some(r) = &rev {
+        let id = r.trim_end_matches('^');
+        if r != ":" && Oid::from_str(id).is_err() {
+            return Err(Error::msg("Invalid revision"));
+        }
+    }
+    diff::file_base64(&open(&repo)?, rev.as_deref(), &path)
+}
+
 #[tauri::command(async)]
 pub fn workdir_file_diff(repo: String, path: String, staged: bool) -> Result<diff::FileDiff> {
     diff::workdir_file_diff(&open(&repo)?, &path, staged)

@@ -7,7 +7,7 @@ import { diffTokens, Token } from "../diff/highlight";
 import { buildPatch, lineRange } from "../diff/patch";
 import { splitRows } from "../diff/split";
 import { updateSettings, useSettings } from "../settings";
-import { useStore } from "../store";
+import { DiffSource, useStore } from "../store";
 import { IconClose } from "./Icons";
 
 type Mode = "unified" | "split";
@@ -31,6 +31,7 @@ export function DiffView() {
 
   const openDiff = useStore((s) => s.openDiff);
   const ignoreWs = useSettings((s) => s.ignoreWhitespace);
+  const headOid = useStore((s) => s.repo?.headOid ?? null);
 
   if (!source || (source.kind !== "commit" && source.kind !== "wip" && source.kind !== "compare")) return null;
 
@@ -126,7 +127,7 @@ export function DiffView() {
         ) : !diff ? (
           <div className="diff-message">Loading diff…</div>
         ) : (
-          <DiffContent diff={diff} mode={mode} wip={source.kind === "wip" ? source : null} />
+          <DiffContent diff={diff} mode={mode} wip={source.kind === "wip" ? source : null} sides={sidesOf(source, headOid)} />
         )}
       </div>
     </div>
@@ -141,7 +142,37 @@ interface Selection {
   anchor: number;
 }
 
-export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; wip: WipSource | null }) {
+/** Where the two sides of a diff come from, for showing images: a commit
+ *  id, `<id>^`, `:` for the index or null for the work tree. */
+export interface Sides {
+  oldRev: string | null;
+  newRev: string | null;
+}
+
+export function sidesOf(source: DiffSource, headOid: string | null): Sides | undefined {
+  switch (source.kind) {
+    case "commit":
+      return { oldRev: `${source.id}^`, newRev: source.id };
+    case "compare":
+      return { oldRev: source.from, newRev: source.to };
+    case "wip":
+      return source.staged ? { oldRev: headOid, newRev: ":" } : { oldRev: ":", newRev: null };
+    default:
+      return undefined;
+  }
+}
+
+export function DiffContent({
+  diff,
+  mode,
+  wip,
+  sides,
+}: {
+  diff: FileDiff;
+  mode: Mode;
+  wip: WipSource | null;
+  sides?: Sides;
+}) {
   const run = useStore((s) => s.run);
   const confirm = useStore((s) => s.confirm);
   const [sel, setSel] = useState<Selection | null>(null);
@@ -163,7 +194,10 @@ export function DiffContent({ diff, mode, wip }: { diff: FileDiff; mode: Mode; w
     };
   }, [diff]);
 
-  if (diff.binary) return <div className="diff-message">Binary file — no text diff.</div>;
+  if (diff.binary) {
+    if (sides && IMAGE_TYPES[ext(diff.path)]) return <ImageDiff diff={diff} sides={sides} />;
+    return <div className="diff-message">Binary file — no text diff.</div>;
+  }
   if (diff.hunks.length === 0) {
     return <div className="diff-message">{diff.status === "renamed" ? "File renamed without changes." : "No content changes."}</div>;
   }
@@ -326,6 +360,62 @@ function SideLine({ l, side, tokens }: { l: DiffLine | null; side: "old" | "new"
     <div className={`dl ${kind}`}>
       <span className="ln">{(side === "old" ? l.oldNo : l.newNo) ?? ""}</span>
       <Code text={l.text} tokens={tokens} />
+    </div>
+  );
+}
+
+const IMAGE_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  ico: "image/x-icon",
+  svg: "image/svg+xml",
+  avif: "image/avif",
+};
+
+function ext(path: string): string {
+  const base = path.slice(path.lastIndexOf("/") + 1);
+  const dot = base.lastIndexOf(".");
+  return dot < 0 ? "" : base.slice(dot + 1).toLowerCase();
+}
+
+/** Old and new version of an image file side by side. */
+function ImageDiff({ diff, sides }: { diff: FileDiff; sides: Sides }) {
+  const repo = useStore((s) => s.repo?.path);
+  const [images, setImages] = useState<{ old: string | null; new: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const mime = IMAGE_TYPES[ext(diff.path)];
+
+  useEffect(() => {
+    if (!repo) return;
+    let live = true;
+    setImages(null);
+    const oldPath = diff.oldPath ?? diff.path;
+    const load = (rev: string | null | undefined, path: string) =>
+      rev === undefined || (rev === null && diff.status === "deleted") ? Promise.resolve(null) : api.fileBase64(repo, rev, path).catch(() => null);
+    Promise.all([diff.status === "added" || diff.status === "untracked" ? null : load(sides.oldRev, oldPath), diff.status === "deleted" ? null : load(sides.newRev, diff.path)])
+      .then(([o, n]) => live && setImages({ old: o, new: n }))
+      .catch((e) => live && setError(errorText(e)));
+    return () => {
+      live = false;
+    };
+  }, [repo, diff, sides.oldRev, sides.newRev]);
+
+  if (error) return <div className="diff-message">{error}</div>;
+  if (!images) return <div className="diff-message">Loading images…</div>;
+  const pane = (label: string, data: string | null) => (
+    <figure className="image-pane">
+      <figcaption>{label}</figcaption>
+      {data ? <img src={`data:${mime};base64,${data}`} alt={label} /> : <div className="image-none">none</div>}
+    </figure>
+  );
+  return (
+    <div className="image-diff">
+      {pane("Before", images.old)}
+      {pane("After", images.new)}
     </div>
   );
 }

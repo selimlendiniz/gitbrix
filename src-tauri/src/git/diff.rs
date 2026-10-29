@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use git2::{Delta, Diff, DiffFindOptions, DiffOptions, Oid, Patch, Repository};
 use serde::Serialize;
 
@@ -314,4 +316,44 @@ pub fn compare_file_diff(
 ) -> Result<FileDiff> {
     let diff = range_diff(repo, from, to, if old_path.is_some() { None } else { Some(path) }, ignore_ws)?;
     file_diff(&diff, path)
+}
+
+/// Largest image shown in an image diff.
+const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
+
+/// Contents of `path` as base64, for showing images. `rev` is a commit
+/// (`<id>` or `<id>^` for its first parent), `:` for the index, or `None`
+/// for the work tree. `Ok(None)` when the file doesn't exist there.
+pub fn file_base64(repo: &Repository, rev: Option<&str>, path: &str) -> Result<Option<String>> {
+    use base64::Engine;
+    let bytes = match rev {
+        None => match std::fs::read(repo.workdir().expect("non-bare").join(path)) {
+            Ok(b) => b,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e.into()),
+        },
+        Some(":") => {
+            // libgit2's revparse has no ":path" (index) form.
+            let index = repo.index()?;
+            match index.get_path(Path::new(path), 0) {
+                Some(entry) => repo.find_blob(entry.id)?.content().to_vec(),
+                None => return Ok(None),
+            }
+        }
+        Some(r) => {
+            let spec = format!("{r}:{path}");
+            match repo.revparse_single(&spec) {
+                Ok(obj) => match obj.into_blob() {
+                    Ok(blob) => blob.content().to_vec(),
+                    Err(_) => return Ok(None),
+                },
+                Err(e) if e.code() == git2::ErrorCode::NotFound => return Ok(None),
+                Err(e) => return Err(e.into()),
+            }
+        }
+    };
+    if bytes.len() > MAX_IMAGE_BYTES {
+        return Err(Error::msg("Image too large to show"));
+    }
+    Ok(Some(base64::engine::general_purpose::STANDARD.encode(bytes)))
 }

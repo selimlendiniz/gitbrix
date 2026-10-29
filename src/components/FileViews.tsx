@@ -118,7 +118,7 @@ export function HistoryView() {
           ) : !current ? null : !diff ? (
             <div className="diff-message">Loading diff…</div>
           ) : (
-            <DiffContent diff={diff} mode="unified" wip={null} />
+            <DiffContent diff={diff} mode="unified" wip={null} sides={{ oldRev: `${current.id}^`, newRev: current.id }} />
           )}
         </div>
       </div>
