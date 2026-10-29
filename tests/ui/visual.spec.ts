@@ -13,3 +13,12 @@ test("minimum window size", async ({ page }) => {
   await page.locator(".graph-row").first().waitFor();
   await page.screenshot({ path: "test-results/shots/narrow.png" });
 });
+
+test("light theme diff", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("gitbrix.settings", JSON.stringify({ theme: "light" })));
+  await page.goto("/?open");
+  await page.getByText("Wire parser into main").click();
+  await page.locator(".commit-panel .file-row", { hasText: "main.rs" }).click();
+  await page.locator(".diff-table [class*=hl-]").first().waitFor();
+  await page.screenshot({ path: "test-results/shots/light-diff.png" });
+});
