@@ -56,6 +56,8 @@ pub fn run() {
             commands::merge,
             commands::rebase,
             commands::sequencer,
+            commands::rebase_commits,
+            commands::interactive_rebase,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

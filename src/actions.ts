@@ -305,6 +305,12 @@ export function commitMenu(c: CommitRow): MenuItem[] {
     { separator: true, label: "" },
     { label: `Merge into ${head ?? "HEAD"}`, onSelect: () => mergeInto(c.id, sid) },
     { label: `Rebase ${head ?? "HEAD"} onto this`, onSelect: () => rebaseOnto(c.id, sid) },
+    {
+      label: "Interactive rebase from here…",
+      disabled: c.id === s().repo?.headOid,
+      hint: "edit later commits",
+      onSelect: () => s().openDiff({ kind: "rebase", base: c.id }),
+    },
     { separator: true, label: "" },
     { label: `Reset ${head ?? "HEAD"} here — soft`, onSelect: () => resetTo(c, "soft") },
     { label: `Reset ${head ?? "HEAD"} here — mixed`, onSelect: () => resetTo(c, "mixed") },

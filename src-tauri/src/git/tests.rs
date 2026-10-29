@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{diff, log, ops, refs, repo, status};
+use super::{diff, log, ops, rebase, refs, repo, status};
 
 struct TestRepo {
     _dir: TempDir,
@@ -600,6 +600,102 @@ fn clone_reports_progress_and_init_creates_repo() {
     assert!(repo::info(&repo::open(&fresh).unwrap()).unwrap().unborn);
 }
 
+fn rebase_fixture() -> (TestRepo, String, Vec<String>) {
+    let t = TestRepo::new();
+    let base = t.commit("base.txt", "base\n", "base");
+    let ids = ["a", "b", "c", "d"]
+        .iter()
+        .map(|n| t.commit(&format!("{n}.txt"), &format!("{n}\n"), &format!("add {n}")))
+        .collect();
+    (t, base, ids)
+}
+
+fn subjects(t: &TestRepo, base: &str) -> Vec<String> {
+    t.git(&["log", "--reverse", "--format=%s", &format!("{base}..HEAD")])
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+
+fn step(action: &str, id: &str, message: Option<&str>) -> rebase::RebaseStep {
+    rebase::RebaseStep { action: action.into(), id: id.into(), message: message.map(Into::into) }
+}
+
+#[test]
+fn rebase_commits_lists_range_oldest_first() {
+    let (t, base, ids) = rebase_fixture();
+    let list = rebase::commits(&t.open(), &base).unwrap();
+    assert_eq!(list.iter().map(|c| c.id.clone()).collect::<Vec<_>>(), ids);
+    assert_eq!(list[0].summary, "add a");
+    // Not an ancestor of HEAD.
+    t.git(&["switch", "-q", "-c", "side", &base]);
+    let side = t.commit("s.txt", "s\n", "side");
+    t.git(&["switch", "-q", "main"]);
+    assert!(rebase::commits(&t.open(), &side).is_err());
+}
+
+#[test]
+fn interactive_rebase_reorders_drops_rewords_and_squashes() {
+    let (t, base, ids) = rebase_fixture();
+    let plan = vec![
+        step("pick", &ids[2], None),                           // c first
+        step("reword", &ids[0], Some("A, reworded\n\nwith body")), // a renamed
+        step("fixup", &ids[1], None),                          // b folded into a
+        step("drop", &ids[3], None),                           // d gone
+    ];
+    rebase::run(&t.open(), &t.path, &base, &plan).unwrap();
+    assert_eq!(subjects(&t, &base), vec!["add c", "A, reworded"]);
+    assert_eq!(t.git(&["log", "-1", "--format=%b"]), "with body");
+    assert!(t.path.join("b.txt").exists(), "fixup keeps b's change");
+    assert!(!t.path.join("d.txt").exists(), "drop removes d's change");
+    assert_eq!(repo::info(&t.open()).unwrap().state, "clean");
+}
+
+#[test]
+fn interactive_rebase_squash_keeps_both_messages() {
+    let (t, base, ids) = rebase_fixture();
+    let plan = vec![
+        step("pick", &ids[0], None),
+        step("squash", &ids[1], None),
+        step("pick", &ids[2], None),
+        step("pick", &ids[3], None),
+    ];
+    rebase::run(&t.open(), &t.path, &base, &plan).unwrap();
+    assert_eq!(subjects(&t, &base), vec!["add a", "add c", "add d"]);
+    let msg = t.git(&["log", "-1", "--format=%B", "HEAD~2"]);
+    assert!(msg.contains("add a") && msg.contains("add b"), "{msg}");
+}
+
+#[test]
+fn interactive_rebase_rejects_stale_plan_and_stops_on_conflict() {
+    let (t, base, ids) = rebase_fixture();
+    // Plan that leaves a commit out.
+    let partial = vec![step("pick", &ids[0], None)];
+    assert!(rebase::run(&t.open(), &t.path, &base, &partial).is_err());
+
+    // Two commits touching the same line, swapped: conflict.
+    let c1 = t.commit("same.txt", "one\n", "one");
+    let c2 = t.commit("same.txt", "two\n", "two");
+    let mut plan: Vec<_> = ids.iter().map(|id| step("pick", id, None)).collect();
+    plan.push(step("pick", &c2, None));
+    plan.push(step("pick", &c1, None));
+    assert!(rebase::run(&t.open(), &t.path, &base, &plan).is_err());
+    assert_eq!(repo::info(&t.open()).unwrap().state, "rebase");
+    ops::sequencer(&t.path, "rebase", "abort").unwrap();
+    assert_eq!(repo::info(&t.open()).unwrap().state, "clean");
+    assert_eq!(t.git(&["rev-parse", "HEAD"]), c2);
+}
+
+#[test]
+fn interactive_rebase_autostashes_local_changes() {
+    let (t, base, ids) = rebase_fixture();
+    t.write("base.txt", "dirty\n");
+    let plan: Vec<_> = ids.iter().rev().map(|id| step("pick", id, None)).collect();
+    rebase::run(&t.open(), &t.path, &base, &plan).unwrap();
+    assert_eq!(subjects(&t, &base), vec!["add d", "add c", "add b", "add a"]);
+    assert_eq!(fs::read_to_string(t.path.join("base.txt")).unwrap(), "dirty\n");
+}
+
 /// Records what the backend returns for a repository into the JSON
 /// fixture the browser-only UI mode serves (src/mock/fixture.json).
 /// Run through `scripts/record-fixture.sh`.
@@ -675,6 +771,7 @@ fn record_ui_fixture() {
         "headMessage": head_message,
         "histories": histories,
         "blames": blames,
+        "rebaseCommits": super::rebase::commits(&r, &r.revparse_single("HEAD~2").unwrap().id().to_string()).unwrap(),
     });
     fs::write(&out, serde_json::to_string(&fixture).unwrap()).unwrap();
 }

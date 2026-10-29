@@ -30,7 +30,16 @@ pub fn run(repo: &Path, args: &[&str]) -> Result<Output> {
 }
 
 pub fn run_with_input(repo: &Path, args: &[&str], input: Option<&str>) -> Result<Output> {
+    run_full(repo, args, input, &[])
+}
+
+pub fn run_with_env(repo: &Path, args: &[&str], env: &[(&str, &str)]) -> Result<Output> {
+    run_full(repo, args, None, env)
+}
+
+fn run_full(repo: &Path, args: &[&str], input: Option<&str>, env: &[(&str, &str)]) -> Result<Output> {
     let mut cmd = base(repo);
+    cmd.envs(env.iter().copied());
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
     if input.is_some() {
         cmd.stdin(Stdio::piped());

@@ -167,6 +167,20 @@ export interface Blame {
   commits: Record<string, BlameCommit>;
 }
 
+export interface RebaseCommit {
+  id: string;
+  summary: string;
+  message: string;
+  authorName: string;
+  time: number;
+}
+
+export interface RebaseStep {
+  action: "pick" | "reword" | "squash" | "fixup" | "drop";
+  id: string;
+  message: string | null;
+}
+
 export type PullMode = "ff-only" | "merge" | "rebase";
 export type ResetMode = "soft" | "mixed" | "hard";
 export type SequencerOp = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -233,6 +247,9 @@ export const api = {
   reset: (repo: string, id: string, mode: ResetMode) => invoke<void>("reset", { repo, id, mode }),
   merge: (repo: string, rev: string) => invoke<void>("merge", { repo, rev }),
   rebase: (repo: string, onto: string) => invoke<void>("rebase", { repo, onto }),
+  rebaseCommits: (repo: string, base: string) => invoke<RebaseCommit[]>("rebase_commits", { repo, base }),
+  interactiveRebase: (repo: string, base: string, steps: RebaseStep[]) =>
+    invoke<void>("interactive_rebase", { repo, base, steps }),
   sequencer: (repo: string, op: SequencerOp, action: "continue" | "abort" | "skip") =>
     invoke<void>("sequencer", { repo, op, action }),
 };

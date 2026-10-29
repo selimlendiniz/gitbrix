@@ -104,3 +104,27 @@ test("file history and blame", async ({ page }) => {
   await expect(page.locator(".blame-line").first()).toBeVisible();
   await page.screenshot({ path: "test-results/shots/blame.png" });
 });
+
+test("interactive rebase editor builds a plan", async ({ page }) => {
+  await page.goto("/?open");
+  await page.getByText("Wire parser into main").click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Interactive rebase from here/ }).click();
+  const rows = page.locator(".rebase-row");
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Start rebase" })).toBeDisabled();
+  // Newest first: "Tidy up main" on top. Squash the older one → invalid.
+  await rows.nth(1).getByRole("button", { name: "Squash" }).click();
+  await expect(page.locator(".rebase-problems")).toBeVisible();
+  await rows.nth(1).getByRole("button", { name: "Pick" }).click();
+  await rows.nth(0).focus();
+  await page.keyboard.press("f");
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(page.locator(".rebase-problems")).toBeVisible();
+  await page.keyboard.press("Alt+ArrowUp");
+  await expect(page.locator(".rebase-problems")).toBeHidden();
+  await page.screenshot({ path: "test-results/shots/rebase.png" });
+  await page.getByRole("button", { name: "Start rebase" }).click();
+  const call = await page.evaluate(() => window.__gitbrixCalls.find((c) => c.cmd === "interactive_rebase")?.args);
+  const steps = (call as { steps: { action: string }[] }).steps.map((s) => s.action);
+  expect(steps).toEqual(["pick", "fixup"]);
+});

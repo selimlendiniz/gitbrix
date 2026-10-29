@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DiffLine, RefInfo } from "../../src/api";
+import { planProblems, Row } from "../../src/components/RebaseView";
 import { nameFromUrl } from "../../src/components/RepoDialogs";
 import { splitRows } from "../../src/diff/split";
 import { initials, relativeTime, splitPath } from "../../src/format";
@@ -87,5 +88,30 @@ describe("nameFromUrl", () => {
     expect(nameFromUrl("https://gitlab.com/group/sub/repo/")).toBe("repo");
     expect(nameFromUrl("/srv/git/local.git")).toBe("local");
     expect(nameFromUrl("")).toBe("");
+  });
+});
+
+describe("planProblems", () => {
+  const row = (id: string, action: Row["action"], newMessage = "msg"): Row => ({
+    id,
+    summary: id,
+    message: "m",
+    authorName: "a",
+    time: 0,
+    action,
+    newMessage,
+  });
+
+  it("accepts a normal plan", () => {
+    expect(planProblems([row("c", "squash"), row("b", "pick"), row("a", "drop")])).toEqual([]);
+  });
+
+  it("rejects squashing the oldest kept commit", () => {
+    expect(planProblems([row("b", "pick"), row("a", "fixup")])).toHaveLength(1);
+    expect(planProblems([row("b", "squash"), row("a", "drop")])).toHaveLength(1);
+  });
+
+  it("requires a message for reword", () => {
+    expect(planProblems([row("b", "reword", "  "), row("a", "pick")])).toHaveLength(1);
   });
 });

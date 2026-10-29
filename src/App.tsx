@@ -8,7 +8,9 @@ import { CommitPanel } from "./components/CommitPanel";
 import { ConflictView } from "./components/ConflictView";
 import { DiffView } from "./components/DiffView";
 import { BlameView, HistoryView } from "./components/FileViews";
+import { OperationBanner } from "./components/OperationBanner";
 import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
+import { RebaseView } from "./components/RebaseView";
 import { RepoDialogs } from "./components/RepoDialogs";
 import { Sidebar } from "./components/Sidebar";
 import { Toolbar } from "./components/Toolbar";
@@ -68,12 +70,15 @@ export default function App() {
           <div className="main">
             <Sidebar />
             <section className="center">
+              <OperationBanner />
               {diffSource?.kind === "conflict" ? (
                 <ConflictView />
               ) : diffSource?.kind === "history" ? (
                 <HistoryView />
               ) : diffSource?.kind === "blame" ? (
                 <BlameView />
+              ) : diffSource?.kind === "rebase" ? (
+                <RebaseView />
               ) : diffSource ? (
                 <DiffView />
               ) : (

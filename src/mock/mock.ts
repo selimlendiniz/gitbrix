@@ -33,6 +33,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   file_history: (a) => (fixture.histories as Record<string, unknown>)[a.path as string] ?? [],
   // Blame is recorded for the working tree only; good enough for the UI.
   blame: (a) => (fixture.blames as Record<string, unknown>)[a.path as string] ?? fail(`No blame for ${a.path}`),
+  rebase_commits: () => fixture.rebaseCommits,
   "plugin:dialog|open": () => fixture.info.path,
 };
 

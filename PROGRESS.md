@@ -17,6 +17,22 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-29 — steps 12–14: search, history/blame, clone/init, interactive rebase
+
+- Ctrl+F commit search (message / author / SHA prefix), Enter steps through.
+- File history (follows renames) with per-commit diff; blame at a commit or
+  the work tree. From file context menus and the diff header.
+- Clone (URL → folder name derived) and New repository dialogs; live
+  `--progress` output for clone/fetch/pull/push shown in the toolbar.
+- Interactive rebase editor: right-click a commit → "Interactive rebase
+  from here…". Reorder by drag or Alt+↑/↓, p/r/s/f/d keys, reword inline.
+  Backend writes the todo via GIT_SEQUENCE_EDITOR, rewords with
+  `exec git commit --amend -F`, uses `--autostash`, refuses ranges with merges.
+- The merge/rebase banner moved above the center view so it shows whatever
+  is selected; when an operation stops on conflicts the WIP row is selected.
+
+Tests: 43 Rust, 24 unit, 9 Playwright UI, 9 e2e steps — all passing.
+
 ### 2026-10-29 — steps 9–11: watcher, hunk/line staging, conflicts
 
 - File watcher (`src-tauri/src/watch.rs`): edits and terminal commits show

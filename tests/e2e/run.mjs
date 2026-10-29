@@ -177,6 +177,33 @@ try {
     await shot("06-external-change");
   });
 
+  await step("interactive rebase: drop one commit, reword another", async () => {
+    // HEAD: "Commit from terminal" <- "Add notes from e2e" <- "Tidy up main"
+    git("stash", "-u", "-q"); // the rebase autostashes too, but keep the tree simple
+    await waitFor("clean tree", () => js("return !document.querySelector('.graph-row.wip')"));
+    await js(`const row = [...document.querySelectorAll('.graph-row')].find(r => r.textContent.includes('Tidy up main'));
+              row.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, clientX: 600, clientY: 300}))`);
+    await js(`[...document.querySelectorAll('.menu-item')].find(b => b.textContent.includes('Interactive rebase')).click()`);
+    await waitFor("rebase rows", () => js("return document.querySelectorAll('.rebase-row').length === 2"));
+    const rowButton = (row, label) =>
+      js(`[...document.querySelectorAll('.rebase-row')[${row}].querySelectorAll('.rebase-actions button')].find(b => b.textContent === '${label}').click()`);
+    await rowButton(0, "Drop");
+    await rowButton(1, "Reword");
+    await waitFor("message box", () => js("return !!document.querySelector('.rebase-message')"));
+    await js(
+      `const t = document.querySelector('.rebase-message');
+       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(t, arguments[0]);
+       t.dispatchEvent(new Event('input', {bubbles: true}));`,
+      "Notes, reworded by e2e",
+    );
+    await shot("07-rebase-plan");
+    await js(`[...document.querySelectorAll('.diff-header button')].find(b => b.textContent === 'Start rebase').click()`);
+    await waitFor("rebased", () => git("log", "-1", "--format=%s") === "Notes, reworded by e2e");
+    if (git("log", "-2", "--format=%s").includes("Commit from terminal")) throw new Error("dropped commit still there");
+    await waitFor("view closed", () => js("return !document.querySelector('[data-testid=rebase]')"));
+    git("stash", "pop", "-q");
+  });
+
   await step("resolves a merge conflict and continues the merge", async () => {
     git("add", "-A");
     git("commit", "-q", "-m", "Save work before conflict");
@@ -201,9 +228,9 @@ try {
     );
     await js(`[...document.querySelectorAll('.wip-panel .file-row')].find(r => r.textContent.includes('conflict.txt')).click()`);
     await waitFor("conflict view", () => js("return !!document.querySelector('.conflict-block')"));
-    await shot("07-conflict");
+    await shot("08-conflict");
     await js(`[...document.querySelectorAll('.conflict-choices button')].find(b => b.textContent === 'Both').click()`);
-    await shot("08-conflict-chosen");
+    await shot("09-conflict-chosen");
     await js(`[...document.querySelectorAll('.diff-header button')].find(b => b.textContent.includes('Save')).click()`);
     await waitFor("resolved", () => !git("diff", "--name-only", "--diff-filter=U"));
     await waitFor("continue enabled", () =>
@@ -214,7 +241,7 @@ try {
     const content = git("show", "HEAD:conflict.txt");
     if (content !== "ours\ntheirs") throw new Error(`unexpected content: ${JSON.stringify(content)}`);
     await waitFor("banner gone", () => js("return !document.querySelector('.op-banner')"));
-    await shot("09-merged");
+    await shot("10-merged");
   });
 
   await step("clones a repository with progress and opens it", async () => {
@@ -232,11 +259,11 @@ try {
       work,
     );
     await waitFor("name derived", () => js(`return ${inputs}[2].value === 'origin'`));
-    await shot("10-clone-dialog");
+    await shot("11-clone-dialog");
     await click(".modal.wide button[type=submit]");
     await waitFor("cloned repo opened", async () => (await text(".repo-name")) === "origin", 60000);
     await waitFor("cloned graph", () => js("return document.querySelectorAll('.graph-row').length > 3"));
-    await shot("11-cloned");
+    await shot("12-cloned");
   });
 
   await wd("DELETE", `/session/${session}`);

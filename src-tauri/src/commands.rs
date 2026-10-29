@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use git2::Oid;
 
 use crate::error::{Error, Result};
-use crate::git::{diff, history, log, ops, refs, repo, status};
+use crate::git::{diff, history, log, ops, rebase, refs, repo, status};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -291,6 +291,17 @@ pub fn merge(repo: String, rev: String) -> Result<()> {
 #[tauri::command(async)]
 pub fn rebase(repo: String, onto: String) -> Result<()> {
     ops::rebase(&workdir(&repo)?, &onto)
+}
+
+#[tauri::command(async)]
+pub fn rebase_commits(repo: String, base: String) -> Result<Vec<rebase::RebaseCommit>> {
+    rebase::commits(&open(&repo)?, &base)
+}
+
+#[tauri::command(async)]
+pub fn interactive_rebase(repo: String, base: String, steps: Vec<rebase::RebaseStep>) -> Result<()> {
+    let r = open(&repo)?;
+    rebase::run(&r, &repo::workdir(&r), &base, &steps)
 }
 
 #[tauri::command(async)]

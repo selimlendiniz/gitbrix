@@ -20,7 +20,8 @@ export type DiffSource =
   | { kind: "wip"; path: string; staged: boolean }
   | { kind: "conflict"; path: string }
   | { kind: "history"; path: string }
-  | { kind: "blame"; path: string; rev: string | null };
+  | { kind: "blame"; path: string; rev: string | null }
+  | { kind: "rebase"; base: string };
 
 export interface Toast {
   id: number;
@@ -184,7 +185,10 @@ export const useStore = create<State>((set, get) => ({
         api.stashes(repo.path),
       ]);
       if (seq !== refreshSeq || get().repo?.path !== repo.path) return;
+      const stopped = get().repo?.state === "clean" && info.state !== "clean" && status.conflicted.length > 0;
       set({ repo: info, graph, status, stashes });
+      // An operation just stopped on conflicts: show them.
+      if (stopped) get().select(WIP_ID, true);
 
       // Keep the selection if it still exists; otherwise fall back to HEAD.
       const { selectedId } = get();
@@ -224,7 +228,9 @@ export const useStore = create<State>((set, get) => ({
     // A commit's file diff belongs to that commit; history and blame
     // views stay open while you click through commits.
     const src = get().diffSource;
-    if (src && src.kind !== "history" && src.kind !== "blame" && (src.kind === "commit" || id !== WIP_ID)) get().closeDiff();
+    if (src && (src.kind === "commit" || (src.kind === "wip" && id !== WIP_ID) || (src.kind === "conflict" && id !== WIP_ID))) {
+      get().closeDiff();
+    }
     if (!repo || !id || id === WIP_ID) return;
     const seq = ++detailsSeq;
     api
@@ -241,7 +247,7 @@ export const useStore = create<State>((set, get) => ({
     const seq = ++diffSeq;
     if (!sameSource(source, get().diffSource)) set({ diffSource: source, diff: null, diffError: null });
     // These views load their own data.
-    if (source.kind === "conflict" || source.kind === "history" || source.kind === "blame") return;
+    if (source.kind !== "commit" && source.kind !== "wip") return;
     try {
       const diff =
         source.kind === "commit"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { create } from "zustand";
 
-import { api, SequencerOp } from "../api";
+import { api } from "../api";
 import { discardFiles, stashSave } from "../actions";
 import { useStore } from "../store";
 import { FileList, FileRow } from "./FileList";
@@ -62,7 +62,6 @@ export function WipPanel() {
 
   return (
     <div className="wip-panel">
-      {repo.state !== "clean" && <OperationBanner op={repo.state} conflicts={status.conflicted.length} />}
 
       <div className="wip-section">
         <div className="panel-subhead">
@@ -176,38 +175,6 @@ export function WipPanel() {
               : "Stage files to commit"}
         </button>
       </div>
-    </div>
-  );
-}
-
-function OperationBanner({ op, conflicts }: { op: string; conflicts: number }) {
-  const run = useStore((s) => s.run);
-  const seqOp = (op === "am" || op === "bisect" ? null : op) as SequencerOp | null;
-  return (
-    <div className={`op-banner${conflicts ? " conflict" : ""}`}>
-      <div>
-        <strong>{op}</strong> in progress
-        {conflicts > 0 ? ` — ${conflicts} conflicted file${conflicts === 1 ? "" : "s"}. Resolve, then stage them.` : " — ready to continue."}
-      </div>
-      {seqOp && (
-        <div className="op-actions">
-          <button className="small-btn" onClick={() => run(`Aborting ${op}`, (r) => api.sequencer(r, seqOp, "abort"))}>
-            Abort
-          </button>
-          {seqOp === "rebase" && (
-            <button className="small-btn" onClick={() => run("Skipping commit", (r) => api.sequencer(r, seqOp, "skip"))}>
-              Skip
-            </button>
-          )}
-          <button
-            className="small-btn primary"
-            disabled={conflicts > 0}
-            onClick={() => run(`Continuing ${op}`, (r) => api.sequencer(r, seqOp, "continue"))}
-          >
-            Continue
-          </button>
-        </div>
-      )}
     </div>
   );
 }
