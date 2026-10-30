@@ -22,6 +22,7 @@ import { undoLast } from "../undo";
 import { updateSettings } from "../settings";
 import { useRepoDialog } from "./RepoDialogs";
 import { usePrDialog } from "./PullRequestsDialog";
+import { createPullRequest } from "../prs";
 import { useSettingsDialog } from "./SettingsDialog";
 import { useShortcuts } from "./ShortcutsDialog";
 import { openRepoDialog } from "./Welcome";
@@ -86,6 +87,7 @@ function useCommands(): Command[] {
       add("Action", "Search commits", () => window.dispatchEvent(new Event("gitbrix:find")), "Ctrl+F");
       add("Action", "Show working tree changes", () => st.select(WIP_ID, true));
       add("Action", "Reflog — recover lost commits", () => void st.openDiff({ kind: "reflog" }));
+      if (repo.headBranch && !repo.detached) add("Action", `Create pull request for ${repo.headBranch}…`, () => createPullRequest());
       add("Action", "Show or hide the terminal", toggleTerminal, "Ctrl+`");
       add("Action", "Go to HEAD", () => repo.headOid && st.select(repo.headOid, true));
       for (const r of graph?.refs ?? []) {

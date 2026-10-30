@@ -559,3 +559,14 @@ pub fn terminal_resize(state: tauri::State<Terminals>, id: u32, cols: u16, rows:
 pub fn terminal_close(state: tauri::State<Terminals>, id: u32) -> Result<()> {
     terminal::close(&state, id)
 }
+
+/// Default target branch and possible reviewers for a new request.
+#[tauri::command(async)]
+pub fn pull_request_form(repo: String, remote: String) -> Result<forge::RequestForm> {
+    forge::request_form(&workdir(&repo)?, &remote)
+}
+
+#[tauri::command(async)]
+pub fn create_pull_request(repo: String, remote: String, request: forge::NewRequest) -> Result<forge::Created> {
+    forge::create(&workdir(&repo)?, &remote, &request)
+}

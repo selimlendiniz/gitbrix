@@ -1145,6 +1145,46 @@ textarea {
   gap: 4px;
 }
 
+.create-pr-branches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.create-pr select,
+.ws-dialog select {
+  padding: 4px 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  max-width: 220px;
+}
+
+.create-pr textarea {
+  resize: vertical;
+}
+
+.create-pr-project,
+.create-pr-note {
+  font-size: 11px;
+}
+
+.create-pr-people {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.create-pr-people .checkbox .dim {
+  margin-left: 6px;
+}
+
 .settings-inline {
   display: flex;
   align-items: center;

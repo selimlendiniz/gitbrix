@@ -691,3 +691,32 @@ test("terminal: opens under the graph, keys go to the shell, not to shortcuts", 
   await expect(panel).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("create pull request: from a branch's menu, pushed first, with reviewers", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await page.locator(".pill", { hasText: /^feature\/ui/ }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Create pull request…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Create pull request" });
+  await expect(dialog.locator(".modal-title")).toHaveText("Create merge request");
+  await expect(dialog.getByLabel("Source branch")).toHaveValue("feature/ui");
+  await expect(dialog.getByLabel("Target branch")).toHaveValue("main");
+  // The title starts from the branch's last commit.
+  await expect(dialog.locator("input").first()).toHaveValue("UI: dark theme");
+  await dialog.getByPlaceholder("What changes and why").fill("Darker colours.");
+  await dialog.getByLabel("grace").check();
+  await dialog.getByLabel("Draft").check();
+  await page.screenshot({ path: "test-results/shots/create-pr.png" });
+  // origin/feature/ui is behind the local branch, so it goes up first.
+  await dialog.getByRole("button", { name: "Push and create merge request" }).click();
+  await expect(dialog).toHaveCount(0);
+  const cmds = await calls(page);
+  expect(cmds.indexOf("push_branch")).toBeLessThan(cmds.indexOf("create_pull_request"));
+  expect(await lastCall(page, "push_branch")).toMatchObject({ remote: "origin", branch: "feature/ui" });
+  expect(await lastCall(page, "create_pull_request")).toMatchObject({
+    remote: "origin",
+    request: { source: "feature/ui", target: "main", title: "UI: dark theme", body: "Darker colours.", draft: true, reviewers: [8] },
+  });
+  await expect(page.getByText("Opened !14")).toBeVisible();
+  expect(errors).toEqual([]);
+});

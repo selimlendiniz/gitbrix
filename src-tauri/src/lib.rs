@@ -113,6 +113,8 @@ pub fn run() {
             commands::terminal_write,
             commands::terminal_resize,
             commands::terminal_close,
+            commands::pull_request_form,
+            commands::create_pull_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

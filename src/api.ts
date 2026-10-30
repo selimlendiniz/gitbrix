@@ -29,6 +29,37 @@ export interface RepoSummary {
   error: string | null;
 }
 
+/** Someone who can be asked to review a request. */
+export interface Person {
+  id: number;
+  username: string;
+  name: string | null;
+}
+
+export interface RequestForm {
+  provider: Provider;
+  /** host/owner/repo */
+  project: string;
+  defaultBranch: string;
+  people: Person[];
+}
+
+export interface NewRequest {
+  source: string;
+  target: string;
+  title: string;
+  body: string;
+  draft: boolean;
+  /** Person ids. */
+  reviewers: number[];
+}
+
+export interface CreatedRequest {
+  number: number;
+  url: string;
+  warning: string | null;
+}
+
 export interface Profile {
   id: string;
   name: string;
@@ -430,6 +461,10 @@ export const api = {
   /** A fork's request on its own branch (pr/N or mr/N); returns the branch. */
   checkoutPullRequest: (repo: string, remote: string, number: number) =>
     invoke<string>("checkout_pull_request", { repo, remote, number }),
+
+  pullRequestForm: (repo: string, remote: string) => invoke<RequestForm>("pull_request_form", { repo, remote }),
+  createPullRequest: (repo: string, remote: string, request: NewRequest) =>
+    invoke<CreatedRequest>("create_pull_request", { repo, remote, request }),
 
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
   /** Repositories in a folder, up to three levels down. */

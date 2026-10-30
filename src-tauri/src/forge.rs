@@ -6,7 +6,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::accounts::{self, Account};
@@ -190,8 +190,8 @@ fn request(method: &str, url: &str, token: &str, body: Option<&Value>) -> Result
             .header("Accept", "application/json")
             .call(),
         _ => {
-            let req = agent
-                .post(url)
+            let req = if method == "PUT" { agent.put(url) } else { agent.post(url) };
+            let req = req
                 .header("Authorization", &auth)
                 .header("User-Agent", "gitbrix")
                 .header("Accept", "application/json");
@@ -212,12 +212,7 @@ fn request(method: &str, url: &str, token: &str, body: Option<&Value>) -> Result
     if (200..300).contains(&status) {
         return Ok(value);
     }
-    let detail = value["message"]
-        .as_str()
-        .or_else(|| value["error"].as_str())
-        .unwrap_or("")
-        .trim()
-        .to_owned();
+    let detail = error_detail(&value);
     Err(Error::msg(match status {
         401 => format!("{host} rejected the token; it may have expired"),
         403 if detail.to_lowercase().contains("scope") => {
@@ -238,6 +233,37 @@ fn request(method: &str, url: &str, token: &str, body: Option<&Value>) -> Result
         _ if !detail.is_empty() => format!("{host}: {detail}"),
         _ => format!("{host} answered {status}"),
     }))
+}
+
+/// The reason in an error answer. GitLab sends `message` as text, a list
+/// or an object of field → list; GitHub adds `errors[].message`.
+fn error_detail(value: &Value) -> String {
+    fn flatten(v: &Value, out: &mut Vec<String>) {
+        match v {
+            Value::String(s) => out.push(s.trim().to_owned()),
+            Value::Array(a) => a.iter().for_each(|x| flatten(x, out)),
+            Value::Object(o) => o.iter().for_each(|(k, x)| {
+                let mut inner = Vec::new();
+                flatten(x, &mut inner);
+                if !inner.is_empty() {
+                    out.push(format!("{k} {}", inner.join(", ")));
+                }
+            }),
+            _ => {}
+        }
+    }
+    let mut parts = Vec::new();
+    flatten(&value["message"], &mut parts);
+    if parts.is_empty() {
+        flatten(&value["error"], &mut parts);
+    }
+    for e in value["errors"].as_array().into_iter().flatten() {
+        if let Some(m) = e["message"].as_str() {
+            parts.push(m.trim().to_owned());
+        }
+    }
+    parts.retain(|p| !p.is_empty());
+    parts.join("; ")
 }
 
 fn get(url: &str, token: &str) -> Result<Value> {
@@ -755,6 +781,16 @@ mod tests {
     /// A one-thread HTTP server answering from `routes` (method + path
     /// prefix → JSON) and recording each request line with its token.
     fn serve(routes: Vec<(&'static str, Value)>) -> (String, Arc<Mutex<Vec<String>>>) {
+        let (addr, log, _) = serve_bodies(routes);
+        (addr, log)
+    }
+
+    type Log = Arc<Mutex<Vec<String>>>;
+
+    /// `serve`, also keeping each request body (`METHOD /path` → JSON).
+    fn serve_bodies(routes: Vec<(&'static str, Value)>) -> (String, Log, Arc<Mutex<Vec<(String, Value)>>>) {
+        let bodies = Arc::new(Mutex::new(Vec::new()));
+        let kept = bodies.clone();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = format!("http://{}", listener.local_addr().unwrap());
         let log = Arc::new(Mutex::new(Vec::new()));
@@ -788,6 +824,9 @@ mod tests {
                     .collect::<Vec<_>>()
                     .join(" ");
                 seen.lock().unwrap().push(format!("{request} [{auth}]"));
+                if let Ok(v) = serde_json::from_slice::<Value>(&body) {
+                    kept.lock().unwrap().push((request.clone(), v));
+                }
                 let answer = routes
                     .iter()
                     .find(|(prefix, _)| request.starts_with(prefix))
@@ -803,7 +842,79 @@ mod tests {
                 );
             }
         });
-        (addr, log)
+        (addr, log, bodies)
+    }
+
+    fn new_request(reviewers: Vec<u64>, draft: bool) -> NewRequest {
+        NewRequest {
+            source: "feature".into(),
+            target: "main".into(),
+            title: " Add parser ".into(),
+            body: "Why".into(),
+            draft,
+            reviewers,
+        }
+    }
+
+    #[test]
+    fn gitlab_merge_requests_open_with_reviewers_and_draft() {
+        let (addr, _, bodies) = serve_bodies(vec![
+            ("GET /api/v4/projects/team%2Fapp/members/all", json!([
+                { "id": 7, "username": "ada", "name": "Ada", "state": "active" },
+                { "id": 8, "username": "me", "name": "Me", "state": "active" },
+                { "id": 9, "username": "gone", "name": "Gone", "state": "blocked" }
+            ])),
+            ("GET /api/v4/projects/team%2Fapp", json!({ "default_branch": "develop" })),
+            ("POST /api/v4/projects/team%2Fapp/merge_requests", json!({ "iid": 12, "web_url": "https://git.test/team/app/-/merge_requests/12" })),
+        ]);
+        let p = project("gitlab", &format!("{addr}/api/v4"), "me");
+        let form = form_in(&p, "tok").unwrap();
+        assert_eq!(form.default_branch, "develop");
+        // Not yourself, not blocked users.
+        assert_eq!(form.people.iter().map(|u| u.username.as_str()).collect::<Vec<_>>(), ["ada"]);
+
+        let created = create_in(&p, "tok", &new_request(vec![7], true)).unwrap();
+        assert_eq!(created, Created { number: 12, url: "https://git.test/team/app/-/merge_requests/12".into(), warning: None });
+        let bodies = bodies.lock().unwrap();
+        let (_, sent) = bodies.iter().find(|(r, _)| r.starts_with("POST")).unwrap();
+        assert_eq!(sent["title"], "Draft: Add parser");
+        assert_eq!(sent["reviewer_ids"], json!([7]));
+        assert_eq!((sent["source_branch"].as_str(), sent["target_branch"].as_str()), (Some("feature"), Some("main")));
+    }
+
+    #[test]
+    fn github_pull_requests_open_then_ask_reviewers_by_login() {
+        let (addr, log, bodies) = serve_bodies(vec![
+            ("GET /repos/team/app/collaborators", json!([{ "id": 5, "login": "grace" }, { "id": 6, "login": "me" }])),
+            ("GET /repos/team/app", json!({ "default_branch": "main" })),
+            ("POST /repos/team/app/pulls/31/requested_reviewers", json!({})),
+            ("POST /repos/team/app/pulls", json!({ "number": 31, "html_url": "https://github.com/team/app/pull/31" })),
+        ]);
+        let p = project("github", &addr, "me");
+        let created = create_in(&p, "tok", &new_request(vec![5], false)).unwrap();
+        assert_eq!((created.number, created.warning), (31, None));
+        let bodies = bodies.lock().unwrap();
+        let sent = |prefix: &str| bodies.iter().find(|(r, _)| r == prefix).map(|(_, v)| v.clone()).unwrap();
+        let pr = sent("POST /repos/team/app/pulls");
+        assert_eq!((pr["head"].as_str(), pr["base"].as_str(), pr["draft"].as_bool()), (Some("feature"), Some("main"), Some(false)));
+        assert_eq!(pr["title"], "Add parser");
+        assert_eq!(sent("POST /repos/team/app/pulls/31/requested_reviewers")["reviewers"], json!(["grace"]));
+        assert!(log.lock().unwrap().iter().all(|l| l.ends_with("[Bearer tok]")));
+
+        // No title, or the same branch on both sides: refused before asking.
+        assert!(create_in(&p, "tok", &NewRequest { title: " ".into(), ..new_request(vec![], false) }).is_err());
+        assert!(create_in(&p, "tok", &NewRequest { target: "feature".into(), ..new_request(vec![], false) }).is_err());
+    }
+
+    #[test]
+    fn error_details_come_from_every_shape() {
+        assert_eq!(error_detail(&json!({ "message": ["Another open merge request already exists"] })), "Another open merge request already exists");
+        assert_eq!(error_detail(&json!({ "message": { "title": ["can't be blank"] } })), "title can't be blank");
+        assert_eq!(
+            error_detail(&json!({ "message": "Validation Failed", "errors": [{ "message": "A pull request already exists for me:feature." }] })),
+            "Validation Failed; A pull request already exists for me:feature."
+        );
+        assert_eq!(error_detail(&json!({ "error": "insufficient_scope" })), "insufficient_scope");
     }
 
     fn project(provider: &str, api: &str, username: &str) -> Project {
@@ -1016,4 +1127,154 @@ fn live_inbox() {
     let res = inbox().unwrap();
     println!("{res:#?}");
     assert!(res.problems.is_empty(), "{:?}", res.problems);
+}
+
+// ---------------------------------------------------------------------------
+// Opening a request
+
+/// Someone who can be asked to review.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Person {
+    pub id: u64,
+    pub username: String,
+    pub name: Option<String>,
+}
+
+/// What the "new request" form needs to know about the remote's project.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestForm {
+    pub provider: String,
+    pub project: String,
+    pub default_branch: String,
+    /// People who may review; empty if the token can't list them.
+    pub people: Vec<Person>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewRequest {
+    pub source: String,
+    pub target: String,
+    pub title: String,
+    pub body: String,
+    pub draft: bool,
+    /// Ids of `Person`s to ask for a review.
+    pub reviewers: Vec<u64>,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Created {
+    pub number: u64,
+    pub url: String,
+    /// The request was made but something after it (asking reviewers) failed.
+    pub warning: Option<String>,
+}
+
+pub fn request_form(repo: &Path, remote: &str) -> Result<RequestForm> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    form_in(&p, &token)
+}
+
+fn form_in(p: &Project, token: &str) -> Result<RequestForm> {
+    let token = token.to_owned();
+    let (default_branch, people) = match p.provider.as_str() {
+        "github" => {
+            let info = get(&format!("{}/repos/{}", p.api, p.path), &token)?;
+            // Only people with push access may list collaborators.
+            let people = get(&format!("{}/repos/{}/collaborators?per_page=100", p.api, p.path), &token)
+                .map(|v| {
+                    v.as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|u| Person { id: u["id"].as_u64().unwrap_or(0), username: text(&u["login"]), name: None })
+                        .collect()
+                })
+                .unwrap_or_default();
+            (text(&info["default_branch"]), people)
+        }
+        _ => {
+            let base = format!("{}/projects/{}", p.api, encode(&p.path));
+            let info = get(&base, &token)?;
+            let people = get(&format!("{base}/members/all?per_page=100"), &token)
+                .map(|v| {
+                    v.as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter(|u| u["state"].as_str().is_none_or(|s| s == "active"))
+                        .map(|u| Person {
+                            id: u["id"].as_u64().unwrap_or(0),
+                            username: text(&u["username"]),
+                            name: u["name"].as_str().map(str::to_owned),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            (text(&info["default_branch"]), people)
+        }
+    };
+    let mut people: Vec<Person> = people;
+    people.retain(|u| !u.username.is_empty() && !u.username.eq_ignore_ascii_case(&p.username));
+    people.sort_by_key(|u| u.username.to_lowercase());
+    people.dedup_by_key(|u| u.id);
+    Ok(RequestForm { provider: p.provider.clone(), project: format!("{}/{}", p.host, p.path), default_branch, people })
+}
+
+pub fn create(repo: &Path, remote: &str, new: &NewRequest) -> Result<Created> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    create_in(&p, &token, new)
+}
+
+fn create_in(p: &Project, token: &str, new: &NewRequest) -> Result<Created> {
+    let token = token.to_owned();
+    if new.title.trim().is_empty() {
+        return Err(Error::msg("Give the request a title"));
+    }
+    if new.source == new.target {
+        return Err(Error::msg("The source and target branches are the same"));
+    }
+    match p.provider.as_str() {
+        "github" => {
+            let body = json!({
+                "title": new.title.trim(),
+                "head": new.source,
+                "base": new.target,
+                "body": new.body,
+                "draft": new.draft,
+            });
+            let pr = request("POST", &format!("{}/repos/{}/pulls", p.api, p.path), &token, Some(&body))?;
+            let number = pr["number"].as_u64().ok_or_else(|| Error::msg(format!("Unexpected answer from {}", p.host)))?;
+            let mut warning = None;
+            if !new.reviewers.is_empty() {
+                // GitHub asks for logins; the form knows people by id.
+                let form = form_in(p, &token).map(|f| f.people).unwrap_or_default();
+                let logins: Vec<&str> = form
+                    .iter()
+                    .filter(|u| new.reviewers.contains(&u.id))
+                    .map(|u| u.username.as_str())
+                    .collect();
+                let url = format!("{}/repos/{}/pulls/{number}/requested_reviewers", p.api, p.path);
+                if let Err(e) = request("POST", &url, &token, Some(&json!({ "reviewers": logins }))) {
+                    warning = Some(format!("Reviewers weren't added: {e}"));
+                }
+            }
+            Ok(Created { number, url: text(&pr["html_url"]), warning })
+        }
+        _ => {
+            let title = if new.draft { format!("Draft: {}", new.title.trim()) } else { new.title.trim().to_owned() };
+            let body = json!({
+                "source_branch": new.source,
+                "target_branch": new.target,
+                "title": title,
+                "description": new.body,
+                "reviewer_ids": new.reviewers,
+            });
+            let url = format!("{}/projects/{}/merge_requests", p.api, encode(&p.path));
+            let mr = request("POST", &url, &token, Some(&body))?;
+            let number = mr["iid"].as_u64().ok_or_else(|| Error::msg(format!("Unexpected answer from {}", p.host)))?;
+            Ok(Created { number, url: text(&mr["web_url"]), warning: None })
+        }
+    }
 }

@@ -18,6 +18,7 @@ import { ReflogView } from "./components/ReflogView";
 import { RepoDialogs } from "./components/RepoDialogs";
 import { DragGhost } from "./components/DragGhost";
 import { PullRequestsDialog } from "./components/PullRequestsDialog";
+import { CreatePullRequestDialog } from "./components/CreatePullRequest";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ShortcutsDialog, useShortcuts } from "./components/ShortcutsDialog";
 import { Sidebar } from "./components/Sidebar";
@@ -248,6 +249,7 @@ export default function App() {
       <CommandPalette />
       <SettingsDialog />
       <PullRequestsDialog />
+      <CreatePullRequestDialog />
       <WorkspaceDialog />
       <DragGhost />
       <ShortcutsDialog />

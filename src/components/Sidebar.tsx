@@ -3,7 +3,7 @@ import { ReactNode, useMemo, useState } from "react";
 import { PullRequest, RefInfo, RemoteInfo } from "../api";
 import { addRemote, addWorktree, checkoutPullRequest, checkoutRef, prHead, prMenu, submoduleMenu, updateSubmodules, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
 import { beginDrag, dropTarget } from "../dnd";
-import { loadPrs, prLabel, usePrs, wantsReview } from "../prs";
+import { createPullRequest, loadPrs, prLabel, usePrs, wantsReview } from "../prs";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
 import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconPullRequest, IconStash, IconTag } from "./Icons";
@@ -292,9 +292,14 @@ function PullRequestSection() {
       icon={<IconPullRequest size={13} />}
       count={data.items.length}
       action={
-        <button className={`icon-btn${data.loading ? " spinning" : ""}`} title="Check for requests" onClick={() => void loadPrs(repoPath)}>
-          <IconFetch size={12} />
-        </button>
+        <>
+          <button className="icon-btn" title="Create pull request" onClick={() => createPullRequest()}>
+            <IconPlus size={12} />
+          </button>
+          <button className={`icon-btn${data.loading ? " spinning" : ""}`} title="Check for requests" onClick={() => void loadPrs(repoPath)}>
+            <IconFetch size={12} />
+          </button>
+        </>
       }
     >
       {data.items.map((pr) => (

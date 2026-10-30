@@ -91,6 +91,16 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  pull_request_form: () => ({
+    provider: "gitlab",
+    project: "gitlab.com/team/demo-app",
+    defaultBranch: "main",
+    people: [
+      { id: 7, username: "ada", name: "Ada Lovelace" },
+      { id: 8, username: "grace", name: "Grace Hopper" },
+    ],
+  }),
+  create_pull_request: () => ({ number: 14, url: "https://gitlab.com/team/demo-app/-/merge_requests/14", warning: null }),
   save_profiles: (a) => {
     const next = a.profiles as typeof profiles;
     if (next.list.some((p) => !p.userName || !p.userEmail)) throw "Profile needs a name and an email for commits";

@@ -9,6 +9,7 @@ import { create } from "zustand";
 
 import { api, errorText, PullRequest, PullRequestInbox, PullRequests } from "./api";
 import { useSettings } from "./settings";
+import { useStore } from "./store";
 
 export interface RepoPrs extends PullRequests {
   error?: string;
@@ -211,4 +212,18 @@ export function loadInbox() {
       patch({ error: errorText(e), loading: false });
     }
   });
+}
+
+/** The "create pull request" form, open for a local branch. */
+export const useCreatePr = create<{ branch: string | null }>(() => ({ branch: null }));
+
+/** Open the form for a local branch (the checked-out one by default). */
+export function createPullRequest(branch?: string) {
+  const s = useStore.getState();
+  const name = branch ?? s.repo?.headBranch;
+  if (!name) {
+    s.toast("error", "Check out a branch first");
+    return;
+  }
+  useCreatePr.setState({ branch: name });
 }

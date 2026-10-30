@@ -7,7 +7,7 @@ import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, CommitRow, errorText, PullMode, PullRequest, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
-import { loadInbox, loadPrs, prLabel, usePrs } from "./prs";
+import { createPullRequest, loadInbox, loadPrs, prLabel, usePrs } from "./prs";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
 
@@ -356,6 +356,7 @@ function refMenuItems(ref: RefInfo): MenuItem[] {
       { label: `Rebase ${head ?? "HEAD"} onto ${ref.name}`, disabled: ref.isHead, onSelect: () => rebaseOnto(ref.name, ref.name) },
       { separator: true, label: "" },
       ...branchRemoteItems(ref),
+      { label: "Create pull request…", onSelect: () => createPullRequest(ref.name) },
       { separator: true, label: "" },
       { label: "Open in new worktree…", disabled: ref.isHead, onSelect: () => addWorktree(ref) },
       { label: "Rename…", onSelect: () => renameBranch(ref) },
