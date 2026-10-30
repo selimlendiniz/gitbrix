@@ -148,7 +148,7 @@ export function IssueDialog() {
           </div>
         )}
         <div className="issue-body">
-          {issue.body.trim() ? <Markdown text={issue.body} url={issue.url} /> : <span className="dim">No description.</span>}
+          {issue.body.trim() ? <Markdown text={issue.body} html={issue.bodyHtml} url={issue.url} /> : <span className="dim">No description.</span>}
         </div>
         {here && <div className="issue-meta">You're on {headBranch}, the branch for this issue.</div>}
         <div className="modal-actions">

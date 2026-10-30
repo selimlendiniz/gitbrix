@@ -183,11 +183,13 @@ Kurulabilir paket (release derlemesi):
     Tıklayınca PR uygulamada açılır.
 
 48. **Markdown**: PR/MR açıklaması, yorumlar, diff'teki satır yorumları ve
-    issue metni GitHub/GitLab'daki gibi biçimli (başlık, liste, görev
-    kutuları, tablo, renklendirilmiş kod). Bağlantılar tarayıcıda açılır;
-    göreli bağlantılar (`/uploads/...`) projenin adresine göre çözülür.
-    Ham HTML gösterilmez; resimler bağlantı olarak çıkar (uygulama dışarıdan
-    resim yüklemiyor).
+    issue metni GitLab/GitHub'ın kendi çevirdiği HTML ile gösteriliyor
+    (GitLab: GraphQL `bodyHtml`/`descriptionHtml`; GitHub: `body_html`).
+    Yani `#12`, `!4`, `@kişi` bağlantı, emoji, kod renkleri web'deki gibi.
+    HTML uygulamada yeniden temizleniyor (GitHub'ın izin listesi; script,
+    stil, olay yok; sayfadan gelen sınıflar uygulamanın stillerine
+    ulaşamaz). Servis HTML vermezse metin uygulamada çevriliyor. Bağlantılar
+    tarayıcıda açılır; resimler bağlantı olarak çıkar.
 
 ## Bilerek yapmadıklarım
 

@@ -33,7 +33,7 @@ function CommentItem({ c, url, onPath }: { c: PrComment; url: string; onPath: (p
         )}
         <span className="dim">{when(c.created)}</span>
       </div>
-      {c.body && (c.system ? <div className="pr-comment-body">{c.body}</div> : <Markdown className="pr-comment-body" text={c.body} url={url} />)}
+      {c.body && (c.system ? <div className="pr-comment-body">{c.body}</div> : <Markdown className="pr-comment-body" text={c.body} html={c.html} url={url} />)}
     </div>
   );
 }
@@ -283,7 +283,7 @@ export function PullRequestPanel() {
           {conv && (
             <>
               {conv.description.trim() ? (
-                <Markdown className="pr-description" text={conv.description} url={pr.url} />
+                <Markdown className="pr-description" text={conv.description} html={conv.descriptionHtml} url={pr.url} />
               ) : (
                 <div className="dim pr-description">No description.</div>
               )}

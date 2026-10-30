@@ -24,6 +24,8 @@ declare global {
     __gitbrixUpdate?: unknown;
     /** What `read_text_file` answers; tests set it. */
     __gitbrixFile?: string;
+    /** The service's HTML of that description; tests set it. */
+    __gitbrixDescriptionHtml?: string;
     /** A request's description in `pull_request_conversation`; tests set it. */
     __gitbrixDescription?: string;
     /** What `issues` answers; tests set it. */
@@ -181,6 +183,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   pull_request_range: () => ({ base: fixture.graph.commits[fixture.graph.commits.length - 2].id, head: fixture.graph.commits.find((c) => c.summary === "UI: dark theme")?.id }),
   pull_request_conversation: () => ({
     description: window.__gitbrixDescription ?? "Makes the UI darker.",
+    descriptionHtml: window.__gitbrixDescriptionHtml ?? null,
     comments: [
       { author: "bot", body: "added 1 commit", created: "2026-10-01T00:00:00Z", path: null, line: null, verdict: null, system: true },
       { author: "ada", body: "Too dark?", created: "2026-10-02T00:00:00Z", path: "src/ui.rs", line: 3, verdict: null, system: false },

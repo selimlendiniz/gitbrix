@@ -1,6 +1,7 @@
 //! Open issues of a repository's remotes, with the same accounts (and the
 //! same rules for the token) as the pull requests.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use serde::Serialize;
@@ -31,6 +32,8 @@ pub struct Issue {
     pub title: String,
     /// Markdown, cut at `BODY_LIMIT` characters.
     pub body: String,
+    /// The body as the service renders it, when it said.
+    pub body_html: Option<String>,
     pub author: String,
     pub url: String,
     pub labels: Vec<Label>,
@@ -57,6 +60,8 @@ pub struct Issues {
 }
 
 const BODY_LIMIT: usize = 20_000;
+/// Longer rendered bodies are left to the app (from the cut text).
+const HTML_LIMIT: usize = 200_000;
 
 fn body(v: &Value) -> String {
     let s = v.as_str().unwrap_or("");
@@ -81,7 +86,7 @@ const GITHUB_ISSUES: &str = "query($owner: String!, $name: String!) {
     hasIssuesEnabled
     issues(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
       nodes {
-        number title url body createdAt updatedAt
+        number title url body bodyHTML createdAt updatedAt
         author { login }
         viewerDidAuthor
         labels(first: 10) { nodes { name color } }
@@ -121,6 +126,7 @@ fn github_issues(p: &Project, remote: &str, token: &str) -> Result<Vec<Issue>> {
                 number: n["number"].as_u64().unwrap_or(0),
                 title: text(&n["title"]),
                 body: body(&n["body"]),
+                body_html: n["bodyHTML"].as_str().filter(|h| h.len() <= HTML_LIMIT).map(str::to_owned),
                 author: n["author"]["login"].as_str().unwrap_or("ghost").to_owned(),
                 url: text(&n["url"]),
                 labels: n["labels"]["nodes"]
@@ -148,6 +154,7 @@ fn gitlab_issues(p: &Project, remote: &str, token: &str) -> Result<Vec<Issue>> {
     );
     let list = get(&url, token)?;
     let me = gitlab_me(p, token);
+    let html = gitlab_issue_html(p, token);
     let project = format!("{}/{}", p.host, p.path);
     Ok(list
         .as_array()
@@ -168,6 +175,7 @@ fn gitlab_issues(p: &Project, remote: &str, token: &str) -> Result<Vec<Issue>> {
                 number: i["iid"].as_u64().unwrap_or(0),
                 title: text(&i["title"]),
                 body: body(&i["description"]),
+                body_html: i["iid"].as_u64().and_then(|n| html.get(&n).cloned()),
                 url: text(&i["web_url"]),
                 labels: i["labels"]
                     .as_array()
@@ -191,6 +199,28 @@ fn gitlab_issues(p: &Project, remote: &str, token: &str) -> Result<Vec<Issue>> {
         .collect())
 }
 
+const GITLAB_ISSUES_HTML: &str = "query($path: ID!) {
+  project(fullPath: $path) {
+    issues(state: opened, first: 50, sort: UPDATED_DESC) { nodes { iid descriptionHtml } }
+  }
+}";
+
+/// The open issues' descriptions as GitLab renders them, by iid; empty
+/// when GitLab can't say.
+fn gitlab_issue_html(p: &Project, token: &str) -> HashMap<u64, String> {
+    let body = json!({ "query": GITLAB_ISSUES_HTML, "variables": { "path": p.path } });
+    let Ok(data) = request("POST", &p.graphql, token, Some(&body)) else { return HashMap::new() };
+    data["data"]["project"]["issues"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|n| {
+            let html = n["descriptionHtml"].as_str().filter(|h| h.len() <= HTML_LIMIT)?;
+            Some((n["iid"].as_str()?.parse().ok()?, html.to_owned()))
+        })
+        .collect()
+}
+
 fn list_project(p: &Project, remote: &str, token: &str) -> Result<Vec<Issue>> {
     match p.provider.as_str() {
         "github" => github_issues(p, remote, token),
@@ -209,6 +239,7 @@ pub fn list(repo: &Path) -> Result<Issues> {
 #[cfg(test)]
 mod tests {
     use super::super::tests::{project, serve};
+    use super::super::Project;
     use super::*;
 
     #[test]
@@ -218,7 +249,7 @@ mod tests {
             json!({ "data": {
                 "viewer": { "login": "me" },
                 "repository": { "hasIssuesEnabled": true, "issues": { "nodes": [
-                    { "number": 12, "title": "Login fails", "url": "https://github.com/team/app/issues/12", "body": "Steps…",
+                    { "number": 12, "title": "Login fails", "url": "https://github.com/team/app/issues/12", "body": "Steps…", "bodyHTML": "<p>Steps…</p>",
                       "createdAt": "2026-10-01T00:00:00Z", "updatedAt": "2026-10-02T00:00:00Z",
                       "author": { "login": "ada" }, "viewerDidAuthor": false,
                       "labels": { "nodes": [{ "name": "bug", "color": "D73A4A" }] },
@@ -239,6 +270,7 @@ mod tests {
         assert!(i.assigned_to_me && !i.mine);
         assert_eq!(i.project, format!("{}/team/app", p.host));
         assert!(issues[1].mine && issues[1].author == "ghost" && issues[1].body.is_empty());
+        assert_eq!((i.body_html.as_deref(), issues[1].body_html.as_deref()), (Some("<p>Steps…</p>"), None));
         assert!(log.lock().unwrap().iter().all(|l| l.ends_with("[Bearer tok]")));
     }
 
@@ -264,10 +296,14 @@ mod tests {
                   "labels": [{ "name": "bug", "color": "#FF0000" }, "plain"], "user_notes_count": 2,
                   "created_at": "2026-10-01T00:00:00Z", "updated_at": "2026-10-03T00:00:00Z" }
             ]),
+        ), (
+            "POST /api/graphql",
+            json!({ "data": { "project": { "issues": { "nodes": [{ "iid": "4", "descriptionHtml": "<p>Trace</p>" }] } } } }),
         )]);
-        let p = project("gitlab", &format!("{addr}/api/v4"), "me");
+        let p = Project { graphql: format!("{addr}/api/graphql"), ..project("gitlab", &format!("{addr}/api/v4"), "me") };
         let issues = gitlab_issues(&p, "origin", "tok").unwrap();
         let i = &issues[0];
+        assert_eq!(i.body_html.as_deref(), Some("<p>Trace</p>"));
         assert_eq!((i.number, i.title.as_str(), i.comments), (4, "Crash on start", 2));
         assert!(i.mine && !i.assigned_to_me);
         assert_eq!(i.assignees, vec!["grace".to_owned()]);
@@ -277,6 +313,11 @@ mod tests {
         );
         let log = log.lock().unwrap();
         assert!(log[0].contains("state=opened") && log[0].contains("with_labels_details=true"));
+        // Without GitLab's HTML, the app renders the text.
+        drop(log);
+        let (addr, _) = serve(vec![("GET /api/v4/projects/team%2Fapp/issues", json!([{ "iid": 5, "description": "x" }]))]);
+        let issues = gitlab_issues(&project("gitlab", &format!("{addr}/api/v4"), "me"), "origin", "tok").unwrap();
+        assert_eq!(issues[0].body_html, None);
     }
 
     #[test]

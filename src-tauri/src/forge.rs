@@ -145,7 +145,7 @@ fn project_in(account: &Account, path: String) -> Option<Project> {
             "https://api.github.com/graphql".to_owned(),
         ),
         "github" => (format!("{root}/api/v3"), format!("{root}/api/graphql")),
-        _ => (format!("{root}/api/v4"), String::new()),
+        _ => (format!("{root}/api/v4"), format!("{root}/api/graphql")),
     };
     Some(Project {
         provider: account.provider.clone(),
@@ -183,6 +183,13 @@ fn agent() -> ureq::Agent {
 }
 
 fn request(method: &str, url: &str, token: &str, body: Option<&Value>) -> Result<Value> {
+    request_as(method, url, token, body, "application/json")
+}
+
+/// GitHub's answers with each text also rendered as HTML (`body_html`).
+const GITHUB_FULL: &str = "application/vnd.github.full+json";
+
+fn request_as(method: &str, url: &str, token: &str, body: Option<&Value>, accept: &str) -> Result<Value> {
     let host = accounts::split_url(url)
         .map(|(_, h, _)| h)
         .unwrap_or_default();
@@ -193,7 +200,7 @@ fn request(method: &str, url: &str, token: &str, body: Option<&Value>) -> Result
             .get(url)
             .header("Authorization", &auth)
             .header("User-Agent", "gitbrix")
-            .header("Accept", "application/json")
+            .header("Accept", accept)
             .call(),
         _ => {
             if method == "DELETE" {
@@ -201,14 +208,14 @@ fn request(method: &str, url: &str, token: &str, body: Option<&Value>) -> Result
                     .delete(url)
                     .header("Authorization", &auth)
                     .header("User-Agent", "gitbrix")
-                    .header("Accept", "application/json")
+                    .header("Accept", accept)
                     .call()
             } else {
             let req = if method == "PUT" { agent.put(url) } else { agent.post(url) };
             let req = req
                 .header("Authorization", &auth)
                 .header("User-Agent", "gitbrix")
-                .header("Accept", "application/json");
+                .header("Accept", accept);
             match body {
                 Some(b) => req.send_json(b),
                 None => req.send_empty(),
@@ -859,7 +866,7 @@ mod tests {
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 let mut line = String::new();
                 reader.read_line(&mut line).unwrap();
-                let (mut len, mut auth) = (0, String::new());
+                let (mut len, mut auth, mut accept) = (0, String::new(), String::new());
                 loop {
                     let mut h = String::new();
                     reader.read_line(&mut h).unwrap();
@@ -873,6 +880,9 @@ mod tests {
                     if lower.starts_with("authorization:") {
                         auth = h["authorization:".len()..].trim().to_owned();
                     }
+                    if lower.starts_with("accept:") {
+                        accept = h["accept:".len()..].trim().to_owned();
+                    }
                 }
                 let mut body = vec![0; len];
                 reader.read_exact(&mut body).unwrap();
@@ -881,7 +891,7 @@ mod tests {
                     .take(2)
                     .collect::<Vec<_>>()
                     .join(" ");
-                seen.lock().unwrap().push(format!("{request} [{auth}]"));
+                seen.lock().unwrap().push(format!("{request} <{accept}> [{auth}]"));
                 if let Ok(v) = serde_json::from_slice::<Value>(&body) {
                     kept.lock().unwrap().push((request.clone(), v));
                 }
@@ -966,7 +976,7 @@ mod tests {
 
     #[test]
     fn github_conversation_merges_comments_reviews_and_lines() {
-        let (addr, _) = serve(vec![
+        let (addr, log) = serve(vec![
             ("GET /repos/team/app/pulls/4/comments", json!([
                 { "user": { "login": "ada" }, "body": "Off by one?", "created_at": "2026-10-02T00:00:00Z", "path": "src/a.rs", "line": 12 }
             ])),
@@ -974,13 +984,18 @@ mod tests {
                 { "user": { "login": "ada" }, "body": "", "state": "COMMENTED", "submitted_at": "2026-10-02T00:00:01Z" },
                 { "user": { "login": "grace" }, "body": "Ship it", "state": "APPROVED", "submitted_at": "2026-10-03T00:00:00Z" }
             ])),
-            ("GET /repos/team/app/pulls/4", json!({ "body": "Fixes #1", "state": "open", "merged": false, "mergeable": false, "mergeable_state": "dirty" })),
+            ("GET /repos/team/app/pulls/4", json!({ "body": "Fixes #1", "body_html": "<p>Fixes <a href=\"https://github.com/team/app/issues/1\">#1</a></p>",
+                "state": "open", "merged": false, "mergeable": false, "mergeable_state": "dirty" })),
             ("GET /repos/team/app/issues/4/comments", json!([
-                { "user": { "login": "me" }, "body": "First", "created_at": "2026-10-01T00:00:00Z" }
+                { "user": { "login": "me" }, "body": "First", "body_html": "<p>First</p>", "created_at": "2026-10-01T00:00:00Z" }
             ])),
         ]);
         let c = conversation_in(&project("github", &addr, "me"), "tok", 4).unwrap();
         assert_eq!(c.description, "Fixes #1");
+        assert_eq!(c.description_html.as_deref(), Some("<p>Fixes <a href=\"https://github.com/team/app/issues/1\">#1</a></p>"));
+        assert_eq!(c.comments[0].html.as_deref(), Some("<p>First</p>"));
+        // Asked for the rendered text everywhere.
+        assert!(log.lock().unwrap().iter().all(|l| l.contains("<application/vnd.github.full+json>")), "{:?}", log.lock().unwrap());
         assert!(c.open);
         assert_eq!((c.mergeable, c.merge_status.as_str()), (Some(false), "has conflicts"));
         type Seen<'a> = (&'a str, Option<&'a str>, Option<u64>, Option<&'a str>);
@@ -1009,6 +1024,37 @@ mod tests {
         assert_eq!((c.mergeable, c.merge_status.as_str()), (Some(false), "not approved"));
         assert!(c.comments[0].system && !c.comments[1].system);
         assert_eq!((c.comments[1].path.as_deref(), c.comments[1].line), (Some("lib.rs"), Some(3)));
+        // No GraphQL here: the app renders the text itself.
+        assert!(c.description_html.is_none() && c.comments.iter().all(|x| x.html.is_none()));
+    }
+
+    #[test]
+    fn gitlab_conversation_takes_gitlabs_html() {
+        let (addr, log, bodies) = serve_bodies(vec![
+            ("GET /api/v4/projects/team%2Fapp/merge_requests/9/notes", json!([
+                { "id": 11, "author": { "username": "ada" }, "body": "See #12", "created_at": "2026-10-02T00:00:00Z", "system": false,
+                  "position": { "new_path": "lib.rs", "new_line": 3 } },
+                { "id": 12, "author": { "username": "grace" }, "body": "ok", "created_at": "2026-10-03T00:00:00Z", "system": false }
+            ])),
+            ("GET /api/v4/projects/team%2Fapp/merge_requests/9", json!({ "description": "**Body**", "state": "opened" })),
+            ("POST /api/graphql", json!({ "data": { "project": { "mergeRequest": {
+                "descriptionHtml": "<p><strong>Body</strong></p>",
+                "notes": { "nodes": [
+                    { "id": "gid://gitlab/DiffNote/11", "bodyHtml": "<p>See <a href=\"/team/app/-/issues/12\" class=\"gfm\">#12</a></p>" }
+                ] }
+            } } } })),
+        ]);
+        let p = Project { graphql: format!("{addr}/api/graphql"), ..project("gitlab", &format!("{addr}/api/v4"), "me") };
+        let c = conversation_in(&p, "tok", 9).unwrap();
+        assert_eq!(c.description_html.as_deref(), Some("<p><strong>Body</strong></p>"));
+        assert!(c.comments[0].html.as_deref().unwrap().contains("issues/12"));
+        // Not in GitLab's answer: rendered by the app.
+        assert_eq!(c.comments[1].html, None);
+        let bodies = bodies.lock().unwrap();
+        let (_, sent) = bodies.iter().find(|(r, _)| r == "POST /api/graphql").unwrap();
+        assert_eq!(sent["variables"], json!({ "path": "team/app", "iid": "9" }));
+        assert!(log.lock().unwrap().iter().all(|l| l.ends_with("[Bearer tok]")));
+        assert_eq!(gid_number("gid://gitlab/Note/77"), Some(77));
     }
 
     #[test]
@@ -1533,6 +1579,8 @@ fn create_in(p: &Project, token: &str, new: &NewRequest) -> Result<Created> {
 pub struct Comment {
     pub author: String,
     pub body: String,
+    /// The body as the service renders it, when it said.
+    pub html: Option<String>,
     /// ISO 8601.
     pub created: String,
     pub path: Option<String>,
@@ -1547,6 +1595,8 @@ pub struct Comment {
 #[serde(rename_all = "camelCase")]
 pub struct Conversation {
     pub description: String,
+    /// The description as the service renders it, when it said.
+    pub description_html: Option<String>,
     pub comments: Vec<Comment>,
     /// Still open (not merged or closed meanwhile).
     pub open: bool,
@@ -1560,6 +1610,7 @@ fn github_comment(c: &Value, path: bool) -> Comment {
     Comment {
         author: c["user"]["login"].as_str().unwrap_or("ghost").to_owned(),
         body: text(&c["body"]),
+        html: c["body_html"].as_str().map(str::to_owned),
         created: c["created_at"].as_str().or_else(|| c["submitted_at"].as_str()).unwrap_or("").to_owned(),
         path: path.then(|| text(&c["path"])).filter(|p| !p.is_empty()),
         line: if path { c["line"].as_u64().or_else(|| c["original_line"].as_u64()) } else { None },
@@ -1568,13 +1619,53 @@ fn github_comment(c: &Value, path: bool) -> Comment {
     }
 }
 
+/// A merge request's description and notes as GitLab renders them.
+#[derive(Default)]
+struct GitlabHtml {
+    description: Option<String>,
+    /// By note id.
+    notes: HashMap<u64, String>,
+}
+
+const GITLAB_MR_HTML: &str = "query($path: ID!, $iid: String!) {
+  project(fullPath: $path) {
+    mergeRequest(iid: $iid) {
+      descriptionHtml
+      notes(first: 100) { nodes { id bodyHtml } }
+    }
+  }
+}";
+
+/// The number at the end of a GraphQL id (`gid://gitlab/DiffNote/123`).
+fn gid_number(id: &str) -> Option<u64> {
+    id.rsplit('/').next()?.parse().ok()
+}
+
+/// Empty when GitLab can't say (an old server, a token without API
+/// access): the text is then rendered by the app.
+fn gitlab_html(p: &Project, token: &str, number: u64) -> GitlabHtml {
+    let body = json!({ "query": GITLAB_MR_HTML, "variables": { "path": p.path, "iid": number.to_string() } });
+    let Ok(data) = request("POST", &p.graphql, token, Some(&body)) else { return GitlabHtml::default() };
+    let mr = &data["data"]["project"]["mergeRequest"];
+    GitlabHtml {
+        description: mr["descriptionHtml"].as_str().map(str::to_owned),
+        notes: mr["notes"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|n| Some((gid_number(n["id"].as_str()?)?, n["bodyHtml"].as_str()?.to_owned())))
+            .collect(),
+    }
+}
+
 fn conversation_in(p: &Project, token: &str, number: u64) -> Result<Conversation> {
     let mut comments = Vec::new();
     let out = match p.provider.as_str() {
         "github" => {
             let base = format!("{}/repos/{}", p.api, p.path);
-            let pr = get(&format!("{base}/pulls/{number}"), token)?;
-            let list = |url: String| get(&url, token).map(|v| v.as_array().cloned().unwrap_or_default());
+            let full = |url: &str| request_as("GET", url, token, None, GITHUB_FULL);
+            let pr = full(&format!("{base}/pulls/{number}"))?;
+            let list = |url: String| full(&url).map(|v| v.as_array().cloned().unwrap_or_default());
             for c in list(format!("{base}/issues/{number}/comments?per_page=100"))? {
                 comments.push(github_comment(&c, false));
             }
@@ -1592,6 +1683,7 @@ fn conversation_in(p: &Project, token: &str, number: u64) -> Result<Conversation
             let state = text(&pr["mergeable_state"]);
             Conversation {
                 description: text(&pr["body"]),
+                description_html: pr["body_html"].as_str().map(str::to_owned),
                 comments: Vec::new(),
                 open: pr["state"].as_str() == Some("open") && !pr["merged"].as_bool().unwrap_or(false),
                 mergeable: pr["mergeable"].as_bool(),
@@ -1609,11 +1701,13 @@ fn conversation_in(p: &Project, token: &str, number: u64) -> Result<Conversation
             let base = format!("{}/projects/{}/merge_requests/{number}", p.api, encode(&p.path));
             let mr = get(&base, token)?;
             let notes = get(&format!("{base}/notes?sort=asc&order_by=created_at&per_page=100"), token)?;
+            let html = gitlab_html(p, token, number);
             for n in notes.as_array().into_iter().flatten() {
                 let position = &n["position"];
                 comments.push(Comment {
                     author: text(&n["author"]["username"]),
                     body: text(&n["body"]),
+                    html: n["id"].as_u64().and_then(|id| html.notes.get(&id).cloned()),
                     created: text(&n["created_at"]),
                     path: position["new_path"].as_str().or_else(|| position["old_path"].as_str()).map(str::to_owned),
                     line: position["new_line"].as_u64().or_else(|| position["old_line"].as_u64()),
@@ -1624,6 +1718,7 @@ fn conversation_in(p: &Project, token: &str, number: u64) -> Result<Conversation
             let status = mr["detailed_merge_status"].as_str().or_else(|| mr["merge_status"].as_str()).unwrap_or("").to_owned();
             Conversation {
                 description: text(&mr["description"]),
+                description_html: html.description,
                 comments: Vec::new(),
                 open: mr["state"].as_str() == Some("opened"),
                 mergeable: match status.as_str() {

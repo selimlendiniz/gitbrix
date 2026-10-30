@@ -127,6 +127,8 @@ export interface RequestRange {
 export interface PrComment {
   author: string;
   body: string;
+  /** The body as the service renders it, if it said. */
+  html?: string | null;
   created: string;
   path: string | null;
   line: number | null;
@@ -137,6 +139,8 @@ export interface PrComment {
 
 export interface Conversation {
   description: string;
+  /** The description as the service renders it, if it said. */
+  descriptionHtml?: string | null;
   comments: PrComment[];
   open: boolean;
   /** null while the service is still working it out. */
@@ -479,6 +483,8 @@ export interface Issue {
   title: string;
   /** Markdown. */
   body: string;
+  /** The body as the service renders it, if it said. */
+  bodyHtml?: string | null;
   author: string;
   url: string;
   labels: IssueLabel[];

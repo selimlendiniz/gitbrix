@@ -228,7 +228,7 @@ function LineComments({ comments }: { comments: PrComment[] }) {
       {comments.map((c, k) => (
         <div key={k} className="line-comment">
           <strong>{c.author}</strong>
-          <Markdown className="line-comment-body" text={c.body} url={url} />
+          <Markdown className="line-comment-body" text={c.body} html={c.html} url={url} />
         </div>
       ))}
     </div>
