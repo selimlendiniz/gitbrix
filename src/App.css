@@ -884,6 +884,121 @@ textarea {
   color: var(--text-dim);
 }
 
+.modal.wide.ws-dialog {
+  width: min(860px, calc(100% - 32px));
+  max-height: 76vh;
+  outline: none;
+}
+
+.ws-dialog .pr-dialog-head .modal-title {
+  flex: none;
+}
+
+.ws-dialog select {
+  padding: 4px 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.ws-spacer {
+  flex: 1;
+}
+
+.ws-list {
+  overflow-y: auto;
+  min-height: 80px;
+  margin: 0 -8px;
+}
+
+.ws-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(80px, 1fr) 90px minmax(100px, 1fr) 96px;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ws-row:hover {
+  background: var(--row-hover);
+}
+
+.ws-row.current .ws-name {
+  color: var(--accent);
+}
+
+.ws-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.ws-name span,
+.ws-branch {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-branch {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.ws-sync,
+.ws-changes {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ws-ahead {
+  color: var(--add);
+}
+
+.ws-behind,
+.ws-dirty {
+  color: var(--warn);
+}
+
+.ws-conflict {
+  color: var(--danger);
+}
+
+.ws-fetched {
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ws-error {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--danger);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-empty p {
+  margin: 0 0 12px;
+}
+
+.ws-empty-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .settings-inline {
   display: flex;
   align-items: center;
@@ -2090,10 +2205,11 @@ textarea {
   padding: 5px 14px;
 }
 
+/* Above modals: windows such as Workspace open menus of their own. */
 .menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 55;
 }
 
 .menu {

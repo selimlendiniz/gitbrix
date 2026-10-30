@@ -100,6 +100,8 @@ pub fn run() {
             commands::pull_request_inbox,
             commands::approve_pull_request,
             commands::checkout_pull_request,
+            commands::repo_summaries,
+            commands::find_repos,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

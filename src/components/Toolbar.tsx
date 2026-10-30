@@ -18,12 +18,14 @@ import {
   IconSearch,
   IconSettings,
   IconUndo,
+  IconWorkspace,
 } from "./Icons";
 import { usePalette } from "./CommandPalette";
 import { useSettings } from "../settings";
 import { nextUndo, undoLast, useUndo } from "../undo";
 import { PullRequestsButton } from "./PullRequestsDialog";
 import { useSettingsDialog } from "./SettingsDialog";
+import { useWorkspaces } from "../workspaces";
 
 function ToolButton({
   icon,
@@ -103,6 +105,7 @@ export function Toolbar() {
               { label: "Open repository…", onSelect: () => openRepoDialog() },
               { label: "Clone repository…", onSelect: () => useRepoDialog.setState({ kind: "clone" }) },
               { label: "New repository…", onSelect: () => useRepoDialog.setState({ kind: "init" }) },
+              { label: "Workspace…", onSelect: () => useWorkspaces.setState({ open: true }) },
               { separator: true, label: "" },
               { label: "Reflog (recover lost commits)…", onSelect: () => useStore.getState().openDiff({ kind: "reflog" }) },
               { separator: true, label: "" },
@@ -176,6 +179,9 @@ export function Toolbar() {
           </span>
         )}
         <PullRequestsButton />
+        <button className="icon-btn" title="Workspace" onClick={() => useWorkspaces.setState({ open: true })}>
+          <IconWorkspace size={15} />
+        </button>
         <button className="icon-btn" title="Command palette (Ctrl+K)" onClick={() => usePalette.setState({ open: true })}>
           <IconSearch size={15} />
         </button>

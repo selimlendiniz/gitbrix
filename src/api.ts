@@ -18,6 +18,17 @@ export interface RepoInfo {
   behind: number;
 }
 
+/** A workspace row: one repository summed up without loading it. */
+export interface RepoSummary {
+  path: string;
+  info: RepoInfo | null;
+  changes: number;
+  conflicts: number;
+  /** Seconds since the epoch of the last fetch. */
+  fetched: number | null;
+  error: string | null;
+}
+
 /** Graph line segment: [from lane, to lane, colour index]. */
 export type Seg = [from: number, to: number, color: number];
 
@@ -395,6 +406,10 @@ export const api = {
   /** A fork's request on its own branch (pr/N or mr/N); returns the branch. */
   checkoutPullRequest: (repo: string, remote: string, number: number) =>
     invoke<string>("checkout_pull_request", { repo, remote, number }),
+
+  repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
+  /** Repositories in a folder, up to three levels down. */
+  findRepos: (dir: string) => invoke<string[]>("find_repos", { dir }),
 };
 
 export function errorText(e: unknown): string {

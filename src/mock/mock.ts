@@ -16,6 +16,8 @@ declare global {
     __gitbrixPrs?: unknown;
     /** What `pull_request_inbox` answers; tests set it. */
     __gitbrixInbox?: unknown;
+    /** Repositories `find_repos` finds; tests set it. */
+    __gitbrixFound?: string[];
   }
 }
 
@@ -63,6 +65,24 @@ const READS: Record<string, (a: Args) => unknown> = {
   },
   pull_requests: () => window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
   pull_request_inbox: () => window.__gitbrixInbox ?? { items: [], problems: [], accounts: [] },
+  // The fixture repository is summed up from its recording; any other path
+  // looks like a clean repository named after its folder.
+  repo_summaries: (a) =>
+    (a.paths as string[]).map((path) =>
+      path === fixture.info.path
+        ? { path, info: fixture.info, changes: fixture.status.unstaged.length + fixture.status.staged.length, conflicts: 0, fetched: null, error: null }
+        : path.includes("missing")
+          ? { path, info: null, changes: 0, conflicts: 0, fetched: null, error: "could not find repository" }
+          : {
+              path,
+              info: { ...fixture.info, path, name: path.split("/").pop(), headBranch: "main", ahead: 0, behind: 2, state: "clean" },
+              changes: 0,
+              conflicts: 0,
+              fetched: Math.floor(Date.now() / 1000) - 3600,
+              error: null,
+            },
+    ),
+  find_repos: () => window.__gitbrixFound ?? [],
   remove_account: (a) => {
     accounts = accounts.filter((x) => x.id !== a.id);
     return null;

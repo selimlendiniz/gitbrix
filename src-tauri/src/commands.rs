@@ -11,7 +11,7 @@ use git2::Oid;
 use crate::error::{Error, Result};
 use crate::accounts;
 use crate::forge;
-use crate::git::{diff, history, log, net, ops, rebase, refs, repo, status, worktree};
+use crate::git::{diff, history, log, net, ops, rebase, refs, repo, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -509,4 +509,14 @@ pub fn checkout_pull_request(app: tauri::AppHandle, repo: String, remote: String
     let path = workdir(&repo)?;
     let provider = forge::provider_of_remote(&path, &remote)?;
     net::checkout_pull_request(&path, &remote, &provider, number, &mut progress(&app))
+}
+
+#[tauri::command(async)]
+pub fn repo_summaries(paths: Vec<String>) -> Vec<workspace::Summary> {
+    workspace::summaries(&paths)
+}
+
+#[tauri::command(async)]
+pub fn find_repos(dir: String) -> Vec<String> {
+    workspace::find(Path::new(&dir), 3)
 }

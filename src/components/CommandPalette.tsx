@@ -25,6 +25,7 @@ import { usePrDialog } from "./PullRequestsDialog";
 import { useSettingsDialog } from "./SettingsDialog";
 import { useShortcuts } from "./ShortcutsDialog";
 import { openRepoDialog } from "./Welcome";
+import { useWorkspaces } from "../workspaces";
 
 export const usePalette = create<{ open: boolean }>(() => ({ open: false }));
 
@@ -93,6 +94,7 @@ function useCommands(): Command[] {
     }
     add("Settings", "Settings…", () => useSettingsDialog.setState({ open: true }));
     add("Action", "Pull requests…", () => usePrDialog.setState({ open: true }));
+    add("Repository", "Workspace…", () => useWorkspaces.setState({ open: true }));
     add("Help", "Keyboard shortcuts", () => useShortcuts.setState({ open: true }), "?");
     add("Settings", "Theme: dark", () => updateSettings({ theme: "dark" }));
     add("Settings", "Theme: light", () => updateSettings({ theme: "light" }));

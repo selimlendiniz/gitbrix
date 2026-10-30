@@ -592,3 +592,40 @@ test("title bar: own window buttons, also on the welcome screen", async ({ page 
   await expect(page.locator(".titlebar-drag")).toHaveAttribute("data-tauri-drag-region", "true");
   await page.locator(".titlebar").screenshot({ path: "test-results/shots/titlebar.png" });
 });
+
+test("workspace: repositories side by side, fetch all, open one", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    window.__gitbrixFound = ["/home/me/code/api", "/home/me/code/web", "/home/me/code/missing"];
+  });
+  await page.goto("/?open");
+  await page.getByTitle("Workspace", { exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Workspace" });
+  await dialog.getByRole("button", { name: "Add the open tabs" }).click();
+  await expect(dialog.locator(".ws-row")).toHaveCount(1);
+  await expect(dialog.locator(".ws-row")).toContainText("demo-app");
+  await expect(dialog.locator(".ws-row")).toContainText("changed");
+
+  // A folder's repositories join it (the folder picker answers in mock mode).
+  await dialog.getByRole("button", { name: "Add" }).click();
+  await page.getByText("All repositories in a folder…").click();
+  await expect(dialog.locator(".ws-row")).toHaveCount(4);
+  const api = dialog.locator(".ws-row", { hasText: "api" });
+  await expect(api).toContainText("↓2");
+  await expect(dialog.locator(".ws-row", { hasText: "missing" })).toContainText("could not find repository");
+  await page.screenshot({ path: "test-results/shots/workspace.png" });
+
+  await dialog.getByRole("button", { name: "Fetch all" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__gitbrixCalls.filter((c) => c.cmd === "fetch").map((c) => c.args.repo)))
+    .toHaveLength(4);
+
+  // Kept across restarts.
+  await page.reload();
+  await page.getByTitle("Workspace", { exact: true }).click();
+  await expect(dialog.locator(".ws-row")).toHaveCount(4);
+  await api.click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => lastCall(page, "open_repo")).toMatchObject({ path: "/home/me/code/api" });
+  expect(errors).toEqual([]);
+});

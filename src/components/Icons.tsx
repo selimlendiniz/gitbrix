@@ -61,6 +61,15 @@ export const IconPullRequest = (p: P) => (
   </Svg>
 );
 
+export const IconWorkspace = (p: P) => (
+  <Svg {...p}>
+    <rect x="2" y="2" width="5" height="5" rx="1" />
+    <rect x="9" y="2" width="5" height="5" rx="1" />
+    <rect x="2" y="9" width="5" height="5" rx="1" />
+    <rect x="9" y="9" width="5" height="5" rx="1" />
+  </Svg>
+);
+
 export const IconStash = (p: P) => (
   <Svg {...p}>
     <rect x="2.5" y="3" width="11" height="3" rx="0.8" />

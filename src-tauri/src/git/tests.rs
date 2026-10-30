@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{diff, log, net, ops, rebase, refs, repo, status};
+use super::{diff, log, net, ops, rebase, refs, repo, status, workspace};
 
 struct TestRepo {
     _dir: TempDir,
@@ -1589,4 +1589,50 @@ fn pull_requests_from_forks_check_out_on_their_own_branch() {
     let err = net::checkout_pull_request(&t.path, "origin", "github", 7, &mut |_| {}).unwrap_err().to_string();
     assert!(err.contains("is checked out"), "{err}");
     assert!(net::checkout_pull_request(&t.path, "origin", "gitlab", 7, &mut |_| {}).is_err());
+}
+
+#[test]
+fn workspace_sums_up_each_repository() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    t.add_origin();
+    t.git(&["push", "-q", "-u", "origin", "main"]);
+    t.commit("a.txt", "2\n", "ahead");
+    t.write("a.txt", "3\n");
+    t.write("new.txt", "x\n");
+    t.git(&["add", "new.txt"]);
+    t.write("new.txt", "y\n");
+
+    let missing = t.path.join("nope").to_string_lossy().into_owned();
+    let paths = vec![t.path.to_string_lossy().into_owned(), missing.clone()];
+    let got = workspace::summaries(&paths);
+    assert_eq!(got.len(), 2);
+    let info = got[0].info.as_ref().unwrap();
+    assert_eq!(info.head_branch.as_deref(), Some("main"));
+    assert_eq!((info.ahead, info.behind), (1, 0));
+    // new.txt is staged and changed again: one file, counted once.
+    assert_eq!(got[0].changes, 2);
+    assert!(got[0].error.is_none());
+    assert_eq!(got[1].path, missing);
+    assert!(got[1].info.is_none() && got[1].error.is_some());
+}
+
+#[test]
+fn workspace_finds_repositories_in_a_folder() {
+    let root = TempDir::new().unwrap();
+    for p in ["a", "group/b", "group/deep/er/c", "node_modules/d", ".hidden/e"] {
+        let dir = root.path().join(p);
+        fs::create_dir_all(&dir).unwrap();
+        git_in(&dir, &["init", "-q"]);
+    }
+    // A repository's own subfolders aren't searched.
+    fs::create_dir_all(root.path().join("a/sub")).unwrap();
+    git_in(&root.path().join("a/sub"), &["init", "-q"]);
+
+    let found = workspace::find(root.path(), 3);
+    let rel: Vec<String> = found
+        .iter()
+        .map(|p| Path::new(p).strip_prefix(root.path()).unwrap().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(rel, ["a", "group/b"]);
 }

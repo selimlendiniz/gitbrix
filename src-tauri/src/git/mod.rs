@@ -11,6 +11,7 @@ pub mod repo;
 pub mod sign;
 pub mod ssh;
 pub mod status;
+pub mod workspace;
 pub mod worktree;
 
 #[cfg(test)]

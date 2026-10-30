@@ -25,6 +25,7 @@ import { Splitter } from "./components/Splitter";
 import { TabBar } from "./components/TabBar";
 import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
+import { WorkspaceDialog } from "./components/WorkspaceDialog";
 import { openRepoDialog, Welcome } from "./components/Welcome";
 import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
@@ -222,6 +223,7 @@ export default function App() {
       <CommandPalette />
       <SettingsDialog />
       <PullRequestsDialog />
+      <WorkspaceDialog />
       <DragGhost />
       <ShortcutsDialog />
       <RepoDialogs />
