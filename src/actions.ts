@@ -2,6 +2,7 @@
 // Each one asks for input or confirmation where needed, then runs through
 // the store so errors become toasts and the view refreshes afterwards.
 
+import { open as pickFile, save as pickSaveFile } from "@tauri-apps/plugin-dialog";
 import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 
 import { api, CommitRow, errorText, PullMode, PullRequest, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
@@ -13,9 +14,9 @@ import { pushUndo, trackHead } from "./undo";
 
 const s = () => useStore.getState();
 
-function copy(text: string) {
+function copy(text: string, done = "Copied to clipboard") {
   navigator.clipboard?.writeText(text).then(
-    () => s().toast("info", "Copied to clipboard"),
+    () => s().toast("info", done),
     () => s().toast("error", "Clipboard is not available"),
   );
 }
@@ -422,9 +423,102 @@ export function commitMenu(c: CommitRow): MenuItem[] {
     { label: `Reset ${head ?? "HEAD"} here — mixed`, onSelect: () => resetTo(c, "mixed") },
     { label: `Reset ${head ?? "HEAD"} here — hard…`, danger: true, onSelect: () => resetTo(c, "hard") },
     { separator: true, label: "" },
+    { label: "Save as patch…", onSelect: () => void savePatch([c.id], null, patchFileName(c.summary)) },
+    { label: "Copy as patch", onSelect: () => void copyPatch([c.id], null) },
+    { separator: true, label: "" },
     { label: "Copy commit SHA", onSelect: () => copy(c.id) },
     { label: "Copy commit message", onSelect: () => copy(c.summary) },
   ];
+}
+
+// ---------- patches ----------
+
+/** `Fix the parser` → `0001-Fix-the-parser.patch`, as format-patch names it. */
+export function patchFileName(summary: string): string {
+  const slug = summary
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 52);
+  return `0001-${slug || "patch"}.patch`;
+}
+
+/** Commits as patch text: `ids`, or with `from`, those after it up to ids[0]. */
+async function patchText(ids: string[], from: string | null): Promise<string | null> {
+  const repo = s().repo;
+  if (!repo) return null;
+  try {
+    return await api.formatPatch(repo.path, ids, from);
+  } catch (e) {
+    s().toast("error", errorText(e));
+    return null;
+  }
+}
+
+export async function savePatch(ids: string[], from: string | null, fileName: string) {
+  const text = await patchText(ids, from);
+  if (text === null) return;
+  try {
+    const path = await pickSaveFile({
+      title: "Save patch",
+      defaultPath: fileName,
+      filters: [{ name: "Patch", extensions: ["patch", "diff"] }],
+    });
+    if (!path) return;
+    await api.saveTextFile(path, text);
+    s().toast("info", `Saved ${path.split("/").pop()}`);
+  } catch (e) {
+    s().toast("error", errorText(e));
+  }
+}
+
+export async function copyPatch(ids: string[], from: string | null) {
+  const text = await patchText(ids, from);
+  if (text !== null) copy(text, "Patch copied");
+}
+
+/** Apply a patch file: as commits with their authors (`git am`), or to
+ *  the work tree only (`git apply`). */
+export async function applyPatchFile(asCommits: boolean) {
+  const repo = s().repo;
+  if (!repo) return;
+  let path: string | null;
+  try {
+    const picked = await pickFile({
+      title: asCommits ? "Apply patches as commits" : "Apply a patch to the working tree",
+      multiple: false,
+      filters: [{ name: "Patch", extensions: ["patch", "diff", "mbox", "eml"] }, { name: "All files", extensions: ["*"] }],
+    });
+    path = typeof picked === "string" ? picked : null;
+  } catch (e) {
+    s().toast("error", errorText(e));
+    return;
+  }
+  if (!path) return;
+  const name = path.split("/").pop();
+  if (asCommits) {
+    let subjects: string[] = [];
+    try {
+      subjects = await api.readPatchFile(path);
+    } catch (e) {
+      s().toast("error", errorText(e));
+      return;
+    }
+    const n = subjects.length;
+    const ok = await s().confirm({
+      title: "Apply patches as commits",
+      message: `Commit ${n} patch${n === 1 ? "" : "es"} from ${name} on ${repo.headBranch ?? "HEAD"}, keeping their authors and messages?\n\n${subjects
+        .slice(0, 8)
+        .map((x) => `• ${x || "(no message)"}`)
+        .join("\n")}${n > 8 ? `\n• … ${n - 8} more` : ""}`,
+      confirmLabel: n === 1 ? "Commit it" : `Commit ${n}`,
+    });
+    if (!ok) return;
+    await trackHead(`apply ${name}`, () =>
+      s().run("Applying patches", (r) => api.applyPatchFile(r, path!, true), `Committed ${n} patch${n === 1 ? "" : "es"}`),
+    );
+  } else {
+    await s().run("Applying patch", (r) => api.applyPatchFile(r, path!, false), `Applied ${name} to the working tree`, "status");
+  }
 }
 
 // ---------- remotes ----------

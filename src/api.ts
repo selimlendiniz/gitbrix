@@ -523,6 +523,14 @@ export const api = {
   lfsPull: (repo: string) => invoke<number>("lfs_pull", { repo }),
   lfsTrack: (repo: string, pattern: string) => invoke<void>("lfs_track", { repo, pattern }),
 
+  /** Commits as patch text (format-patch); with `from`, the range up to ids[0]. */
+  formatPatch: (repo: string, ids: string[], from: string | null = null) => invoke<string>("format_patch", { repo, ids, from }),
+  saveTextFile: (path: string, text: string) => invoke<void>("save_text_file", { path, text }),
+  /** Returns how many commits were made (0 when applied to the work tree). */
+  applyPatchFile: (repo: string, path: string, commit: boolean) => invoke<number>("apply_patch_file", { repo, path, commit }),
+  /** The subject of each patch in the file. */
+  readPatchFile: (path: string) => invoke<string[]>("read_patch_file", { path }),
+
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
   /** Repositories in a folder, up to three levels down. */
   findRepos: (dir: string) => invoke<string[]>("find_repos", { dir }),

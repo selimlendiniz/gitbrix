@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{diff, lfs, log, net, ops, rebase, refs, repo, status, workspace};
+use super::{diff, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace};
 
 struct TestRepo {
     _dir: TempDir,
@@ -1703,13 +1703,15 @@ fn a_requests_range_runs_from_where_it_left_its_target() {
     assert!(net::pull_request_range(&t.path, "origin", "gitlab", 3, "nope", &mut |_| {}).is_err());
 }
 
+type LfsStore = std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>;
+
 /// A tiny LFS server: the batch API plus object GET/PUT, kept in memory.
-fn lfs_server() -> (String, std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>) {
+fn lfs_server() -> (String, LfsStore) {
     use std::io::{BufRead, BufReader, Read, Write};
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
-    let objects: Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>> = Arc::default();
+    let objects: LfsStore = Arc::default();
     let store = objects.clone();
     let href = base.clone();
     std::thread::spawn(move || {
@@ -1841,4 +1843,56 @@ fn lfs_pointers_and_tracking() {
     );
     assert!(lfs::tracked(&t.open(), "deep/a.psd") && !lfs::tracked(&t.open(), "a.txt"));
     assert!(lfs::track(&t.path, " ").is_err());
+}
+
+#[test]
+fn patches_round_trip_through_git_and_back() {
+    let t = TestRepo::new();
+    let base = t.commit("a.txt", "one\n", "base");
+    let other = TempDir::new().unwrap();
+    let mirror = other.path().join("m");
+    git_in(other.path(), &["clone", "-q", t.path.to_str().unwrap(), "m"]);
+    isolate(&mirror);
+
+    t.git(&["config", "user.name", "Selçuk Öz"]);
+    t.commit("a.txt", "one\ntwo\n", "Add two\n\nBecause one wasn't enough.");
+    t.git(&["config", "user.name", "Test User"]);
+    t.write("b.txt", "new file\n");
+    t.git(&["add", "-A"]);
+    t.git(&["commit", "-q", "-m", "Add b"]);
+    let head = t.git(&["rev-parse", "HEAD"]);
+
+    // Ours, read by git am.
+    let r = t.open();
+    let ids = patch::range(&r, git2::Oid::from_str(&base).unwrap(), git2::Oid::from_str(&head).unwrap()).unwrap();
+    let mbox = patch::format(&r, &ids).unwrap();
+    assert!(mbox.contains("[PATCH 1/2] Add two") && mbox.contains("[PATCH 2/2] Add b"), "{mbox}");
+    let file = other.path().join("series.patch");
+    fs::write(&file, &mbox).unwrap();
+    git_in(&mirror, &["am", "-q", file.to_str().unwrap()]);
+    assert_eq!(git_in(&mirror, &["log", "-2", "--format=%an|%s|%b"]), "Test User|Add b|\nSelçuk Öz|Add two|Because one wasn't enough.");
+
+    // git format-patch's, applied by us as commits.
+    let third = other.path().join("t");
+    git_in(other.path(), &["clone", "-q", t.path.to_str().unwrap(), "t"]);
+    isolate(&third);
+    git_in(&third, &["reset", "-q", "--hard", &base]);
+    let gitmbox = t.git(&["format-patch", "--stdout", &format!("{base}..HEAD")]);
+    let mails = patch::parse(&gitmbox);
+    assert_eq!(mails.iter().map(|m| m.subject.as_str()).collect::<Vec<_>>(), ["Add two", "Add b"]);
+    assert_eq!(mails[0].author.as_ref().map(|a| a.0.as_str()), Some("Selçuk Öz"));
+    assert_eq!(mails[0].date.map(|d| d.0), Some(1767225600), "2026-01-01T00:00:00Z");
+    assert_eq!(patch::apply(&third, &gitmbox, true).unwrap(), 2);
+    assert_eq!(git_in(&third, &["log", "-2", "--format=%an|%at|%s|%b"]), "Test User|1767225600|Add b|\nSelçuk Öz|1767225600|Add two|Because one wasn't enough.");
+    assert_eq!(git_in(&third, &["rev-parse", "HEAD^{tree}"]), t.git(&["rev-parse", "HEAD^{tree}"]));
+
+    // A plain diff lands in the work tree only.
+    git_in(&third, &["reset", "-q", "--hard", &base]);
+    let plain = t.git(&["diff", &base, "HEAD"]);
+    assert_eq!(patch::apply(&third, &format!("{plain}\n"), false).unwrap(), 0);
+    assert_eq!(fs::read_to_string(third.join("a.txt")).unwrap(), "one\ntwo\n");
+    assert_eq!(git_in(&third, &["diff", "--cached", "--name-only"]), "");
+    // It doesn't apply twice.
+    assert!(patch::apply(&third, &format!("{plain}\n"), false).is_err());
+    assert!(patch::apply(&third, "nothing here", false).is_err());
 }

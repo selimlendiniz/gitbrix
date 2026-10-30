@@ -805,3 +805,34 @@ test("LFS: pointers are filled in on their own; untracked files can be tracked",
   await expect.poll(() => lastCall(page, "lfs_track")).toMatchObject({ pattern: "*.txt" });
   expect(errors).toEqual([]);
 });
+
+test("patches: save a commit, copy it, apply a file as commits or to the work tree", async ({ page, context }) => {
+  const errors = trackErrors(page);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/?open");
+  const row = page.locator(".graph-row", { hasText: "Tidy up main" });
+  await row.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Save as patch…" }).click();
+  await expect(page.getByText("Saved 0001-Tidy-up-main.patch")).toBeVisible();
+  const id = await row.getAttribute("data-commit");
+  expect(await lastCall(page, "format_patch")).toMatchObject({ ids: [id], from: null });
+  expect(await lastCall(page, "save_text_file")).toMatchObject({ path: "/home/demo/0001-Tidy-up-main.patch" });
+  expect((await lastCall(page, "plugin:dialog|save"))?.options).toMatchObject({ defaultPath: "0001-Tidy-up-main.patch" });
+
+  await row.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Copy as patch" }).click();
+  await expect(page.getByText("Patch copied")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Subject: [PATCH] mock");
+
+  await page.locator(".repo-btn").click();
+  await page.getByRole("menuitem", { name: /Apply patch as commits/ }).click();
+  const confirm = page.getByRole("dialog").filter({ hasText: "Apply patches as commits" });
+  await expect(confirm).toContainText("• Add two");
+  await confirm.getByRole("button", { name: "Commit 2" }).click();
+  await expect.poll(() => lastCall(page, "apply_patch_file")).toMatchObject({ commit: true });
+
+  await page.locator(".repo-btn").click();
+  await page.getByRole("menuitem", { name: /Apply patch to working tree/ }).click();
+  await expect.poll(() => lastCall(page, "apply_patch_file")).toMatchObject({ commit: false });
+  expect(errors).toEqual([]);
+});

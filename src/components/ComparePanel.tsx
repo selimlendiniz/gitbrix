@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api, errorText, FileChange } from "../api";
 import { shortId } from "../format";
+import { savePatch } from "../actions";
 import { useStore } from "../store";
 import { FileList } from "./FileList";
 
@@ -61,6 +62,13 @@ export function ComparePanel() {
         <div className="stash-actions">
           <button className="small-btn" onClick={() => setSwapped(!swapped)}>
             Swap direction
+          </button>
+          <button
+            className="small-btn"
+            title="The commits after the older one, up to the newer, as one patch file"
+            onClick={() => void savePatch([newer], older, `${shortId(older)}..${shortId(newer)}.patch`)}
+          >
+            Save as patch…
           </button>
           <button className="small-btn" onClick={() => setCompare(null)}>
             Stop comparing

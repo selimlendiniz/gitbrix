@@ -13,7 +13,7 @@ use crate::accounts;
 use crate::forge;
 use crate::profiles;
 use crate::terminal::{self, Terminals};
-use crate::git::{diff, history, lfs, log, net, ops, rebase, refs, repo, status, workspace, worktree};
+use crate::git::{diff, history, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -616,4 +616,36 @@ pub fn lfs_pull(app: tauri::AppHandle, repo: String) -> Result<usize> {
 #[tauri::command(async)]
 pub fn lfs_track(repo: String, pattern: String) -> Result<()> {
     lfs::track(&workdir(&repo)?, &pattern)
+}
+
+/// Commits as a mailbox of patches (`git format-patch`), oldest first.
+/// With `from`, the commits after it up to the single id in `ids`.
+#[tauri::command(async)]
+pub fn format_patch(repo: String, ids: Vec<String>, from: Option<String>) -> Result<String> {
+    let r = open(&repo)?;
+    let ids: Vec<Oid> = match (&from, ids.as_slice()) {
+        (Some(f), [to]) => patch::range(&r, oid(f)?, oid(to)?)?,
+        _ => ids.iter().map(|i| oid(i)).collect::<Result<_>>()?,
+    };
+    patch::format(&r, &ids)
+}
+
+/// Write `text` to `path` (a file the user picked in a save dialog).
+#[tauri::command(async)]
+pub fn save_text_file(path: String, text: String) -> Result<()> {
+    Ok(std::fs::write(path, text)?)
+}
+
+/// Apply a patch file: to the work tree, or as commits (`git am`).
+#[tauri::command(async)]
+pub fn apply_patch_file(repo: String, path: String, commit: bool) -> Result<usize> {
+    let text = std::fs::read(&path).map_err(|e| Error::msg(format!("Can't read {path}: {e}")))?;
+    patch::apply(&workdir(&repo)?, &String::from_utf8_lossy(&text), commit)
+}
+
+/// What a patch file holds: each patch's subject (empty for a plain diff).
+#[tauri::command(async)]
+pub fn read_patch_file(path: String) -> Result<Vec<String>> {
+    let text = std::fs::read(&path).map_err(|e| Error::msg(format!("Can't read {path}: {e}")))?;
+    Ok(patch::parse(&String::from_utf8_lossy(&text)).into_iter().map(|m| m.subject).collect())
 }

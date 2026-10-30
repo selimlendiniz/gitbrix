@@ -554,10 +554,8 @@ fn pointers_in(r: &Repository, tips: &[Oid], hide: &[Oid]) -> Result<Vec<Pointer
             if f.size() as usize > MAX_POINTER || f.id().is_zero() {
                 continue;
             }
-            if let Ok(blob) = r.find_blob(f.id()) {
-                if let Some(p) = Pointer::parse(blob.content()) {
-                    found.insert(p.oid.clone(), p);
-                }
+            if let Some(p) = r.find_blob(f.id()).ok().and_then(|b| Pointer::parse(b.content())) {
+                found.insert(p.oid.clone(), p);
             }
         }
     }

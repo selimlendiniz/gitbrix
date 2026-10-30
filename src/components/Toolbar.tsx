@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 
-import { branchSwitchMenu, createBranch, fetchAll, pull, push, stashPop, stashSave } from "../actions";
+import { applyPatchFile, branchSwitchMenu, createBranch, fetchAll, pull, push, stashPop, stashSave } from "../actions";
 import { PullMode } from "../api";
 import { useStore } from "../store";
 import { useRepoDialog } from "./RepoDialogs";
@@ -112,6 +112,8 @@ export function Toolbar() {
               { label: "Workspace…", onSelect: () => useWorkspaces.setState({ open: true }) },
               { separator: true, label: "" },
               { label: "Reflog (recover lost commits)…", onSelect: () => useStore.getState().openDiff({ kind: "reflog" }) },
+              { label: "Apply patch as commits…", hint: "git am", onSelect: () => void applyPatchFile(true) },
+              { label: "Apply patch to working tree…", hint: "git apply", onSelect: () => void applyPatchFile(false) },
               { separator: true, label: "" },
               { label: "Close tab", onSelect: () => closeTab(repo.path) },
             ]);

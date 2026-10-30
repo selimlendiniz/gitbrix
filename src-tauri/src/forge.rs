@@ -824,9 +824,10 @@ mod tests {
     }
 
     type Log = Arc<Mutex<Vec<String>>>;
+    type Bodies = Arc<Mutex<Vec<(String, Value)>>>;
 
     /// `serve`, also keeping each request body (`METHOD /path` → JSON).
-    fn serve_bodies(routes: Vec<(&'static str, Value)>) -> (String, Log, Arc<Mutex<Vec<(String, Value)>>>) {
+    fn serve_bodies(routes: Vec<(&'static str, Value)>) -> (String, Log, Bodies) {
         let bodies = Arc::new(Mutex::new(Vec::new()));
         let kept = bodies.clone();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -963,7 +964,8 @@ mod tests {
         assert_eq!(c.description, "Fixes #1");
         assert!(c.open);
         assert_eq!((c.mergeable, c.merge_status.as_str()), (Some(false), "has conflicts"));
-        let seen: Vec<(&str, Option<&str>, Option<u64>, Option<&str>)> = c
+        type Seen<'a> = (&'a str, Option<&'a str>, Option<u64>, Option<&'a str>);
+        let seen: Vec<Seen> = c
             .comments
             .iter()
             .map(|x| (x.body.as_str(), x.path.as_deref(), x.line, x.verdict.as_deref()))

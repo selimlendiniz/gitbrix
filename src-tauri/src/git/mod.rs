@@ -6,6 +6,7 @@ pub mod lfs;
 pub mod log;
 pub mod net;
 pub mod ops;
+pub mod patch;
 pub mod rebase;
 pub mod refs;
 pub mod repo;

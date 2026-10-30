@@ -123,6 +123,10 @@ pub fn run() {
             commands::lfs_pending,
             commands::lfs_pull,
             commands::lfs_track,
+            commands::format_patch,
+            commands::save_text_file,
+            commands::apply_patch_file,
+            commands::read_patch_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

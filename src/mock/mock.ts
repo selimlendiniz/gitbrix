@@ -93,6 +93,9 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  format_patch: (a) => `From ${(a.ids as string[])[0]} Mon Sep 17 00:00:00 2001\nSubject: [PATCH] mock\n\n---\n`,
+  read_patch_file: () => ["Add two", "Add b"],
+  "plugin:dialog|save": () => "/home/demo/0001-Tidy-up-main.patch",
   lfs_pending: () => (window as { __gitbrixLfsPending?: number }).__gitbrixLfsPending ?? 0,
   ci_statuses: (a) => Object.fromEntries(Object.entries(window.__gitbrixCi ?? {}).filter(([sha]) => (a.shas as string[]).includes(sha))),
   pull_request_form: () => ({
