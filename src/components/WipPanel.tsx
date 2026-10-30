@@ -11,6 +11,7 @@ import { FileList, FileRow } from "./FileList";
 import { IconMinus, IconPlus, IconTrash } from "./Icons";
 import { CommitIdentity } from "./Profiles";
 import { issueOfBranch, useIssues, withClosing } from "../issues";
+import { useClashMark } from "./Overlaps";
 
 // The commit message survives switching to another commit and back.
 const useDraft = create<{ summary: string; body: string; amend: boolean }>(() => ({
@@ -31,6 +32,7 @@ export function WipPanel() {
   const busy = useStore((s) => s.busy);
   const { summary, body, amend } = useDraft();
   const [committing, setCommitting] = useState(false);
+  const clashMark = useClashMark();
   const issueNumber = issueOfBranch(repo.headBranch);
   const issue = useIssues((s) => s.byRepo[repo.path]?.items.find((i) => i.number === issueNumber));
 
@@ -96,6 +98,7 @@ export function WipPanel() {
         <FileList
           files={unstaged}
           dragStaged={false}
+          mark={(f) => clashMark(f.path)}
           empty="No unstaged changes"
           activePath={active && !active.staged ? active.path : diffSource?.kind === "conflict" ? diffSource.path : null}
           onOpen={(f) =>
@@ -141,6 +144,7 @@ export function WipPanel() {
         <FileList
           files={staged}
           dragStaged={true}
+          mark={(f) => clashMark(f.path)}
           empty="Nothing staged yet"
           activePath={active?.staged ? active.path : null}
           onOpen={(f) => openDiff({ kind: "wip", path: f.path, staged: true })}

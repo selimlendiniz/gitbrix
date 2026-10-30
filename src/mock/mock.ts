@@ -18,6 +18,8 @@ declare global {
     __gitbrixPrsByRepo?: Record<string, unknown>;
     /** The checked-out branch `open_repo` reports; tests set it. */
     __gitbrixHead?: string;
+    /** What `overlaps` answers; tests set it. */
+    __gitbrixOverlaps?: unknown;
     /** What `issues` answers; tests set it. */
     __gitbrixIssues?: unknown;
     /** What `pull_request_inbox` answers; tests set it. */
@@ -89,6 +91,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   },
   pull_requests: (a) =>
     window.__gitbrixPrsByRepo?.[a.repo as string] ?? window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
+  overlaps: () => window.__gitbrixOverlaps ?? [],
   issues: () => window.__gitbrixIssues ?? { items: [], problems: [], covered: false, projects: [] },
   pull_request_inbox: () => window.__gitbrixInbox ?? { items: [], problems: [], accounts: [] },
   // The fixture repository is summed up from its recording; any other path

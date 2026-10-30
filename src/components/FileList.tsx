@@ -24,6 +24,7 @@ export function FileList({
   onMenu,
   empty,
   dragStaged,
+  mark,
 }: {
   files: FileRow[];
   activePath?: string | null;
@@ -34,6 +35,8 @@ export function FileList({
   empty?: string;
   /** Rows can be dragged to the other WIP list; true for the staged one. */
   dragStaged?: boolean;
+  /** Shown on the row all the time, before the actions. */
+  mark?: (f: FileRow) => ReactNode;
 }) {
   const view = useSettings((st) => st.fileView);
   const [closed, setClosed] = useState<Set<string>>(new Set());
@@ -49,6 +52,7 @@ export function FileList({
       onActivate={onActivate}
       onMenu={onMenu}
       actions={actions}
+      mark={mark}
       dragStaged={dragStaged}
     />
   );
@@ -162,6 +166,7 @@ function FileRowView({
   onActivate,
   onMenu,
   actions,
+  mark,
   dragStaged,
 }: {
   f: FileRow;
@@ -172,6 +177,7 @@ function FileRowView({
   onActivate?: (f: FileRow) => void;
   onMenu?: (f: FileRow, x: number, y: number) => void;
   actions?: (f: FileRow) => ReactNode;
+  mark?: (f: FileRow) => ReactNode;
   dragStaged?: boolean;
 }) {
   const { dir, base } = splitPath(f.path);
@@ -214,6 +220,7 @@ function FileRowView({
           </span>
         )
       )}
+      {mark?.(f)}
       {actions && (
         <span className="file-actions" onClick={(e) => e.stopPropagation()}>
           {actions(f)}

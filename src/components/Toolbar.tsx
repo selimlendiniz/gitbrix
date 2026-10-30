@@ -26,6 +26,7 @@ import { ProfileButton } from "./Profiles";
 import { useCleanup } from "./CleanupDialog";
 import { useSettingsDialog } from "./SettingsDialog";
 import { toggleTerminal, useTerminal } from "../terminal";
+import { OverlapButton } from "./Overlaps";
 
 function ToolButton({
   icon,
@@ -134,6 +135,7 @@ export function Toolbar() {
           <IconChevron size={10} style={{ transform: "rotate(90deg)" }} />
         </button>
         {repo.state !== "clean" && <span className="state-badge">{repo.state} in progress</span>}
+        <OverlapButton />
       </div>
 
       <div className="toolbar-center">

@@ -107,6 +107,7 @@ pub fn run() {
             commands::pull_requests,
             commands::pull_request_inbox,
             commands::issues,
+            commands::overlaps,
             commands::approve_pull_request,
             commands::checkout_pull_request,
             commands::repo_summaries,

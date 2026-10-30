@@ -14,7 +14,7 @@ use crate::accounts;
 use crate::forge;
 use crate::profiles;
 use crate::terminal::{self, Terminals};
-use crate::git::{bisect, cleanup, diff, history, lfs, log, net, ops, patch, rebase, refs, repo, stats, status, workspace, worktree};
+use crate::git::{bisect, cleanup, diff, history, lfs, log, net, ops, overlap, patch, rebase, refs, repo, stats, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -493,6 +493,13 @@ pub fn remove_account(id: String) -> Result<()> {
 #[tauri::command(async)]
 pub fn pull_requests(repo: String) -> Result<forge::PullRequests> {
     forge::list(&workdir(&repo)?)
+}
+
+/// Remote branches that would conflict with HEAD, or changed files the
+/// work tree changes too.
+#[tauri::command(async)]
+pub fn overlaps(repo: String) -> Result<Vec<overlap::Overlap>> {
+    overlap::check(&open(&repo)?)
 }
 
 /// Open issues of the repository's remotes.

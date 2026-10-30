@@ -440,6 +440,20 @@ export interface PullRequestInbox {
   accounts: string[];
 }
 
+/** A remote branch that clashes with the work here. */
+export interface Overlap {
+  /** `origin/feature/login`. */
+  branch: string;
+  target: string;
+  /** Files that would conflict merging it and HEAD. */
+  conflicts: string[];
+  /** Files with uncommitted changes that it changed too. */
+  edited: string[];
+  author: string;
+  /** Seconds since the epoch. */
+  time: number;
+}
+
 export interface IssueLabel {
   name: string;
   /** `#rrggbb`, or empty. */
@@ -578,6 +592,7 @@ export const api = {
   removeAccount: (id: string) => invoke<void>("remove_account", { id }),
 
   pullRequests: (repo: string) => invoke<PullRequests>("pull_requests", { repo }),
+  overlaps: (repo: string) => invoke<Overlap[]>("overlaps", { repo }),
   issues: (repo: string) => invoke<Issues>("issues", { repo }),
   pullRequestInbox: () => invoke<PullRequestInbox>("pull_request_inbox"),
   approvePullRequest: (account: string, project: string, number: number) =>

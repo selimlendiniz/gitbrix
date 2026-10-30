@@ -4160,3 +4160,106 @@ body.dragging * {
 .closes-hint {
   align-self: flex-start;
 }
+
+/* Branches that clash with the work here */
+.overlap-btn {
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--warn);
+  background: rgba(229, 180, 90, 0.15);
+}
+
+.overlap-btn.conflict {
+  color: var(--danger);
+  background: var(--del-bg);
+}
+
+.overlap-btn:hover {
+  filter: brightness(1.2);
+}
+
+.overlap-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.overlap-row:hover {
+  background: var(--row-hover);
+}
+
+.overlap-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.overlap-row-head .dim {
+  margin-left: auto;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.overlap-files {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  font-size: 11.5px;
+}
+
+.overlap-files-label {
+  color: var(--text-faint);
+}
+
+.overlap-file {
+  font-family: var(--mono);
+  font-size: 11px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overlap-files.conflict .overlap-file {
+  color: var(--danger);
+}
+
+.overlap-files.edited .overlap-file {
+  color: var(--warn);
+}
+
+.overlap-note {
+  padding: 8px;
+  font-size: 11px;
+}
+
+.clash-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--warn);
+  margin-left: 4px;
+}
+
+.clash-mark.conflict {
+  color: var(--danger);
+}

@@ -83,7 +83,20 @@ export function TitleSearch() {
 }
 
 /** A panel under a title bar button; closes on a click outside or Escape. */
-function Popover({ anchor, onClose, children, label }: { anchor: HTMLElement; onClose: () => void; children: ReactNode; label: string }) {
+export function Popover({
+  anchor,
+  onClose,
+  children,
+  label,
+  align = "right",
+}: {
+  anchor: HTMLElement;
+  onClose: () => void;
+  children: ReactNode;
+  label: string;
+  /** Which edge of the anchor the popover lines up with. */
+  align?: "left" | "right";
+}) {
   const r = anchor.getBoundingClientRect();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -101,7 +114,11 @@ function Popover({ anchor, onClose, children, label }: { anchor: HTMLElement; on
         className="title-popover"
         role="dialog"
         aria-label={label}
-        style={{ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right - 8) }}
+        style={
+          align === "right"
+            ? { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right - 8) }
+            : { top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 428)) }
+        }
       >
         {children}
       </div>

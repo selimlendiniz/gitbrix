@@ -8,6 +8,7 @@ pub mod lfs;
 pub mod log;
 pub mod net;
 pub mod ops;
+pub mod overlap;
 pub mod patch;
 pub mod rebase;
 pub mod refs;

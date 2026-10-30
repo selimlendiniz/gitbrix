@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{diff, history, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace};
+use super::{diff, history, lfs, log, net, ops, overlap, patch, rebase, refs, repo, status, workspace};
 
 struct TestRepo {
     _dir: TempDir,
@@ -2085,4 +2085,65 @@ fn stats_count_authors_weeks_hours_and_busy_files() {
     assert_eq!(s.weeks.len(), 52);
     assert_eq!(s.hot_files[0].path, "a.txt");
     assert_eq!(s.hot_files[0].changes, 2);
+}
+
+#[test]
+fn overlaps_find_conflicts_and_shared_edits_with_remote_branches() {
+    let t = TestRepo::new();
+    t.add_origin();
+    t.commit("a.txt", "1\n2\n3\n", "first");
+    t.commit("b.txt", "b\n", "second");
+    let base = t.git(&["rev-parse", "HEAD"]);
+    // Someone else's branch: changes a.txt line 2 and b.txt.
+    t.git(&["switch", "-q", "-c", "other"]);
+    t.commit("a.txt", "1\ntheirs\n3\n", "theirs a");
+    t.commit("b.txt", "b theirs\n", "theirs b");
+    let other = t.git(&["rev-parse", "HEAD"]);
+    t.git(&["update-ref", "refs/remotes/origin/other", &other]);
+    // A branch that only adds a file nobody touches: never reported.
+    t.git(&["switch", "-q", "-c", "quiet", &base]);
+    t.commit("c.txt", "c\n", "quiet");
+    let quiet = t.git(&["rev-parse", "HEAD"]);
+    t.git(&["update-ref", "refs/remotes/origin/quiet", &quiet]);
+    // A branch already merged into ours: nothing of its own.
+    t.git(&["update-ref", "refs/remotes/origin/old", &base]);
+
+    t.git(&["switch", "-q", "main"]);
+    t.git(&["branch", "-q", "-D", "other", "quiet"]);
+    let r = t.open();
+    // Nothing of ours yet: no clash.
+    assert!(overlap::check(&r).unwrap().is_empty());
+
+    // Our commit changes the same line: a conflict.
+    t.commit("a.txt", "1\nours\n3\n", "ours a");
+    // An uncommitted edit of b.txt, which the branch changed too.
+    t.write("b.txt", "b mine\n");
+    let found = overlap::check(&r).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].branch, "origin/other");
+    assert_eq!(found[0].target, other);
+    assert_eq!(found[0].conflicts, vec!["a.txt".to_owned()]);
+    assert_eq!(found[0].edited, vec!["b.txt".to_owned()]);
+
+    // Our upstream is our own work, not a clash.
+    t.git(&["update-ref", "refs/remotes/origin/main", &other]);
+    t.git(&["branch", "-q", "--set-upstream-to=origin/main"]);
+    t.git(&["update-ref", "-d", "refs/remotes/origin/other"]);
+    assert!(overlap::check(&r).unwrap().is_empty());
+
+    // The same file changed apart from each other merges cleanly: only the
+    // shared uncommitted edit is reported.
+    t.git(&["branch", "-q", "--unset-upstream"]);
+    t.git(&["update-ref", "-d", "refs/remotes/origin/main"]);
+    t.git(&["checkout", "-q", "--", "b.txt"]);
+    t.git(&["switch", "-q", "-c", "far", &base]);
+    t.commit("a.txt", "1\n2\n3\nfar\n", "far a");
+    let far = t.git(&["rev-parse", "HEAD"]);
+    t.git(&["update-ref", "refs/remotes/origin/far", &far]);
+    t.git(&["switch", "-q", "main"]);
+    assert!(overlap::check(&r).unwrap().is_empty());
+    t.write("a.txt", "0\n1\nours\n3\n");
+    let found = overlap::check(&r).unwrap();
+    assert_eq!((found[0].branch.as_str(), found[0].conflicts.len()), ("origin/far", 0));
+    assert_eq!(found[0].edited, vec!["a.txt".to_owned()]);
 }
