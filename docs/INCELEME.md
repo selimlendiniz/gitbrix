@@ -219,6 +219,22 @@ Kurulabilir paket (release derlemesi):
     eşleşmeler, Enter ilk dosyanın diff'i, b yeni branch, Esc çoklu seçimi
     bırakır. Tam liste: `?`.
 
+57. **PR düzenleme**: PR panelinde "Edit…": başlık, açıklama, reviewer,
+    etiket, draft. "Close" / "Reopen" (kapatmadan önce sorar).
+58. **Issue yazma**: issue penceresinde yorumlar ve yorum kutusu, "Close
+    issue"; Issues bölümündeki + ile yeni issue (etiket, bana ata).
+59. **Branch CI'ı başlıkta**: checkout'lu commit'in CI'ı başlık çubuğunda
+    ("main running"); tıklayınca job'lar. Çalışırken 30 sn'de bir bakılır,
+    bitince bildirim (Ayarlar → CI).
+60. **Dosyalarda arama**: Ctrl+Shift+F (ya da repo menüsü → Search in
+    files…): metin ya da regex, büyük/küçük harf; satıra tıklayınca
+    editörde o satır açılır.
+61. **Editörde aç**: Ayarlar → Editor (VS Code, VSCodium, IntelliJ IDEA,
+    Kate, Zed, Sublime ya da özel komut; varsayılan masaüstünün
+    uygulaması). Dosya menülerinde "Open in editor", diff ve dosya
+    tarayıcısında "Edit", repo menüsünde "Open in editor", Ctrl+P'de
+    Alt+Enter.
+
 ## Bilerek yapmadıklarım
 
 - PR satır yorumları yalnızca unified diff görünümünde; split görünümde
@@ -246,6 +262,11 @@ Kurulabilir paket (release derlemesi):
 - Zincire cevap, çözme, inceleme gönderme, öneri ve CI "Retry" gerçek
   servise karşı denenmedi (yazma işlemleri); sahte sunucuyla test edildi.
   Okuma tarafı (zincirler, HTML) GitLab test projende canlı denendi.
+- PR düzenleme, issue yazma (yorum, kapatma, açma) gerçek servise karşı
+  denenmedi (yazma işlemleri); sahte sunucuyla test edildi.
+- Uygulama menüden (RPM) açılırsa PATH oturumunkidir: `idea` gibi
+  Toolbox betikleri PATH'te değilse "isn't installed" der; o zaman Ayarlar
+  → Editor → Custom'a tam yolu yaz.
 - GitLab'da "Request changes" yok (API'si yok); GitLab incelemesi yorum
   ya da onay.
 - Öneriler tek satır ya da GitLab'ın `-N+M` aralığı ve GitHub'ın çok satırlı

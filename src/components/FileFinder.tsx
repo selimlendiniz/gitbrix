@@ -7,6 +7,7 @@ import { create } from "zustand";
 import { api, errorText } from "../api";
 import { useStore } from "../store";
 import { fuzzyScore } from "./CommandPalette";
+import { openInEditor } from "../editor";
 
 export const useFileFinder = create<{ open: boolean }>(() => ({ open: false }));
 
@@ -72,9 +73,13 @@ export function FileFinder() {
 
   if (!open || !repo) return null;
   const close = () => useFileFinder.setState({ open: false });
-  const go = (path: string | undefined, how: "view" | "history" | "blame") => {
+  const go = (path: string | undefined, how: "view" | "history" | "blame" | "edit") => {
     if (!path) return;
     close();
+    if (how === "edit") {
+      void openInEditor(path);
+      return;
+    }
     const openDiff = useStore.getState().openDiff;
     if (how === "history") void openDiff({ kind: "history", path });
     else if (how === "blame") void openDiff({ kind: "blame", path, rev: null });
@@ -101,7 +106,7 @@ export function FileFinder() {
               setActive((a) => Math.max(0, a - 1));
             } else if (e.key === "Enter") {
               e.preventDefault();
-              go(results[active], e.ctrlKey || e.metaKey ? "history" : e.shiftKey ? "blame" : "view");
+              go(results[active], e.altKey ? "edit" : e.ctrlKey || e.metaKey ? "history" : e.shiftKey ? "blame" : "view");
             }
           }}
         />
@@ -126,7 +131,7 @@ export function FileFinder() {
             );
           })}
         </div>
-        <div className="finder-keys dim">Enter: view · Ctrl+Enter: history · Shift+Enter: blame</div>
+        <div className="finder-keys dim">Enter: view · Alt+Enter: editor · Ctrl+Enter: history · Shift+Enter: blame</div>
       </div>
     </div>
   );

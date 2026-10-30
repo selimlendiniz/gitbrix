@@ -14,6 +14,7 @@ import { begin, end } from "./activity";
 import { createPullRequest, loadInbox, loadPrs, openPullRequest, prLabel, usePrs } from "./prs";
 import { MenuItem, useStore } from "./store";
 import { openWindow } from "./windows";
+import { openInEditor } from "./editor";
 import { pushUndo, trackHead } from "./undo";
 
 const s = () => useStore.getState();
@@ -766,6 +767,7 @@ function absolute(path: string): string | null {
 
 export function fileItems(path: string, deleted = false): MenuItem[] {
   return [
+    { label: "Open in editor", disabled: deleted, onSelect: () => void openInEditor(path) },
     {
       label: "Open file",
       disabled: deleted,

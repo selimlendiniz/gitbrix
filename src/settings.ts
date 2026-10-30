@@ -26,6 +26,9 @@ export interface Settings {
   ciNotify: boolean;
   /** Author pictures from Gravatar (sends a hash of each address). */
   gravatar: boolean;
+  /** Which editor opens files (see `EDITORS`), and a custom command. */
+  editor: string;
+  editorCommand: string;
   /** Where releases are announced (`latest.json`); empty = no updates. */
   updateUrl: string;
   /** Look for a newer version when the app starts. */
@@ -52,6 +55,8 @@ export const DEFAULTS: Settings = {
   commentNotify: true,
   ciNotify: true,
   gravatar: true,
+  editor: "system",
+  editorCommand: "",
   updateUrl: "",
   updateCheck: true,
   sidebarWidth: 240,

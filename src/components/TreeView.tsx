@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { api, errorText, FileAt, TreeEntry } from "../api";
 import { highlightLines, languageFor, Token } from "../diff/highlight";
 import { Markdown } from "./Markdown";
+import { openInEditor } from "../editor";
 import { shortId } from "../format";
 import { useStore } from "../store";
 import { ext, IMAGE_TYPES } from "./DiffView";
@@ -201,6 +202,9 @@ export function TreeView() {
         <span className="diff-header-actions">
           {path && (
             <>
+              <button className="link-btn" title="The work tree's file" onClick={() => void openInEditor(path)}>
+                Edit
+              </button>
               <button className="link-btn" onClick={() => openDiff({ kind: "history", path })}>
                 History
               </button>

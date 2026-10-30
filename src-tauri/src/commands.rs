@@ -870,6 +870,21 @@ pub fn create_release(repo: String, remote: String, release: forge::NewRelease) 
 }
 
 /// One folder of a commit's file tree.
+/// Text (or a regex) in the work tree's files.
+#[tauri::command(async)]
+pub fn search_text(repo: String, query: String, regex: bool, case_sensitive: bool) -> Result<crate::git::grep::Found> {
+    crate::git::grep::search(&workdir(&repo)?, &query, regex, case_sensitive)
+}
+
+/// Open a file of the work tree (at a line), or the repository's folder,
+/// with the editor command from Settings.
+#[tauri::command(async)]
+pub fn open_in_editor(repo: String, command: String, path: Option<String>, line: Option<u32>) -> Result<()> {
+    let dir = workdir(&repo)?;
+    let file = path.map(|p| dir.join(p));
+    crate::editor::open(&command, &dir, file.as_deref(), line)
+}
+
 /// Every file at a commit, for finding one by name.
 #[tauri::command(async)]
 pub fn list_files(repo: String, rev: String) -> Result<Vec<String>> {

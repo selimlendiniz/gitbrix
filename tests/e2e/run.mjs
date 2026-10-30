@@ -611,6 +611,20 @@ try {
     }
   });
 
+  await step("search in files finds a line; the editor command opens it there", async () => {
+    writeFileSync(join(repo, "needle.txt"), "hay\nhay needle hay\n");
+    const found = await js("return window.__TAURI_INTERNALS__.invoke('search_text', { repo: arguments[0], query: 'needle', regex: false, caseSensitive: false })", repo);
+    const hit = found.hits.find((h) => h.path === "needle.txt");
+    if (!hit || hit.line !== 2) throw new Error(`no hit on line 2: ${JSON.stringify(found.hits)}`);
+    const out = join(work, "opened.txt");
+    await js(
+      "return window.__TAURI_INTERNALS__.invoke('open_in_editor', { repo: arguments[0], command: arguments[1], path: 'needle.txt', line: 2 })",
+      repo,
+      `printf '%s:%s' {file} {line} > '${out}'`,
+    );
+    await waitFor("editor command", () => readFileSync(out, "utf8") === `${join(repo, "needle.txt")}:2`, 5000);
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

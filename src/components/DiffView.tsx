@@ -10,6 +10,7 @@ import { updateSettings, useSettings } from "../settings";
 import { prKey, usePrView } from "../prs";
 import { addPending, removePending, suggestionTemplate, useReview, type Pending } from "../review";
 import { Threads } from "./Threads";
+import { openInEditor } from "../editor";
 import { Markdown } from "./Markdown";
 import { DiffSource, useStore } from "../store";
 import { IconClose } from "./Icons";
@@ -101,6 +102,13 @@ export function DiffView() {
               Ignore whitespace
             </label>
           )}
+          <button
+            className="link-btn"
+            title="The work tree's file, at the first change"
+            onClick={() => void openInEditor(source.path, diff?.hunks[0]?.newStart || undefined)}
+          >
+            Edit
+          </button>
           <button className="link-btn" onClick={() => openDiff({ kind: "history", path: source.path })}>
             History
           </button>

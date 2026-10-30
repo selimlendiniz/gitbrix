@@ -17,6 +17,19 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-31 — request editing, issue writing, branch CI, search in files, editor
+
+- `forge/edit.rs`: details, labels, edit (GitHub PATCH + reviewers +
+  labels + draft via GraphQL; GitLab one PUT), close/reopen. `request_as`
+  gained PATCH and DELETE with a body.
+- `forge/issues.rs`: comments (service HTML), comment, close/reopen, create.
+- Branch CI in the title bar; 30 s re-checks while running; notification.
+- `git/grep.rs` (regex crate): tracked + untracked-not-ignored files,
+  binary and >2 MiB skipped, 2000 hits.
+- `editor.rs`: presets and a custom command, run on the host, missing
+  editors reported.
+- Tests: Rust 149, unit 76, Playwright 103, e2e 27.
+
 ### 2026-10-31 — threads, reviews, suggestions, CI logs, comment notifications, partial stash, file finder, graph keys
 
 - Threads: GitLab discussions / GitHub reviewThreads; reply, resolve

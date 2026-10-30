@@ -2,6 +2,7 @@ pub mod bisect;
 pub mod cleanup;
 pub mod diff;
 pub mod graph;
+pub mod grep;
 pub mod history;
 pub mod hooks;
 pub mod lfs;

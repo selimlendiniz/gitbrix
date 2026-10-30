@@ -173,6 +173,16 @@ export interface LineAt {
   oldLine: number | null;
 }
 
+/** A line of the work tree that matched a search. */
+export interface TextHit {
+  path: string;
+  line: number;
+  text: string;
+  /** The match in `text`, in characters. */
+  start: number;
+  end: number;
+}
+
 export interface RequestDetails {
   title: string;
   body: string;
@@ -763,6 +773,12 @@ export const api = {
   repoStats: (repo: string) => invoke<RepoStats>("repo_stats", { repo }),
   /** Author pictures as data URLs (null: none), by address. */
   avatars: (emails: string[]) => invoke<Record<string, string | null>>("avatars", { emails }),
+  /** Text (or a regex) in the work tree's files. */
+  searchText: (repo: string, query: string, regex: boolean, caseSensitive: boolean) =>
+    invoke<{ hits: TextHit[]; files: number; truncated: boolean }>("search_text", { repo, query, regex, caseSensitive }),
+  /** Runs the editor command (with {file} {line} {dir}) on the host. */
+  openInEditor: (repo: string, command: string, path: string | null, line: number | null) =>
+    invoke<void>("open_in_editor", { repo, command, path, line }),
   /** Every file at a commit (HEAD without commits: the index). */
   listFiles: (repo: string, rev: string) => invoke<string[]>("list_files", { repo, rev }),
   treeAt: (repo: string, rev: string, dir: string) => invoke<TreeEntry[]>("tree_at", { repo, rev, dir }),

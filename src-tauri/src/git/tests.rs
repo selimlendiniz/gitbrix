@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{diff, history, lfs, log, net, ops, overlap, patch, rebase, refs, repo, status, workspace};
+use super::{diff, grep, history, lfs, log, net, ops, overlap, patch, rebase, refs, repo, status, workspace};
 
 struct TestRepo {
     _dir: TempDir,
@@ -2238,4 +2238,30 @@ fn files_of_a_commit_or_the_index() {
     files.sort();
     assert_eq!(files, ["a.txt", "src/deep/b.rs"]);
     assert!(history::list_files(&t.open(), "nope").is_err());
+}
+
+#[test]
+fn searching_the_work_tree() {
+    let t = TestRepo::new();
+    t.commit("src/a.rs", "fn main() {\n    let Total = 1;\n}\n", "first");
+    t.write("notes.md", "total of ünïcode things\n");
+    t.write("target/big.txt", "total\n");
+    t.write(".gitignore", "target/\n");
+    fs::write(t.path.join("bin.dat"), [0u8, 1, 2, b't', b'o', b't', b'a', b'l']).unwrap();
+    let f = grep::search(&t.path, "total", false, false).unwrap();
+    let at: Vec<(&str, usize)> = f.hits.iter().map(|h| (h.path.as_str(), h.line)).collect();
+    // Ignored and binary files are left out; untracked ones count.
+    assert_eq!(at, [("notes.md", 1), ("src/a.rs", 2)]);
+    assert_eq!((f.hits[1].start, f.hits[1].end), (8, 13));
+    assert_eq!(f.hits[0].text, "total of ünïcode things");
+    // Case, regex, a bad pattern.
+    assert_eq!(grep::search(&t.path, "total", false, true).unwrap().hits.len(), 1);
+    assert_eq!(grep::search(&t.path, r"let \w+ =", true, false).unwrap().hits[0].path, "src/a.rs");
+    assert_eq!(grep::search(&t.path, "a.rs(", false, false).unwrap().hits.len(), 0);
+    assert!(grep::search(&t.path, "(", true, false).is_err());
+    // A long line is cut around the match.
+    t.write("long.txt", &format!("{}needle{}\n", "x".repeat(500), "y".repeat(500)));
+    let h = &grep::search(&t.path, "needle", false, false).unwrap().hits[0];
+    assert!(h.text.chars().count() <= 245 && h.text.starts_with('…') && h.text.ends_with('…'));
+    assert_eq!(h.text.chars().skip(h.start).take(h.end - h.start).collect::<String>(), "needle");
 }

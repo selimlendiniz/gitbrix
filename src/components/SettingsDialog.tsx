@@ -6,6 +6,7 @@ import { testNotification } from "../prs";
 import { AccountsSection } from "./Accounts";
 import { ProfilesSection } from "./Profiles";
 import { TransferButtons } from "./Transfer";
+import { EDITORS, editorCommand } from "../editor";
 import { checkForUpdates, updateStatus, useUpdates } from "../updates";
 
 export const useSettingsDialog = create<{ open: boolean }>(() => ({ open: false }));
@@ -166,6 +167,27 @@ export function SettingsDialog() {
               ]}
             />
             <span className="dim settings-note">Sends a hash of each author's e-mail address to gravatar.com</span>
+          </span>
+          <span>Editor</span>
+          <span className="settings-inline">
+            <select aria-label="Editor" value={settings.editor} onChange={(e) => set({ editor: e.target.value })}>
+              {EDITORS.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.label}
+                </option>
+              ))}
+            </select>
+            {settings.editor === "custom" ? (
+              <input
+                className="update-url"
+                aria-label="Editor command"
+                placeholder="myeditor +{line} {file}"
+                value={settings.editorCommand}
+                onChange={(e) => set({ editorCommand: e.target.value })}
+              />
+            ) : (
+              <span className="dim settings-note">{editorCommand(settings.editor, "", true) ?? "Opens with the desktop's app for the file type"}</span>
+            )}
           </span>
           <span>Updates</span>
           <span className="settings-inline">

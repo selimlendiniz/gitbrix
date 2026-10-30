@@ -27,6 +27,8 @@ import { useCleanup } from "./CleanupDialog";
 import { useSettingsDialog } from "./SettingsDialog";
 import { toggleTerminal, useTerminal } from "../terminal";
 import { OverlapButton } from "./Overlaps";
+import { openInEditor } from "../editor";
+import { useTextSearch } from "./TextSearch";
 
 function ToolButton({
   icon,
@@ -107,6 +109,9 @@ export function Toolbar() {
               { label: "Open repository…", onSelect: () => openRepoDialog() },
               { label: "Clone repository…", onSelect: () => useRepoDialog.setState({ kind: "clone" }) },
               { label: "New repository…", onSelect: () => useRepoDialog.setState({ kind: "init" }) },
+              { separator: true, label: "" },
+              { label: "Open in editor", onSelect: () => void openInEditor() },
+              { label: "Search in files…", hint: "Ctrl+Shift+F", onSelect: () => useTextSearch.setState({ open: true }) },
               { separator: true, label: "" },
               { label: "Reflog (recover lost commits)…", onSelect: () => useStore.getState().openDiff({ kind: "reflog" }) },
               { label: "Clean up branches…", onSelect: () => useCleanup.setState({ open: true }) },

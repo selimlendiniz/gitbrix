@@ -108,7 +108,10 @@ requests" access.
 Branches with an open request carry its number in the graph and the
 sidebar (colored by what it waits for); a click opens it.
 
-**Reviews.** Comments come in their threads (reply, resolve). Line
+**Reviews.** Requests can be edited (title, description, reviewers,
+labels, draft), closed and reopened; issues take comments, close, and new
+ones open from the sidebar. The checked-out branch's CI sits in the title
+bar. Comments come in their threads (reply, resolve). Line
 comments can wait in a pending review and go out together with a
 verdict; "Suggest change" writes a suggestion, and a comment's
 suggestion can be applied to the work tree. A CI mark opens the jobs and
@@ -128,7 +131,9 @@ changed files get a mark.
 **Windows.** Ctrl+Shift+N or a tab's "Move to new window" opens another
 window. Only the first window remembers its tabs across restarts.
 
-**Finding things.** Ctrl+P finds a file by name (view, history, blame);
+**Finding things.** Ctrl+P finds a file by name (view, history, blame,
+editor); Ctrl+Shift+F searches the work tree's text; files open in the
+editor chosen in Settings, at the line;
 the graph moves with j/k, g/G, / and n/N (`?` lists every key). Some
 files can be stashed on their own.
 

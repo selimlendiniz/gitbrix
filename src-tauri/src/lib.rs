@@ -1,6 +1,7 @@
 mod accounts;
 mod avatars;
 mod commands;
+mod editor;
 mod error;
 mod forge;
 mod git;
@@ -178,6 +179,8 @@ pub fn run() {
             commands::create_release,
             commands::tree_at,
             commands::list_files,
+            commands::search_text,
+            commands::open_in_editor,
             commands::file_at,
             commands::repo_stats,
             commands::avatars,

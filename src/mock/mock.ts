@@ -192,6 +192,18 @@ const READS: Record<string, (a: Args) => unknown> = {
     binary: false,
     size: 30,
   }),
+  search_text: (a) =>
+    a.query === "("
+      ? fail("Not a valid pattern: unclosed group")
+      : {
+          hits: [
+            { path: "src/main.rs", line: 2, text: '    println!("hi");', start: 4, end: 12 },
+            { path: "src/main.rs", line: 7, text: "    println!(\"bye\");", start: 4, end: 12 },
+            { path: "notes.txt", line: 1, text: "println everywhere", start: 0, end: 7 },
+          ],
+          files: 12,
+          truncated: false,
+        },
   list_files: () => ["README.md", "Cargo.toml", "CHANGELOG.md", "src/main.rs", "src/ui.rs", "src/parser/lexer.rs", "docs/guide.md"],
   release_notes: () => "- Parser: tokenizer\n- Write getting started guide",
   create_release: () => "https://gitlab.com/team/demo-app/-/releases/v0.2.0",
