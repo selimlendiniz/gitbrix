@@ -9,10 +9,11 @@ export function OperationBanner() {
   const status = useStore((s) => s.status);
   const select = useStore((s) => s.select);
   const run = useStore((s) => s.run);
-  if (!repo || repo.state === "clean") return null;
+  // Bisecting has a banner of its own.
+  if (!repo || repo.state === "clean" || repo.state === "bisect") return null;
   const op = repo.state;
   const conflicts = status?.conflicted.length ?? 0;
-  const seqOp = (op === "am" || op === "bisect" ? null : op) as SequencerOp | null;
+  const seqOp = (op === "am" ? null : op) as SequencerOp | null;
   return (
     <div className={`op-banner${conflicts ? " conflict" : ""}`}>
       <div>

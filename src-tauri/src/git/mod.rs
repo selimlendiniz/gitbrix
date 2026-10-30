@@ -1,3 +1,4 @@
+pub mod bisect;
 pub mod cleanup;
 pub mod diff;
 pub mod graph;

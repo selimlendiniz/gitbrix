@@ -12,6 +12,7 @@ import { primaryRef, RefPill, refsByCommit } from "../graph/refs";
 import { useStore } from "../store";
 import { IconClose, IconCloud, IconLaptop, IconSearch, IconStash, IconTag } from "./Icons";
 import { useCi } from "../ci";
+import { useBisect } from "../bisect";
 import { CiMark } from "./CiMark";
 
 const REFS_W = 190;
@@ -394,6 +395,11 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills
   const color = laneColor(c.color);
   const dateFormat = useSettings((s) => s.dateFormat);
   const ci = useCi((s) => s.statuses[c.id]);
+  const bisect = useBisect((s) => {
+    const b = s.status;
+    if (b) return b.found === c.id ? "first bad" : b.bad === c.id ? "bad" : b.good.includes(c.id) ? "good" : b.skipped.includes(c.id) ? "skipped" : b.current === c.id ? "testing" : null;
+    return s.pending?.id === c.id ? s.pending.verdict : null;
+  });
   return (
     <div
       className={`graph-row${selected ? " selected" : ""}${compared ? " compared" : ""}${wip ? " wip" : ""}${dim ? " dim" : ""}`}
@@ -436,6 +442,7 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills
         ) : (
           <>
             {ci && <CiMark state={ci.state} url={ci.url} />}
+            {bisect && <span className={`bisect-mark ${bisect.replace(" ", "-")}`}>{bisect}</span>}
             <span title={`${c.summary}\n${c.id.slice(0, 10)} · ${c.authorName}`}>{c.summary}</span>
           </>
         )}

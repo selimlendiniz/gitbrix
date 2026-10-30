@@ -1965,3 +1965,43 @@ fn stale_branches_are_merged_or_gone() {
     );
     assert!(!got[2].merged, "a gone branch may hold unmerged work");
 }
+
+#[test]
+fn bisect_finds_the_first_bad_commit_by_hand_and_by_command() {
+    use super::bisect;
+    let t = TestRepo::new();
+    let mut ids = Vec::new();
+    for i in 0..16 {
+        // Commit 11 brings the bug.
+        let content = if i >= 11 { format!("{i} bug\n") } else { format!("{i}\n") };
+        ids.push(t.commit("v.txt", &content, &format!("c{i}")));
+    }
+    t.git(&["switch", "-q", "-c", "work"]);
+    let is_bad = |t: &TestRepo| fs::read_to_string(t.path.join("v.txt")).unwrap().contains("bug");
+
+    let mut st = bisect::start(&t.path, "HEAD", &ids[0]).unwrap();
+    assert!(st.active && st.remaining == 15 && st.steps == 4, "{st:?}");
+    assert_eq!(t.open().state(), git2::RepositoryState::Bisect);
+    let mut verdicts = 0;
+    while st.found.is_none() {
+        st = bisect::verdict(&t.path, if is_bad(&t) { "bad" } else { "good" }, None).unwrap();
+        verdicts += 1;
+    }
+    assert_eq!(st.found.as_deref(), Some(ids[11].as_str()));
+    assert!(verdicts <= 4, "{verdicts} verdicts");
+    // git agrees about the session.
+    assert!(t.git(&["bisect", "log"]).contains("git bisect good"));
+    bisect::reset(&t.path).unwrap();
+    assert_eq!(t.git(&["symbolic-ref", "--short", "HEAD"]), "work");
+    assert!(t.git(&["for-each-ref", "refs/bisect"]).is_empty());
+    assert_eq!(t.open().state(), git2::RepositoryState::Clean);
+
+    // The same with a command deciding.
+    bisect::start(&t.path, "HEAD", &ids[0]).unwrap();
+    let st = bisect::run(&t.path, "! grep -q bug v.txt", &mut |_| {}).unwrap();
+    assert_eq!(st.found.as_deref(), Some(ids[11].as_str()));
+    bisect::reset(&t.path).unwrap();
+
+    assert!(bisect::start(&t.path, &ids[0], "HEAD").is_err(), "good must be older");
+    assert!(bisect::verdict(&t.path, "good", None).is_err(), "nothing running");
+}

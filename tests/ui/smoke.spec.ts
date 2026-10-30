@@ -1026,3 +1026,53 @@ test("auto-stash: changes in the way are stashed, the checkout runs, they come b
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("bisect: mark bad and good to start, verdicts from the banner, the culprit at the end", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  const row = (text: string) => page.locator(".graph-row", { hasText: text });
+  await expect(row("Tidy up main")).toBeVisible();
+  const id = async (text: string) => (await row(text).getAttribute("data-commit"))!;
+  const [bad, good, testing] = [await id("Tidy up main"), await id("Initial commit"), await id("Wire parser into main")];
+
+  await row("Tidy up main").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Bisect: mark bad" }).click();
+  await expect(page.locator(".op-banner.bisect")).toContainText("marked bad");
+  await expect(row("Tidy up main").locator(".bisect-mark")).toHaveText("bad");
+
+  // Starting answers with the first commit to test.
+  await page.evaluate(
+    ([bad, good, testing]) => {
+      window.__gitbrixBisect = { active: true, bad, good: [good], skipped: [], current: testing, remaining: 9, steps: 4, found: null };
+    },
+    [bad, good, testing],
+  );
+  await row("Initial commit").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Bisect: this one is good (start)" }).click();
+  await expect.poll(() => lastCall(page, "bisect_start")).toMatchObject({ bad, good });
+  const banner = page.locator(".op-banner.bisect");
+  await expect(banner).toContainText("9 commits left, about 4 steps");
+  await expect(row("Wire parser into main").locator(".bisect-mark")).toHaveText("testing");
+  await page.screenshot({ path: "test-results/shots/bisect.png" });
+
+  await page.evaluate(
+    ([bad, good, found]) => {
+      window.__gitbrixBisect = { active: true, bad: found, good: [good], skipped: [], current: found, remaining: 1, steps: 0, found };
+      void bad;
+    },
+    [bad, good, testing],
+  );
+  await banner.getByRole("button", { name: "Bad", exact: true }).click();
+  await expect.poll(() => lastCall(page, "bisect_mark")).toMatchObject({ verdict: "bad", rev: null });
+  await expect(banner).toContainText("First bad commit");
+  await expect(row("Wire parser into main").locator(".bisect-mark")).toHaveText("first bad");
+  await expect(row("Wire parser into main")).toHaveClass(/selected/);
+
+  await page.evaluate(() => {
+    window.__gitbrixBisect = undefined;
+  });
+  await banner.getByRole("button", { name: "Stop bisecting" }).click();
+  await expect.poll(() => calls(page)).toContain("bisect_reset");
+  await expect(page.locator(".op-banner.bisect")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

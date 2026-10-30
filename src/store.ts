@@ -368,6 +368,7 @@ export const useStore = create<State>((set, get) => ({
       if (seq !== refreshSeq || get().repo?.path !== repo.path) return;
       const stopped = get().repo?.state === "clean" && info.state !== "clean" && status.conflicted.length > 0;
       set(sseq === statusSeq ? { repo: info, graph, status, stashes, remotes, worktrees, submodules } : { repo: info, graph, stashes, remotes, worktrees, submodules });
+      window.dispatchEvent(new Event("gitbrix:refreshed"));
       // An operation just stopped on conflicts: show them.
       if (stopped) get().select(WIP_ID, true);
 

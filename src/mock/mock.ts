@@ -18,6 +18,8 @@ declare global {
     __gitbrixPrsByRepo?: Record<string, unknown>;
     /** What `pull_request_inbox` answers; tests set it. */
     __gitbrixInbox?: unknown;
+    /** What `bisect_status` (and the bisect actions) answer; tests set it. */
+    __gitbrixBisect?: unknown;
     /** Commands that fail once with the given message; tests set it. */
     __gitbrixFailOnce?: Record<string, string>;
     /** What `ci_statuses` answers; tests set it. */
@@ -98,6 +100,9 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  bisect_status: () => window.__gitbrixBisect ?? { active: false, bad: null, good: [], skipped: [], current: null, remaining: 0, steps: 0, found: null },
+  bisect_start: () => window.__gitbrixBisect,
+  bisect_mark: () => window.__gitbrixBisect,
   stale_branches: () => [
     { name: "fix/typo", remote: false, reason: "merged", into: "main", merged: true, time: 1767225600 },
     { name: "experiment/fast-path", remote: false, reason: "gone", into: "origin/experiment/fast-path", merged: false, time: 1767225600 },

@@ -14,6 +14,7 @@ import { ConflictView } from "./components/ConflictView";
 import { DiffView } from "./components/DiffView";
 import { BlameView, HistoryView } from "./components/FileViews";
 import { OperationBanner } from "./components/OperationBanner";
+import { BisectBanner } from "./components/BisectBanner";
 import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { RebaseView } from "./components/RebaseView";
 import { ReflogView } from "./components/ReflogView";
@@ -254,6 +255,7 @@ export default function App() {
             </div>
             <section className="center">
               <OperationBanner />
+              <BisectBanner />
               <div className="center-view">
               {diffSource?.kind === "conflict" ? (
                 <ConflictView />

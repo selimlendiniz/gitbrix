@@ -1495,6 +1495,47 @@ textarea {
   color: var(--warn);
 }
 
+.bisect-mark {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+}
+
+.bisect-mark.good {
+  color: var(--add);
+  border-color: currentColor;
+}
+
+.bisect-mark.bad,
+.bisect-mark.first-bad {
+  color: var(--danger);
+  border-color: currentColor;
+}
+
+.bisect-mark.first-bad {
+  background: var(--del-bg-strong);
+}
+
+.bisect-mark.testing {
+  color: var(--warn);
+  border-color: currentColor;
+}
+
+.op-banner.bisect.found {
+  border-color: var(--danger);
+}
+
+.small-btn.good {
+  color: var(--add);
+}
+
 .settings-inline {
   display: flex;
   align-items: center;

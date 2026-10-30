@@ -13,7 +13,7 @@ use crate::accounts;
 use crate::forge;
 use crate::profiles;
 use crate::terminal::{self, Terminals};
-use crate::git::{cleanup, diff, history, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace, worktree};
+use crate::git::{bisect, cleanup, diff, history, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -666,4 +666,30 @@ pub fn revert_many(repo: String, ids: Vec<String>) -> Result<usize> {
 #[tauri::command(async)]
 pub fn stale_branches(repo: String) -> Result<Vec<cleanup::Stale>> {
     cleanup::stale(&open(&repo)?)
+}
+
+#[tauri::command(async)]
+pub fn bisect_status(repo: String) -> Result<bisect::Status> {
+    bisect::status(&open(&repo)?)
+}
+
+#[tauri::command(async)]
+pub fn bisect_start(repo: String, bad: String, good: String) -> Result<bisect::Status> {
+    bisect::start(&workdir(&repo)?, &bad, &good)
+}
+
+/// `good`, `bad` or `skip` for `rev`, or for the commit being tested.
+#[tauri::command(async)]
+pub fn bisect_mark(repo: String, verdict: String, rev: Option<String>) -> Result<bisect::Status> {
+    bisect::verdict(&workdir(&repo)?, &verdict, rev.as_deref())
+}
+
+#[tauri::command(async)]
+pub fn bisect_reset(repo: String) -> Result<()> {
+    bisect::reset(&workdir(&repo)?)
+}
+
+#[tauri::command(async)]
+pub fn bisect_run(app: tauri::AppHandle, repo: String, command: String) -> Result<bisect::Status> {
+    bisect::run(&workdir(&repo)?, &command, &mut progress(&app))
 }

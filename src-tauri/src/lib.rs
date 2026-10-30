@@ -130,6 +130,11 @@ pub fn run() {
             commands::cherry_pick_many,
             commands::revert_many,
             commands::stale_branches,
+            commands::bisect_status,
+            commands::bisect_start,
+            commands::bisect_mark,
+            commands::bisect_reset,
+            commands::bisect_run,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

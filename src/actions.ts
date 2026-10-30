@@ -8,6 +8,7 @@ import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, CommitRow, errorText, PullMode, PullRequest, RebaseStep, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
+import { bisectMenu } from "./bisect";
 import { createPullRequest, loadInbox, loadPrs, openPullRequest, prLabel, usePrs } from "./prs";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
@@ -422,6 +423,8 @@ export function commitMenu(c: CommitRow): MenuItem[] {
     { label: `Reset ${head ?? "HEAD"} here — soft`, onSelect: () => resetTo(c, "soft") },
     { label: `Reset ${head ?? "HEAD"} here — mixed`, onSelect: () => resetTo(c, "mixed") },
     { label: `Reset ${head ?? "HEAD"} here — hard…`, danger: true, onSelect: () => resetTo(c, "hard") },
+    { separator: true, label: "" },
+    ...bisectMenu(c.id),
     { separator: true, label: "" },
     { label: "Save as patch…", onSelect: () => void savePatch([c.id], null, patchFileName(c.summary)) },
     { label: "Copy as patch", onSelect: () => void copyPatch([c.id], null) },

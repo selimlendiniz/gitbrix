@@ -68,6 +68,17 @@ export interface Ci {
   url: string;
 }
 
+export interface BisectStatus {
+  active: boolean;
+  bad: string | null;
+  good: string[];
+  skipped: string[];
+  current: string | null;
+  remaining: number;
+  steps: number;
+  found: string | null;
+}
+
 /** A branch that can go: merged, or its upstream was deleted ("gone"). */
 export interface StaleBranch {
   name: string;
@@ -546,6 +557,14 @@ export const api = {
   /** Revert in this order (newest first). */
   revertMany: (repo: string, ids: string[]) => invoke<number>("revert_many", { repo, ids }),
 
+  bisectStatus: (repo: string) => invoke<BisectStatus>("bisect_status", { repo }),
+  bisectStart: (repo: string, bad: string, good: string) => invoke<BisectStatus>("bisect_start", { repo, bad, good }),
+  /** A verdict for `rev`, or for the commit being tested. */
+  bisectMark: (repo: string, verdict: "good" | "bad" | "skip", rev: string | null = null) =>
+    invoke<BisectStatus>("bisect_mark", { repo, verdict, rev }),
+  bisectReset: (repo: string) => invoke<void>("bisect_reset", { repo }),
+  /** Let a shell command decide each step (exit 0 good, 125 skip, else bad). */
+  bisectRun: (repo: string, command: string) => invoke<BisectStatus>("bisect_run", { repo, command }),
   staleBranches: (repo: string) => invoke<StaleBranch[]>("stale_branches", { repo }),
 
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
