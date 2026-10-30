@@ -8,6 +8,7 @@ import { buildPatch, lineRange } from "../diff/patch";
 import { splitRows } from "../diff/split";
 import { updateSettings, useSettings } from "../settings";
 import { usePrView } from "../prs";
+import { Markdown } from "./Markdown";
 import { DiffSource, useStore } from "../store";
 import { IconClose } from "./Icons";
 
@@ -221,12 +222,13 @@ function commentsOn(review: Review, path: string, l: DiffLine): PrComment[] {
 }
 
 function LineComments({ comments }: { comments: PrComment[] }) {
+  const url = usePrView((s) => s.pr?.url);
   return (
     <div className="line-comments">
       {comments.map((c, k) => (
         <div key={k} className="line-comment">
           <strong>{c.author}</strong>
-          <span className="line-comment-body">{c.body}</span>
+          <Markdown className="line-comment-body" text={c.body} url={url} />
         </div>
       ))}
     </div>

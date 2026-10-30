@@ -10,6 +10,7 @@ import { relativeTime } from "../format";
 import { issueLabel, issueOfBranch, loadIssues, sortIssues, startWork, useIssues, useIssueView } from "../issues";
 import { MenuItem, useStore } from "../store";
 import { IconFetch, IconIssue } from "./Icons";
+import { Markdown } from "./Markdown";
 
 const when = (iso: string) => {
   const t = Date.parse(iso) / 1000;
@@ -146,7 +147,9 @@ export function IssueDialog() {
             Assigned to <strong>{issue.assignees.join(", ")}</strong>
           </div>
         )}
-        <div className="issue-body">{issue.body.trim() || <span className="dim">No description.</span>}</div>
+        <div className="issue-body">
+          {issue.body.trim() ? <Markdown text={issue.body} url={issue.url} /> : <span className="dim">No description.</span>}
+        </div>
         {here && <div className="issue-meta">You're on {headBranch}, the branch for this issue.</div>}
         <div className="modal-actions">
           <button type="button" className="small-btn" onClick={() => void openUrl(issue.url)}>

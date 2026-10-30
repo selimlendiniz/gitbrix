@@ -24,6 +24,8 @@ declare global {
     __gitbrixUpdate?: unknown;
     /** What `read_text_file` answers; tests set it. */
     __gitbrixFile?: string;
+    /** A request's description in `pull_request_conversation`; tests set it. */
+    __gitbrixDescription?: string;
     /** What `issues` answers; tests set it. */
     __gitbrixIssues?: unknown;
     /** What `pull_request_inbox` answers; tests set it. */
@@ -178,7 +180,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   // A request's range: the fixture's last two commits, so the compare mock has files.
   pull_request_range: () => ({ base: fixture.graph.commits[fixture.graph.commits.length - 2].id, head: fixture.graph.commits.find((c) => c.summary === "UI: dark theme")?.id }),
   pull_request_conversation: () => ({
-    description: "Makes the UI darker.",
+    description: window.__gitbrixDescription ?? "Makes the UI darker.",
     comments: [
       { author: "bot", body: "added 1 commit", created: "2026-10-01T00:00:00Z", path: null, line: null, verdict: null, system: true },
       { author: "ada", body: "Too dark?", created: "2026-10-02T00:00:00Z", path: "src/ui.rs", line: 3, verdict: null, system: false },

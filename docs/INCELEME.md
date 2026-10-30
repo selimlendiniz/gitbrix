@@ -182,6 +182,13 @@ Kurulabilir paket (release derlemesi):
     bekleniyor; yeşil: onaylandı; kırmızı: CI başarısız; kesikli: draft.
     Tıklayınca PR uygulamada açılır.
 
+48. **Markdown**: PR/MR açıklaması, yorumlar, diff'teki satır yorumları ve
+    issue metni GitHub/GitLab'daki gibi biçimli (başlık, liste, görev
+    kutuları, tablo, renklendirilmiş kod). Bağlantılar tarayıcıda açılır;
+    göreli bağlantılar (`/uploads/...`) projenin adresine göre çözülür.
+    Ham HTML gösterilmez; resimler bağlantı olarak çıkar (uygulama dışarıdan
+    resim yüklemiyor).
+
 ## Bilerek yapmadıklarım
 
 - PR satır yorumları yalnızca unified diff görünümünde; split görünümde

@@ -11,13 +11,14 @@ import { loadInbox, loadPrs, prLabel, tidyAfterMerge, usePrView, wantsReview } f
 import { useStore } from "../store";
 import { CiMark } from "./CiMark";
 import { FileList } from "./FileList";
+import { Markdown } from "./Markdown";
 
 const when = (iso: string) => {
   const t = Date.parse(iso) / 1000;
   return Number.isNaN(t) ? "" : relativeTime(t);
 };
 
-function CommentItem({ c, onPath }: { c: PrComment; onPath: (path: string) => void }) {
+function CommentItem({ c, url, onPath }: { c: PrComment; url: string; onPath: (path: string) => void }) {
   return (
     <div className={`pr-comment${c.system ? " system" : ""}`}>
       <div className="pr-comment-head">
@@ -32,7 +33,7 @@ function CommentItem({ c, onPath }: { c: PrComment; onPath: (path: string) => vo
         )}
         <span className="dim">{when(c.created)}</span>
       </div>
-      {c.body && <div className="pr-comment-body">{c.body}</div>}
+      {c.body && (c.system ? <div className="pr-comment-body">{c.body}</div> : <Markdown className="pr-comment-body" text={c.body} url={url} />)}
     </div>
   );
 }
@@ -282,12 +283,12 @@ export function PullRequestPanel() {
           {conv && (
             <>
               {conv.description.trim() ? (
-                <div className="pr-description">{conv.description}</div>
+                <Markdown className="pr-description" text={conv.description} url={pr.url} />
               ) : (
                 <div className="dim pr-description">No description.</div>
               )}
               {conv.comments.map((c, i) => (
-                <CommentItem key={i} c={c} onPath={openFile} />
+                <CommentItem key={i} c={c} url={pr.url} onPath={openFile} />
               ))}
               <form
                 className="pr-reply"
