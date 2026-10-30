@@ -135,6 +135,7 @@ pub fn run() {
             commands::bisect_mark,
             commands::bisect_reset,
             commands::bisect_run,
+            commands::comment_pull_request_line,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

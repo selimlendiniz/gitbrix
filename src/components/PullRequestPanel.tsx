@@ -108,10 +108,12 @@ export function PullRequestPanel() {
   const diffSource = useStore((s) => s.diffSource);
   const openDiff = useStore((s) => s.openDiff);
   const [tab, setTab] = useState<"files" | "conversation">("files");
-  const [range, setRange] = useState<RequestRange | null>(null);
+  const range = usePrView((s) => s.range);
+  const setRange = (range: RequestRange | null) => usePrView.setState({ range });
   const [files, setFiles] = useState<FileChange[] | null>(null);
   const [filesError, setFilesError] = useState<string | null>(null);
-  const [conv, setConv] = useState<Conversation | null>(null);
+  const conv = usePrView((s) => s.conv);
+  const setConv = (conv: Conversation | null) => usePrView.setState({ conv });
   const [convError, setConvError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);

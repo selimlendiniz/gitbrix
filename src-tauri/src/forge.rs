@@ -1057,6 +1057,35 @@ mod tests {
     }
 
     #[test]
+    fn line_comments_carry_the_position_each_service_wants() {
+        let at = LineRef { path: "src/a.rs".into(), old_path: None, new_line: Some(12), old_line: Some(10) };
+        let (addr, _, bodies) = serve_bodies(vec![
+            ("POST /repos/team/app/pulls/4/comments", json!({})),
+            ("GET /repos/team/app/pulls/4", json!({ "head": { "sha": "abc" } })),
+        ]);
+        line_comment_in(&project("github", &addr, "me"), "tok", 4, &at, "Off by one?").unwrap();
+        let old_only = LineRef { new_line: None, old_line: Some(7), ..at };
+        line_comment_in(&project("github", &addr, "me"), "tok", 4, &old_only, "Why gone?").unwrap();
+        let sent: Vec<Value> = bodies.lock().unwrap().iter().filter(|(r, _)| r.starts_with("POST")).map(|(_, v)| v.clone()).collect();
+        assert_eq!(sent[0], json!({ "body": "Off by one?", "commit_id": "abc", "path": "src/a.rs", "line": 12, "side": "RIGHT" }));
+        assert_eq!((sent[1]["line"].as_u64(), sent[1]["side"].as_str()), (Some(7), Some("LEFT")));
+
+        let (addr, _, bodies) = serve_bodies(vec![
+            ("POST /api/v4/projects/team%2Fapp/merge_requests/9/discussions", json!({})),
+            ("GET /api/v4/projects/team%2Fapp/merge_requests/9", json!({ "diff_refs": { "base_sha": "b", "start_sha": "s", "head_sha": "h" } })),
+        ]);
+        let gl = project("gitlab", &format!("{addr}/api/v4"), "me");
+        let renamed = LineRef { path: "new.rs".into(), old_path: Some("old.rs".into()), new_line: Some(3), old_line: None };
+        line_comment_in(&gl, "tok", 9, &renamed, "Nice").unwrap();
+        let sent = bodies.lock().unwrap().iter().find(|(r, _)| r.starts_with("POST")).unwrap().1.clone();
+        assert_eq!(
+            sent["position"],
+            json!({ "position_type": "text", "base_sha": "b", "start_sha": "s", "head_sha": "h", "new_path": "new.rs", "old_path": "old.rs", "new_line": 3 })
+        );
+        assert!(line_comment_in(&gl, "tok", 9, &LineRef { new_line: None, old_line: None, ..renamed }, "x").is_err());
+    }
+
+    #[test]
     fn error_details_come_from_every_shape() {
         assert_eq!(error_detail(&json!({ "message": ["Another open merge request already exists"] })), "Another open merge request already exists");
         assert_eq!(error_detail(&json!({ "message": { "title": ["can't be blank"] } })), "title can't be blank");
@@ -1554,6 +1583,65 @@ fn comment_in(p: &Project, token: &str, number: u64, body: &str) -> Result<()> {
     };
     request("POST", &url, token, Some(&json!({ "body": body })))?;
     Ok(())
+}
+
+/// Where a line comment goes: the file (and its old path when renamed),
+/// and the line on the new side, the old side, or both (context lines).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LineRef {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub new_line: Option<u64>,
+    pub old_line: Option<u64>,
+}
+
+fn line_comment_in(p: &Project, token: &str, number: u64, at: &LineRef, body: &str) -> Result<()> {
+    if body.trim().is_empty() {
+        return Err(Error::msg("Write something first"));
+    }
+    if at.new_line.is_none() && at.old_line.is_none() {
+        return Err(Error::msg("No line to comment on"));
+    }
+    match p.provider.as_str() {
+        "github" => {
+            let base = format!("{}/repos/{}/pulls/{number}", p.api, p.path);
+            let pr = get(&base, token)?;
+            let (line, side) = match (at.new_line, at.old_line) {
+                (Some(n), _) => (n, "RIGHT"),
+                (None, Some(o)) => (o, "LEFT"),
+                _ => unreachable!("checked above"),
+            };
+            let body = json!({ "body": body, "commit_id": text(&pr["head"]["sha"]), "path": at.path, "line": line, "side": side });
+            request("POST", &format!("{base}/comments"), token, Some(&body))?;
+        }
+        _ => {
+            let base = format!("{}/projects/{}/merge_requests/{number}", p.api, encode(&p.path));
+            let mr = get(&base, token)?;
+            let refs = &mr["diff_refs"];
+            let mut position = json!({
+                "position_type": "text",
+                "base_sha": refs["base_sha"],
+                "start_sha": refs["start_sha"],
+                "head_sha": refs["head_sha"],
+                "new_path": at.path,
+                "old_path": at.old_path.as_deref().unwrap_or(&at.path),
+            });
+            if let Some(n) = at.new_line {
+                position["new_line"] = json!(n);
+            }
+            if let Some(o) = at.old_line {
+                position["old_line"] = json!(o);
+            }
+            request("POST", &format!("{base}/discussions"), token, Some(&json!({ "body": body, "position": position })))?;
+        }
+    }
+    Ok(())
+}
+
+pub fn line_comment(repo: &Path, remote: &str, number: u64, at: &LineRef, body: &str) -> Result<()> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    line_comment_in(&p, &token, number, at, body)
 }
 
 /// How to merge: `merge` (a merge commit), `squash`, or `rebase` (GitHub).

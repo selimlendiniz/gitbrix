@@ -693,3 +693,9 @@ pub fn bisect_reset(repo: String) -> Result<()> {
 pub fn bisect_run(app: tauri::AppHandle, repo: String, command: String) -> Result<bisect::Status> {
     bisect::run(&workdir(&repo)?, &command, &mut progress(&app))
 }
+
+/// Comment on a line of a request's diff.
+#[tauri::command(async)]
+pub fn comment_pull_request_line(repo: String, remote: String, number: u64, at: forge::LineRef, body: String) -> Result<()> {
+    forge::line_comment(&workdir(&repo)?, &remote, number, &at, &body)
+}

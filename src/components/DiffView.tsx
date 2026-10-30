@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
-import { api, DiffLine, errorText, FileDiff } from "../api";
+import { api, DiffLine, errorText, FileDiff, PrComment, RequestRange } from "../api";
 import { discardFiles } from "../actions";
 import { shortId, statusLetter } from "../format";
 import { diffTokens, Token } from "../diff/highlight";
 import { buildPatch, lineRange } from "../diff/patch";
 import { splitRows } from "../diff/split";
 import { updateSettings, useSettings } from "../settings";
+import { usePrView } from "../prs";
 import { DiffSource, useStore } from "../store";
 import { IconClose } from "./Icons";
 
@@ -32,6 +33,10 @@ export function DiffView() {
   const openDiff = useStore((s) => s.openDiff);
   const ignoreWs = useSettings((s) => s.ignoreWhitespace);
   const headOid = useStore((s) => s.repo?.headOid ?? null);
+  const review = usePrReview();
+  // A request's file, opened from its review panel: lines take comments.
+  const reviewing =
+    !!review && source?.kind === "compare" && source.from === review.range.base && source.to === review.range.head;
 
   if (!source || (source.kind !== "commit" && source.kind !== "wip" && source.kind !== "compare")) return null;
 
@@ -127,7 +132,13 @@ export function DiffView() {
         ) : !diff ? (
           <div className="diff-message">Loading diff…</div>
         ) : (
-          <DiffContent diff={diff} mode={mode} wip={source.kind === "wip" ? source : null} sides={sidesOf(source, headOid)} />
+          <DiffContent
+            diff={diff}
+            mode={mode}
+            wip={source.kind === "wip" ? source : null}
+            sides={sidesOf(source, headOid)}
+            review={reviewing ? review : undefined}
+          />
         )}
       </div>
     </div>
@@ -162,20 +173,123 @@ export function sidesOf(source: DiffSource, headOid: string | null): Sides | und
   }
 }
 
+interface Review {
+  range: RequestRange;
+  comments: PrComment[];
+  post: (diff: FileDiff, line: DiffLine, body: string) => Promise<boolean>;
+}
+
+/** The request under review, with a way to comment on its lines. */
+function usePrReview(): Review | null {
+  const pr = usePrView((s) => s.pr);
+  const range = usePrView((s) => s.range);
+  const conv = usePrView((s) => s.conv);
+  if (!pr || !range) return null;
+  return {
+    range,
+    comments: conv?.comments ?? [],
+    async post(diff, line, body) {
+      const repo = useStore.getState().repo?.path;
+      if (!repo) return false;
+      try {
+        await api.commentPullRequestLine(
+          repo,
+          pr.remote,
+          pr.number,
+          {
+            path: diff.path,
+            oldPath: diff.oldPath,
+            newLine: line.kind === "del" ? null : line.newNo,
+            oldLine: line.kind === "add" ? null : line.oldNo,
+          },
+          body,
+        );
+        usePrView.setState({ conv: await api.pullRequestConversation(repo, pr.remote, pr.number) });
+        return true;
+      } catch (e) {
+        useStore.getState().toast("error", errorText(e));
+        return false;
+      }
+    },
+  };
+}
+
+/** Comments made on this line (new side, or old side for removed lines). */
+function commentsOn(review: Review, path: string, l: DiffLine): PrComment[] {
+  const line = l.kind === "del" ? l.oldNo : l.newNo;
+  return review.comments.filter((c) => !c.system && c.path === path && c.line != null && c.line === line);
+}
+
+function LineComments({ comments }: { comments: PrComment[] }) {
+  return (
+    <div className="line-comments">
+      {comments.map((c, k) => (
+        <div key={k} className="line-comment">
+          <strong>{c.author}</strong>
+          <span className="line-comment-body">{c.body}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Composer({ onSend, onCancel }: { onSend: (body: string) => Promise<boolean>; onCancel: () => void }) {
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    if (!body.trim()) return;
+    setBusy(true);
+    if (await onSend(body)) onCancel();
+    setBusy(false);
+  };
+  return (
+    <div className="line-composer">
+      <textarea
+        autoFocus
+        rows={3}
+        placeholder="Comment on this line (Ctrl+Enter sends)"
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void send();
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            onCancel();
+          }
+        }}
+        disabled={busy}
+      />
+      <div className="line-composer-actions">
+        <button type="button" className="small-btn" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+        <button type="button" className="small-btn primary" onClick={() => void send()} disabled={busy || !body.trim()}>
+          {busy ? "Sending…" : "Comment"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function DiffContent({
   diff,
   mode,
   wip,
   sides,
+  review,
 }: {
   diff: FileDiff;
   mode: Mode;
   wip: WipSource | null;
   sides?: Sides;
+  /** A pull request's diff: comments show under their lines, and any line
+   *  takes a new one (unified view). */
+  review?: Review;
 }) {
   const run = useStore((s) => s.run);
   const confirm = useStore((s) => s.confirm);
   const [sel, setSel] = useState<Selection | null>(null);
+  const [composing, setComposing] = useState<string | null>(null);
 
   // A new diff (after staging, or another file) invalidates line indices.
   useEffect(() => setSel(null), [diff]);
@@ -276,15 +390,24 @@ export function DiffContent({
               )}
             </div>
             {mode === "unified"
-              ? h.lines.map((l, j) => (
-                  <UnifiedLine
-                    key={j}
-                    l={l}
-                    tokens={tokens?.[i]?.[j]}
-                    selected={sel?.hunk === i && sel.lines.has(j)}
-                    onPick={wip && !diff.lossy && l.kind !== "ctx" ? (extend) => pick(i, j, extend) : undefined}
-                  />
-                ))
+              ? h.lines.map((l, j) => {
+                  const here = review ? commentsOn(review, diff.path, l) : [];
+                  return (
+                    <Fragment key={j}>
+                      <UnifiedLine
+                        l={l}
+                        tokens={tokens?.[i]?.[j]}
+                        selected={sel?.hunk === i && sel.lines.has(j)}
+                        onPick={wip && !diff.lossy && l.kind !== "ctx" ? (extend) => pick(i, j, extend) : undefined}
+                        onComment={review ? () => setComposing(`${i}:${j}`) : undefined}
+                      />
+                      {here.length > 0 && <LineComments comments={here} />}
+                      {review && composing === `${i}:${j}` && (
+                        <Composer onSend={(body) => review.post(diff, l, body)} onCancel={() => setComposing(null)} />
+                      )}
+                    </Fragment>
+                  );
+                })
               : (() => {
                   const byLine = new Map(h.lines.map((l, j) => [l, tokens?.[i]?.[j]]));
                   return splitRows(h.lines).map((r, j) => (
@@ -325,11 +448,13 @@ function UnifiedLine({
   tokens,
   selected,
   onPick,
+  onComment,
 }: {
   l: DiffLine;
   tokens: Token[] | undefined;
   selected: boolean;
   onPick?: (extend: boolean) => void;
+  onComment?: () => void;
 }) {
   return (
     <div
@@ -349,6 +474,18 @@ function UnifiedLine({
       <span className="ln">{l.newNo ?? ""}</span>
       <span className="sign">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : " "}</span>
       <Code text={l.text} tokens={tokens} />
+      {onComment && (
+        <button
+          type="button"
+          className="comment-add"
+          title="Comment on this line"
+          aria-label="Comment on this line"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={onComment}
+        >
+          +
+        </button>
+      )}
     </div>
   );
 }

@@ -533,6 +533,13 @@ export const api = {
     invoke<Conversation>("pull_request_conversation", { repo, remote, number }),
   commentPullRequest: (repo: string, remote: string, number: number, body: string) =>
     invoke<void>("comment_pull_request", { repo, remote, number, body }),
+  commentPullRequestLine: (
+    repo: string,
+    remote: string,
+    number: number,
+    at: { path: string; oldPath: string | null; newLine: number | null; oldLine: number | null },
+    body: string,
+  ) => invoke<void>("comment_pull_request_line", { repo, remote, number, at, body }),
   mergePullRequest: (repo: string, remote: string, number: number, method: MergeMethod, deleteBranch: boolean) =>
     invoke<void>("merge_pull_request", { repo, remote, number, method, deleteBranch }),
 

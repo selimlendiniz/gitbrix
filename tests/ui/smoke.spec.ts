@@ -772,7 +772,22 @@ test("review a request in the app: files, diff, comments, merge", async ({ page 
   await expect(page.locator(".graph-row.selected")).toContainText("UI: layout pass");
 
   await panel.locator(".file-row", { hasText: "ui.rs" }).click();
-  await expect(page.getByTestId("diff")).toBeVisible();
+  const diff = page.getByTestId("diff");
+  await expect(diff).toBeVisible();
+  // Line comments show under their line; any line takes a new one.
+  const line3 = diff.locator(".dl", { hasText: "pub fn theme" });
+  await expect(diff.locator(".line-comment")).toContainText("Too dark?");
+  await line3.hover();
+  await line3.getByRole("button", { name: "Comment on this line" }).click();
+  await diff.getByPlaceholder(/Comment on this line/).fill("Use the palette here");
+  await diff.locator(".line-composer").getByRole("button", { name: "Comment" }).click();
+  await expect.poll(() => lastCall(page, "comment_pull_request_line")).toMatchObject({
+    number: 5,
+    at: { path: "src/ui.rs", newLine: 3, oldLine: null },
+    body: "Use the palette here",
+  });
+  await expect(diff.locator(".line-composer")).toHaveCount(0);
+  await line3.hover();
   await page.screenshot({ path: "test-results/shots/pr-review-files.png" });
 
   await panel.getByRole("button", { name: /Conversation/ }).click();

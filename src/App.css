@@ -1536,6 +1536,70 @@ textarea {
   color: var(--add);
 }
 
+.diff-table .dl {
+  position: relative;
+}
+
+.comment-add {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent-strong);
+  color: #fff;
+  font-size: 13px;
+  line-height: 18px;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dl:hover .comment-add,
+.comment-add:focus-visible {
+  opacity: 1;
+}
+
+.line-comments,
+.line-composer {
+  margin: 4px 12px 6px 92px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+
+.line-comment {
+  display: flex;
+  gap: 8px;
+}
+
+.line-comment + .line-comment {
+  margin-top: 6px;
+}
+
+.line-comment-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.line-composer textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.line-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .settings-inline {
   display: flex;
   align-items: center;

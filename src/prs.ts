@@ -7,7 +7,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
-import { api, errorText, PullRequest, PullRequestInbox, PullRequests } from "./api";
+import { api, Conversation, errorText, PullRequest, PullRequestInbox, PullRequests, RequestRange } from "./api";
 import { useSettings } from "./settings";
 import { useStore } from "./store";
 
@@ -228,13 +228,19 @@ export function createPullRequest(branch?: string) {
   useCreatePr.setState({ branch: name });
 }
 
-/** The request shown in the details panel, reviewed in the app. */
-export const usePrView = create<{ pr: PullRequest | null }>(() => ({ pr: null }));
+/** The request shown in the details panel, reviewed in the app, with its
+ * commit range and conversation once loaded (the diff view comments on
+ * lines through them). */
+export const usePrView = create<{ pr: PullRequest | null; range: RequestRange | null; conv: Conversation | null }>(() => ({
+  pr: null,
+  range: null,
+  conv: null,
+}));
 
 // Picking a commit, comparing or switching repositories leaves the request.
 useStore.subscribe((st, prev) => {
   if (st.selectedId !== prev.selectedId || st.compareId !== prev.compareId || st.repo?.path !== prev.repo?.path) {
-    if (usePrView.getState().pr) usePrView.setState({ pr: null });
+    if (usePrView.getState().pr) usePrView.setState({ pr: null, range: null, conv: null });
   }
 });
 
@@ -246,5 +252,5 @@ export function openPullRequest(pr: PullRequest) {
     ? st.graph?.refs.find((r) => r.kind === "remote" && r.name === `${pr.remote}/${pr.sourceBranch}`)
     : undefined;
   if (head) st.select(head.target, true);
-  usePrView.setState({ pr });
+  usePrView.setState({ pr, range: null, conv: null });
 }
