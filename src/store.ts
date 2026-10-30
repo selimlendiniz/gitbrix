@@ -118,6 +118,9 @@ interface State {
   selectedId: string | null;
   /** Second commit picked with Ctrl/Shift+click to compare against. */
   compareId: string | null;
+  /** Three or more commits picked with Ctrl/Shift+click (graph order,
+   *  newest first); empty otherwise. */
+  multi: string[];
   details: CommitDetails | null;
   diffSource: DiffSource | null;
   diff: FileDiff | null;
@@ -148,6 +151,9 @@ interface State {
   loadMoreCommits: () => Promise<void>;
   select: (id: string | null, scroll?: boolean) => void;
   setCompare: (id: string | null) => void;
+  /** Ctrl+click (toggle `id`) or Shift+click (`range` from the selected
+   *  commit): two commits compare, more make a multi-selection. */
+  extendSelection: (id: string, range: boolean) => void;
   openDiff: (source: DiffSource) => Promise<void>;
   reloadOpenDiff: (status: WorkingStatus) => void;
   closeDiff: () => void;
@@ -190,6 +196,7 @@ export const useStore = create<State>((set, get) => ({
   submodules: [],
   selectedId: null,
   compareId: null,
+  multi: [],
   details: null,
   diffSource: null,
   diff: null,
@@ -320,8 +327,12 @@ export const useStore = create<State>((set, get) => ({
       // Nothing selected (e.g. a fresh repository) and changes appeared.
       if (!selectedId && graph.commits[0]?.id === WIP_ID) get().select(WIP_ID);
       // Stashes aren't graph rows but can be selected from the sidebar.
-      const { compareId } = get();
+      const { compareId, multi } = get();
       if (compareId && !graph.commits.some((c) => c.id === compareId)) set({ compareId: null });
+      if (multi.length) {
+        const kept = multi.filter((id) => graph.commits.some((c) => c.id === id));
+        if (kept.length !== multi.length) set({ multi: kept.length > 2 ? kept : [] });
+      }
       if (selectedId && !graph.commits.some((c) => c.id === selectedId) && !stashes.some((st) => st.id === selectedId)) {
         get().select(info.headOid ?? graph.commits[0]?.id ?? null);
       }
@@ -376,6 +387,7 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       selectedId: id,
       compareId: null,
+      multi: [],
       details: null,
       scrollRequest: scroll ? s.scrollRequest + 1 : s.scrollRequest,
     }));
@@ -400,7 +412,39 @@ export const useStore = create<State>((set, get) => ({
 
   setCompare(id) {
     if (get().diffSource?.kind === "compare" || get().diffSource?.kind === "commit") get().closeDiff();
-    set({ compareId: id && id !== get().selectedId && id !== WIP_ID ? id : null });
+    set({ compareId: id && id !== get().selectedId && id !== WIP_ID ? id : null, multi: [] });
+  },
+
+  extendSelection(id, range) {
+    const { selectedId, compareId, multi, graph } = get();
+    const commits = (graph?.commits ?? []).filter((c) => c.kind === "commit");
+    const order = new Map(commits.map((c, i) => [c.id, i]));
+    if (!selectedId || selectedId === WIP_ID || !order.has(id) || !order.has(selectedId)) {
+      get().select(id);
+      return;
+    }
+    let picked = multi.length ? [...multi] : [selectedId, ...(compareId ? [compareId] : [])];
+    if (range) {
+      const [a, b] = [order.get(selectedId)!, order.get(id)!].sort((x, y) => x - y);
+      picked = commits.slice(a, b + 1).map((c) => c.id);
+    } else if (picked.includes(id)) {
+      picked = picked.filter((x) => x !== id);
+    } else {
+      picked.push(id);
+    }
+    picked.sort((x, y) => order.get(x)! - order.get(y)!);
+    // The commit clicked first stays the anchor for Shift ranges.
+    const anchor = picked.includes(selectedId) ? selectedId : picked[0];
+    if (picked.length <= 1) {
+      get().select(picked[0] ?? id);
+    } else if (picked.length === 2) {
+      set({ selectedId: anchor, multi: [] });
+      get().setCompare(picked.find((x) => x !== anchor) ?? null);
+    } else {
+      const src = get().diffSource;
+      if (src?.kind === "compare" || src?.kind === "commit") get().closeDiff();
+      set({ selectedId: anchor, compareId: null, multi: picked });
+    }
   },
 
   async openDiff(source) {

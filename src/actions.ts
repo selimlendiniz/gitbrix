@@ -5,7 +5,7 @@
 import { open as pickFile, save as pickSaveFile } from "@tauri-apps/plugin-dialog";
 import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 
-import { api, CommitRow, errorText, PullMode, PullRequest, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
+import { api, CommitRow, errorText, PullMode, PullRequest, RebaseStep, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
 import { createPullRequest, loadInbox, loadPrs, openPullRequest, prLabel, usePrs } from "./prs";
@@ -428,6 +428,96 @@ export function commitMenu(c: CommitRow): MenuItem[] {
     { separator: true, label: "" },
     { label: "Copy commit SHA", onSelect: () => copy(c.id) },
     { label: "Copy commit message", onSelect: () => copy(c.summary) },
+  ];
+}
+
+// ---------- several commits ----------
+
+/** The selected commits, oldest first (the graph lists newest first). */
+function oldestFirst(ids: string[]): string[] {
+  const order = new Map((s().graph?.commits ?? []).map((c, i) => [c.id, i]));
+  return [...ids].sort((a, b) => (order.get(b) ?? 0) - (order.get(a) ?? 0));
+}
+
+export async function cherryPickMany(ids: string[]) {
+  const head = currentBranch() ?? "HEAD";
+  const ok = await s().confirm({
+    title: "Cherry-pick commits",
+    message: `Apply ${ids.length} commits onto ${head}, oldest first? A conflict stops the sequence; resolve it and press Continue.`,
+    confirmLabel: `Cherry-pick ${ids.length}`,
+  });
+  if (!ok) return;
+  await trackHead(`cherry-pick ${ids.length} commits`, () =>
+    s().run("Cherry-picking", (r) => api.cherryPickMany(r, oldestFirst(ids)), `Cherry-picked ${ids.length} commits onto ${head}`),
+  );
+}
+
+export async function revertMany(ids: string[]) {
+  const ok = await s().confirm({
+    title: "Revert commits",
+    message: `Make ${ids.length} commits that undo the selected ones, newest first?`,
+    confirmLabel: `Revert ${ids.length}`,
+  });
+  if (!ok) return;
+  await trackHead(`revert ${ids.length} commits`, () =>
+    s().run("Reverting", (r) => api.revertMany(r, oldestFirst(ids).reverse()), `Reverted ${ids.length} commits`),
+  );
+}
+
+/** Fold consecutive commits of the current branch into one (an
+ *  interactive rebase from the oldest one's parent). */
+export async function squashCommits(ids: string[]) {
+  const st = s();
+  const repo = st.repo;
+  if (!repo) return;
+  const sorted = oldestFirst(ids);
+  const oldest = st.graph?.commits.find((c) => c.id === sorted[0]);
+  const base = oldest?.parents[0];
+  if (!base) {
+    st.toast("error", "The oldest selected commit has no parent to squash onto");
+    return;
+  }
+  let line;
+  try {
+    line = await api.rebaseCommits(repo.path, base);
+  } catch (e) {
+    st.toast("error", errorText(e));
+    return;
+  }
+  const at = line.findIndex((c) => c.id === sorted[0]);
+  const run = line.slice(at, at + sorted.length).map((c) => c.id);
+  if (at < 0 || run.join() !== sorted.join()) {
+    st.toast("error", "Squash needs consecutive commits of the checked-out branch");
+    return;
+  }
+  const ok = await st.confirm({
+    title: "Squash commits",
+    message: `Combine ${ids.length} commits into one, keeping all their messages? Later commits are replayed on top.`,
+    confirmLabel: `Squash ${ids.length}`,
+  });
+  if (!ok) return;
+  const steps: RebaseStep[] = line.map((c) => ({
+    action: sorted.includes(c.id) && c.id !== sorted[0] ? "squash" : "pick",
+    id: c.id,
+    message: null,
+  }));
+  await trackHead(`squash ${ids.length} commits`, () =>
+    st.run("Squashing", (r) => api.interactiveRebase(r, base, steps), `Squashed ${ids.length} commits`),
+  );
+}
+
+export function multiMenu(ids: string[]): MenuItem[] {
+  const n = ids.length;
+  return [
+    { label: `Cherry-pick ${n} commits onto ${currentBranch() ?? "HEAD"}…`, onSelect: () => void cherryPickMany(ids) },
+    { label: `Revert ${n} commits…`, onSelect: () => void revertMany(ids) },
+    { label: `Squash ${n} commits into one…`, hint: "consecutive", onSelect: () => void squashCommits(ids) },
+    { separator: true, label: "" },
+    { label: "Save as patch…", onSelect: () => void savePatch(oldestFirst(ids), null, `${n}-commits.patch`) },
+    { label: "Copy as patch", onSelect: () => void copyPatch(oldestFirst(ids), null) },
+    { label: "Copy commit SHAs", onSelect: () => copy(oldestFirst(ids).join("\n")) },
+    { separator: true, label: "" },
+    { label: "Clear selection", onSelect: () => s().select(s().selectedId) },
   ];
 }
 

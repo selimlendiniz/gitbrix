@@ -1896,3 +1896,38 @@ fn patches_round_trip_through_git_and_back() {
     assert!(patch::apply(&third, &format!("{plain}\n"), false).is_err());
     assert!(patch::apply(&third, "nothing here", false).is_err());
 }
+
+#[test]
+fn several_commits_cherry_pick_in_order_and_revert_newest_first() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "base");
+    t.git(&["switch", "-q", "-c", "side"]);
+    let one = t.commit("b.txt", "b\n", "add b");
+    t.commit("skip.txt", "x\n", "not picked");
+    let two = t.commit("c.txt", "c\n", "add c");
+    t.git(&["switch", "-q", "main"]);
+    t.commit("a.txt", "2\n", "main moves");
+
+    rebase::pick_onto_head(&t.open(), &[one.clone(), two.clone()]).unwrap();
+    assert_eq!(t.git(&["log", "-3", "--format=%s"]), "add c\nadd b\nmain moves");
+    assert_eq!(t.git(&["symbolic-ref", "--short", "HEAD"]), "main");
+    assert!(!t.path.join("skip.txt").exists());
+
+    let picked: Vec<String> = t.git(&["log", "-2", "--format=%H"]).lines().map(str::to_owned).collect();
+    assert_eq!(ops::revert_many(&t.path, &picked).unwrap(), 2);
+    assert_eq!(t.git(&["log", "-2", "--format=%s"]), "Revert \"add b\"\nRevert \"add c\"");
+    assert!(!t.path.join("b.txt").exists() && !t.path.join("c.txt").exists());
+
+    // A conflict stops the sequence; continue finishes it.
+    t.git(&["switch", "-q", "-c", "clash", "HEAD~5"]);
+    let clash = t.commit("a.txt", "clash\n", "clash");
+    let after = t.commit("d.txt", "d\n", "after clash");
+    t.git(&["switch", "-q", "main"]);
+    let err = rebase::pick_onto_head(&t.open(), &[clash, after]).unwrap_err().to_string();
+    assert!(err.contains("conflicts in a.txt"), "{err}");
+    fs::write(t.path.join("a.txt"), "resolved\n").unwrap();
+    ops::stage(&t.path, &["a.txt".into()]).unwrap();
+    ops::sequencer(&t.path, "rebase", "continue").unwrap();
+    assert_eq!(t.git(&["log", "-2", "--format=%s"]), "after clash\nclash");
+    assert_eq!(t.git(&["symbolic-ref", "--short", "HEAD"]), "main");
+}

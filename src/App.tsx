@@ -8,6 +8,7 @@ import { CommandPalette, usePalette } from "./components/CommandPalette";
 import { CommitGraph } from "./components/CommitGraph";
 import { CommitPanel } from "./components/CommitPanel";
 import { ComparePanel } from "./components/ComparePanel";
+import { MultiPanel } from "./components/MultiPanel";
 import { ConflictView } from "./components/ConflictView";
 import { DiffView } from "./components/DiffView";
 import { BlameView, HistoryView } from "./components/FileViews";
@@ -228,6 +229,7 @@ export default function App() {
   useFolderDrop();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);
+  const multi = useStore((s) => s.multi.length);
   const diffSource = useStore((s) => s.diffSource);
   const prView = usePrView((s) => s.pr);
   const onWorkspaces = useWorkspaces((s) => s.open);
@@ -273,6 +275,8 @@ export default function App() {
             <aside className="details">
               {prView ? (
                 <PullRequestPanel />
+              ) : multi ? (
+                <MultiPanel />
               ) : compareId ? (
                 <ComparePanel />
               ) : selectedId === WIP_ID ? (

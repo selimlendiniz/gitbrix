@@ -127,6 +127,8 @@ pub fn run() {
             commands::save_text_file,
             commands::apply_patch_file,
             commands::read_patch_file,
+            commands::cherry_pick_many,
+            commands::revert_many,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

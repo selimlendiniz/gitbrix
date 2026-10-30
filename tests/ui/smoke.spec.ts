@@ -925,3 +925,51 @@ test("workspaces: every repository's requests together; one opens in its reposit
   await expect(page.getByTestId("pull-request").locator(".commit-summary")).toHaveText("Demo change");
   expect(errors).toEqual([]);
 });
+
+test("several commits: Ctrl/Shift+click selects them; cherry-pick, revert, squash", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  const row = (text: string) => page.locator(".graph-row", { hasText: text });
+  await row("Tidy up main").click();
+  // Two commits still compare.
+  await row("Update changelog").click({ modifiers: ["Control"] });
+  await expect(page.getByTestId("compare")).toBeVisible();
+  // A third makes a selection.
+  await row("Wire parser into main").click({ modifiers: ["Control"] });
+  const panel = page.getByTestId("multi");
+  await expect(panel.locator(".stash-kicker")).toHaveText("3 commits selected");
+  await expect(page.locator(".graph-row.selected")).toHaveCount(3);
+  // Ctrl+click again takes one out (back to comparing two).
+  await row("Wire parser into main").click({ modifiers: ["Control"] });
+  await expect(page.getByTestId("compare")).toBeVisible();
+  // Shift+click: everything between, branches included.
+  await row("Tidy up main").click();
+  await row("Update changelog").click({ modifiers: ["Shift"] });
+  await expect(panel.locator(".multi-row")).toHaveCount(4);
+  await page.screenshot({ path: "test-results/shots/multi-select.png" });
+  const ids = await page.evaluate(() => window.__gitbrixStore.getState().multi);
+
+  await panel.getByRole("button", { name: /Cherry-pick onto main/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cherry-pick 4" }).click();
+  // Oldest first.
+  await expect.poll(() => lastCall(page, "cherry_pick_many")).toMatchObject({ ids: [...ids].reverse() });
+
+  await row("Tidy up main").click();
+  await row("UI: dark theme").click({ modifiers: ["Shift"] });
+  await row("Tidy up main").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Revert 3 commits…" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Revert 3" }).click();
+  const reverted = await page.evaluate(() => window.__gitbrixStore.getState().multi);
+  await expect.poll(() => lastCall(page, "revert_many")).toMatchObject({ ids: reverted });
+
+  // Squash: the recorded line after "Wire parser into main" is
+  // "Update changelog", "Tidy up main"; with a commit off the line selected
+  // it refuses, with consecutive ones it plans an interactive rebase.
+  await row("Tidy up main").click();
+  await row("Update changelog").click({ modifiers: ["Control"] });
+  await row("UI: dark theme").click({ modifiers: ["Control"] });
+  await panel.getByRole("button", { name: "Squash into one…" }).click();
+  await expect(page.getByText("Squash needs consecutive commits")).toBeVisible();
+  expect(await lastCall(page, "interactive_rebase")).toBeUndefined();
+  expect(errors).toEqual([]);
+});

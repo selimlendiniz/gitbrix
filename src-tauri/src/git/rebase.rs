@@ -487,3 +487,21 @@ mod tests {
         assert!(validate(&[step("pick", &a), step("squash", &a)]).is_ok());
     }
 }
+
+/// Cherry-pick several commits onto HEAD, oldest first, as one sequence:
+/// a conflict stops it and continue / skip / abort pick it up.
+pub fn pick_onto_head(r: &Repository, ids: &[String]) -> Result<()> {
+    if ids.is_empty() {
+        return Err(Error::msg("No commits to cherry-pick"));
+    }
+    let mut steps = Vec::new();
+    for id in ids {
+        let c = Oid::from_str(id).ok().and_then(|o| r.find_commit(o).ok()).ok_or_else(|| Error::msg(format!("Unknown commit {id}")))?;
+        if c.parent_count() > 1 {
+            return Err(Error::msg(format!("\"{}\" is a merge commit; cherry-picking it isn't supported", summary(&c))));
+        }
+        steps.push(RebaseStep { action: "pick".into(), id: id.clone(), message: None });
+    }
+    let tip = head(r)?.id();
+    start(r, tip, steps)
+}

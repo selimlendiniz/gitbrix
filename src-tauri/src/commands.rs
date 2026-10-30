@@ -649,3 +649,15 @@ pub fn read_patch_file(path: String) -> Result<Vec<String>> {
     let text = std::fs::read(&path).map_err(|e| Error::msg(format!("Can't read {path}: {e}")))?;
     Ok(patch::parse(&String::from_utf8_lossy(&text)).into_iter().map(|m| m.subject).collect())
 }
+
+/// Cherry-pick commits onto HEAD in the given order (oldest first).
+#[tauri::command(async)]
+pub fn cherry_pick_many(repo: String, ids: Vec<String>) -> Result<()> {
+    rebase::pick_onto_head(&open(&repo)?, &ids)
+}
+
+/// Revert commits in the given order (newest first).
+#[tauri::command(async)]
+pub fn revert_many(repo: String, ids: Vec<String>) -> Result<usize> {
+    ops::revert_many(&workdir(&repo)?, &ids)
+}

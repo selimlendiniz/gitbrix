@@ -986,6 +986,15 @@ pub fn revert(repo: &Path, oid: &str) -> Result<()> {
     finish_operation(&r)
 }
 
+/// Revert several commits, newest first, one commit each. Stops at the
+/// first that conflicts (left in the work tree, like a single revert).
+pub fn revert_many(repo: &Path, ids: &[String]) -> Result<usize> {
+    for (n, id) in ids.iter().enumerate() {
+        revert(repo, id).map_err(|e| if n == 0 { e } else { Error::msg(format!("Reverted {n} of {}; {e}", ids.len())) })?;
+    }
+    Ok(ids.len())
+}
+
 /// Branch, remote branch or any revision, as git would name it in a merge
 /// message.
 fn annotated<'r>(r: &'r Repository, rev: &str) -> Result<git2::AnnotatedCommit<'r>> {

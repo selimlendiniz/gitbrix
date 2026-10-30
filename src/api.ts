@@ -531,6 +531,11 @@ export const api = {
   /** The subject of each patch in the file. */
   readPatchFile: (path: string) => invoke<string[]>("read_patch_file", { path }),
 
+  /** Cherry-pick in this order (oldest first), as one stoppable sequence. */
+  cherryPickMany: (repo: string, ids: string[]) => invoke<void>("cherry_pick_many", { repo, ids }),
+  /** Revert in this order (newest first). */
+  revertMany: (repo: string, ids: string[]) => invoke<number>("revert_many", { repo, ids }),
+
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
   /** Repositories in a folder, up to three levels down. */
   findRepos: (dir: string) => invoke<string[]>("find_repos", { dir }),

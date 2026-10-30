@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { create } from "zustand";
 
 import { api, CommitRow, errorText, WIP_ID } from "../api";
-import { checkoutRef, commitMenu, refMenu, stashMenu } from "../actions";
+import { checkoutRef, commitMenu, multiMenu, refMenu, stashMenu } from "../actions";
 import { beginDrag, dropTarget } from "../dnd";
 import { laneColor } from "../colors";
 import { fullTime, relativeTime, shortTime } from "../format";
@@ -47,7 +47,8 @@ export function CommitGraph() {
   const repo = useStore((s) => s.repo);
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);
-  const setCompare = useStore((s) => s.setCompare);
+  const multi = useStore((s) => s.multi);
+  const extendSelection = useStore((s) => s.extendSelection);
   const scrollRequest = useStore((s) => s.scrollRequest);
   const select = useStore((s) => s.select);
   const showMenu = useStore((s) => s.showMenu);
@@ -248,12 +249,16 @@ export function CommitGraph() {
         columns={columns}
         show={show}
         pills={pills.get(c.id)}
-        selected={c.id === selectedId}
+        selected={c.id === selectedId || multi.includes(c.id)}
         compared={c.id === compareId}
         dim={matchSet ? !matchSet.has(i) : !!branchSet && !branchSet.has(c.id)}
         wip={c.id === WIP_ID ? wipCounts : null}
-        onSelect={(id, extend) => (extend && selectedId && selectedId !== WIP_ID ? setCompare(id) : select(id))}
+        onSelect={(id, mods) => (mods ? extendSelection(id, mods === "range") : select(id))}
         onMenu={(x, y) => {
+          if (multi.includes(c.id)) {
+            showMenu(x, y, multiMenu(multi));
+            return;
+          }
           select(c.id);
           const stash = c.kind === "stash" ? useStore.getState().stashes.find((st) => st.id === c.id) : undefined;
           showMenu(x, y, stash ? stashMenu(stash) : commitMenu(c));
@@ -380,8 +385,8 @@ interface RowProps {
   compared: boolean;
   dim: boolean;
   wip: { staged: number; unstaged: number } | null;
-  /** `extend`: Ctrl/Shift held — pick as the second commit to compare. */
-  onSelect: (id: string, extend: boolean) => void;
+  /** `toggle`: Ctrl held, `range`: Shift held — add to the selection. */
+  onSelect: (id: string, mods: "toggle" | "range" | null) => void;
   onMenu: (x: number, y: number) => void;
 }
 
@@ -397,7 +402,7 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills
       ref={dropTarget({ kind: "commit", commit: c })}
       onMouseDown={(e) => {
         if (e.button !== 0) return;
-        onSelect(c.id, e.ctrlKey || e.metaKey || e.shiftKey);
+        onSelect(c.id, e.shiftKey ? "range" : e.ctrlKey || e.metaKey ? "toggle" : null);
         if (c.kind === "stash") {
           const stash = useStore.getState().stashes.find((st) => st.id === c.id);
           if (stash) beginDrag(e, { kind: "stash", stash }, stash.message);
