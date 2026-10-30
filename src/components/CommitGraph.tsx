@@ -1,8 +1,8 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 
 import { api, CommitRow, errorText, WIP_ID } from "../api";
-import { checkoutRef, commitMenu, multiMenu, refMenu, stashMenu } from "../actions";
+import { checkoutRef, commitMenu, createBranch, multiMenu, refMenu, stashMenu } from "../actions";
 import { beginDrag, dropTarget } from "../dnd";
 import { laneColor } from "../colors";
 import { fullTime, relativeTime, shortTime } from "../format";
@@ -235,20 +235,97 @@ export function CommitGraph() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollRequest]);
 
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
-      e.preventDefault();
-      const i = commits.findIndex((c) => c.id === selectedId);
-      let next = i;
-      if (e.key === "ArrowDown") next = Math.min(commits.length - 1, i + 1);
-      if (e.key === "ArrowUp") next = Math.max(0, i - 1);
-      if (e.key === "Home") next = 0;
-      if (e.key === "End") next = commits.length - 1;
+  // Moving through the graph: arrows (and j/k, as in many tools), a page
+  // at a time, to the ends; n/N through search matches; Enter shows the
+  // first changed file; b branches from the commit; Esc drops a multiple
+  // selection. Letters also work with nothing focused.
+  const graphKey = (e: KeyboardEvent | React.KeyboardEvent): boolean => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    const i = commits.findIndex((c) => c.id === selectedId);
+    const page = Math.max(1, Math.floor(viewH / ROW_H) - 1);
+    const go = (n: number) => {
+      const next = Math.max(0, Math.min(commits.length - 1, n));
       if (commits[next]) select(commits[next].id, true);
-    },
-    [commits, selectedId, select],
-  );
+    };
+    switch (e.key) {
+      case "ArrowDown":
+      case "j":
+        go(i + 1);
+        return true;
+      case "ArrowUp":
+      case "k":
+        go(i - 1);
+        return true;
+      case "PageDown":
+      case "J":
+        go(i + page);
+        return true;
+      case "PageUp":
+      case "K":
+        go(i - page);
+        return true;
+      case "Home":
+      case "g":
+        go(0);
+        return true;
+      case "End":
+      case "G":
+        go(commits.length - 1);
+        return true;
+      case "/":
+        window.dispatchEvent(new Event("gitbrix:find"));
+        return true;
+      case "n":
+      case "N":
+        jump(e.key === "n" ? 1 : -1);
+        return true;
+      case "Enter": {
+        const st = useStore.getState();
+        if (selectedId === WIP_ID) {
+          const f = st.status?.unstaged[0] ?? st.status?.staged[0];
+          if (f) void st.openDiff({ kind: "wip", path: f.path, staged: !st.status?.unstaged.length });
+        } else {
+          const f = st.details?.id === selectedId ? st.details?.files[0] : undefined;
+          if (f && selectedId) void st.openDiff({ kind: "commit", id: selectedId, path: f.path, oldPath: f.oldPath });
+        }
+        return true;
+      }
+      case "b":
+        if (selectedId && selectedId !== WIP_ID) {
+          const c = commits[i];
+          void createBranch(selectedId, c ? `${c.id.slice(0, 7)} ${c.summary}` : undefined);
+        }
+        return true;
+      case "Escape":
+        if (!useStore.getState().multi.length) return false;
+        useStore.setState({ multi: [] });
+        return true;
+      default:
+        return false;
+    }
+  };
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (graphKey(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+  // Letters with nothing focused (not while typing, nor with a window or
+  // menu open, nor over a diff).
+  const keyRef = useRef(graphKey);
+  keyRef.current = graphKey;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && t !== document.body) return;
+      const st = useStore.getState();
+      if (st.dialog || st.menu || st.diffSource || document.querySelector(".modal-backdrop, .menu-backdrop")) return;
+      if (!/^[jkJKgGnNb/]$/.test(e.key)) return;
+      if (keyRef.current(e)) e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const wipCounts = status
     ? { staged: status.staged.length, unstaged: status.unstaged.length + status.conflicted.length }
@@ -311,6 +388,7 @@ export function CommitGraph() {
           </span>
           <input
             ref={searchRef}
+            autoFocus
             placeholder={
               mode === "message" ? "Search message, author or SHA" : mode === "files" ? "File path contains… (all history)" : "Text added or removed… (all history)"
             }
