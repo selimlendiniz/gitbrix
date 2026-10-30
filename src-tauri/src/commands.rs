@@ -825,6 +825,12 @@ pub fn create_release(repo: String, remote: String, release: forge::NewRelease) 
 }
 
 /// One folder of a commit's file tree.
+/// Every file at a commit, for finding one by name.
+#[tauri::command(async)]
+pub fn list_files(repo: String, rev: String) -> Result<Vec<String>> {
+    history::list_files(&open(&repo)?, &rev)
+}
+
 #[tauri::command(async)]
 pub fn tree_at(repo: String, rev: String, dir: String) -> Result<Vec<history::TreeEntry>> {
     if !dir.is_empty() {

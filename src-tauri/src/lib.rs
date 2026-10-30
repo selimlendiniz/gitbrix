@@ -169,6 +169,7 @@ pub fn run() {
             commands::release_notes,
             commands::create_release,
             commands::tree_at,
+            commands::list_files,
             commands::file_at,
             commands::repo_stats,
             commands::avatars,

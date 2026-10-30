@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 
+import { useFileFinder } from "./FileFinder";
+
 import {
   addWorktree,
   applyPatchFile,
@@ -115,6 +117,7 @@ function useCommands(): Command[] {
     add("Repository", "Clone repository…", () => useRepoDialog.setState({ kind: "clone" }));
     add("Repository", "New repository…", () => useRepoDialog.setState({ kind: "init" }));
     add("Window", "New window", () => newWindow(), "Ctrl+Shift+N");
+    if (repo) add("Repository", "Find a file…", () => useFileFinder.setState({ open: true }), "Ctrl+P");
     if (repo) add("Window", `Move ${repo.name} to a new window`, () => moveTabToWindow(repo.path));
     for (const t of tabs) if (t.path !== repo?.path) add("Switch tab", t.name, () => void st.openRepo(t.path), t.path);
     for (const r of loadRecent()) {

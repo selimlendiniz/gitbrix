@@ -51,6 +51,7 @@ import { loadIssues } from "./issues";
 import { IssueDialog } from "./components/Issues";
 import { ImportDialog } from "./components/Transfer";
 import { CiDialog } from "./components/CiDialog";
+import { FileFinder, useFileFinder } from "./components/FileFinder";
 import { checkForUpdates } from "./updates";
 import { isMainWindow } from "./windows";
 import { loadIdentity, loadProfiles } from "./profiles";
@@ -93,6 +94,9 @@ function useGlobalKeys() {
       } else if (e.key === "o" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         void openRepoDialog();
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === "p" && s.repo) {
+        e.preventDefault();
+        useFileFinder.setState({ open: true });
       } else if (mod && e.shiftKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
         newWindow();
@@ -358,6 +362,7 @@ export default function App() {
       <ImportDialog />
       <CiDialog />
       <StashPickDialog />
+      <FileFinder />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
       <CleanupDialog />

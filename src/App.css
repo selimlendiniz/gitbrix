@@ -4787,3 +4787,31 @@ body.dragging * {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+.finder-dir {
+  font-family: var(--mono);
+}
+
+.finder-keys {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+
+.tree-file-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-graph);
+  z-index: 1;
+}
+
+.tree-markdown {
+  padding: 16px 24px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  max-width: 900px;
+}

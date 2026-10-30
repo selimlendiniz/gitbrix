@@ -16,6 +16,7 @@ const SHORTCUTS: [string, string][] = [
   ["Click, Shift+click", "Select diff lines to stage"],
   ["F5, Ctrl+R", "Refresh"],
   ["Ctrl+O", "Open repository"],
+  ["Ctrl+P", "Find a file (Enter view, Ctrl+Enter history, Shift+Enter blame)"],
   ["Ctrl+Shift+N", "New window"],
   ["Ctrl+Q", "Quit (every window)"],
   ["Esc", "Close diff, dialog or menu"],

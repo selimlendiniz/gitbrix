@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { api, errorText, FileAt, TreeEntry } from "../api";
 import { highlightLines, languageFor, Token } from "../diff/highlight";
+import { Markdown } from "./Markdown";
 import { shortId } from "../format";
 import { useStore } from "../store";
 import { ext, IMAGE_TYPES } from "./DiffView";
@@ -70,8 +71,11 @@ function Folder({ rev, dir, depth, chosen, onPick }: { rev: string; dir: string;
   );
 }
 
+const isMarkdown = (path: string) => /\.(md|markdown)$/i.test(path);
+
 function Content({ rev, path }: { rev: string; path: string }) {
   const repo = useStore((s) => s.repo?.path);
+  const [source, setSource] = useState(false);
   const [file, setFile] = useState<FileAt | null>(null);
   const [image, setImage] = useState<string | null>(null);
   const [tokens, setTokens] = useState<Token[][] | null>(null);
@@ -84,6 +88,7 @@ function Content({ rev, path }: { rev: string; path: string }) {
     setTokens(null);
     setImage(null);
     setError(null);
+    setSource(false);
     if (mime) {
       api.fileBase64(repo, rev, path).then((b) => live && setImage(b), (e) => live && setError(errorText(e)));
       return;
@@ -110,7 +115,30 @@ function Content({ rev, path }: { rev: string; path: string }) {
   if (!file) return <div className="diff-message">Loading…</div>;
   if (file.text == null) return <div className="diff-message">{file.binary ? "Binary file" : "Too large to show"} — {file.size.toLocaleString()} bytes.</div>;
   const lines = file.text.replace(/\n$/, "").split("\n");
+  const markdown = isMarkdown(path);
+  const toggle = markdown && (
+    <div className="tree-file-bar">
+      <span className="segmented">
+        <button type="button" className={source ? "" : "on"} onClick={() => setSource(false)}>
+          Preview
+        </button>
+        <button type="button" className={source ? "on" : ""} onClick={() => setSource(true)}>
+          Source
+        </button>
+      </span>
+    </div>
+  );
+  if (markdown && !source) {
+    return (
+      <>
+        {toggle}
+        <Markdown className="tree-markdown" text={file.text} />
+      </>
+    );
+  }
   return (
+    <>
+    {toggle}
     <div className="diff-table tree-code">
       {lines.map((l, i) => (
         <div key={i} className="dl ctx">
@@ -127,7 +155,29 @@ function Content({ rev, path }: { rev: string; path: string }) {
         </div>
       ))}
     </div>
+    </>
   );
+}
+
+/** With no file picked: the folder's README, as a project page shows it. */
+function Readme({ rev }: { rev: string }) {
+  const repo = useStore((s) => s.repo?.path);
+  const [readme, setReadme] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!repo) return;
+    let live = true;
+    setReadme(undefined);
+    api.treeAt(repo, rev, "").then(
+      (entries) => live && setReadme(entries.find((e) => e.kind === "file" && /^readme(\.(md|markdown|txt))?$/i.test(e.name))?.path ?? null),
+      () => live && setReadme(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [repo, rev]);
+  if (readme === undefined) return null;
+  if (readme === null) return <div className="diff-message">Pick a file.</div>;
+  return <Content rev={rev} path={readme} />;
 }
 
 export function TreeView() {
@@ -171,7 +221,7 @@ export function TreeView() {
         <div className="tree-side">
           <Folder rev={rev} dir="" depth={0} chosen={path} onPick={pick} />
         </div>
-        <div className="tree-file">{path ? <Content rev={rev} path={path} /> : <div className="diff-message">Pick a file.</div>}</div>
+        <div className="tree-file">{path ? <Content rev={rev} path={path} /> : <Readme rev={rev} />}</div>
       </div>
     </div>
   );

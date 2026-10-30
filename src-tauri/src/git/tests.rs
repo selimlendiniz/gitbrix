@@ -2225,3 +2225,17 @@ fn a_partial_stash_pops_back_in_the_app() {
     assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b changed\n");
     assert_eq!(t.git(&["stash", "list"]), "");
 }
+
+#[test]
+fn files_of_a_commit_or_the_index() {
+    let t = TestRepo::new();
+    t.write("a.txt", "a\n");
+    t.git(&["add", "a.txt"]);
+    // No commit yet: the index.
+    assert_eq!(history::list_files(&t.open(), "HEAD").unwrap(), ["a.txt"]);
+    t.commit("src/deep/b.rs", "b\n", "first");
+    let mut files = history::list_files(&t.open(), "HEAD").unwrap();
+    files.sort();
+    assert_eq!(files, ["a.txt", "src/deep/b.rs"]);
+    assert!(history::list_files(&t.open(), "nope").is_err());
+}

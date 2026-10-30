@@ -353,6 +353,33 @@ pub fn tree_at(repo: &Repository, rev: &str, dir: &str) -> Result<Vec<TreeEntry>
     Ok(out)
 }
 
+/// Every file at commit `rev` (`HEAD` in a repository without commits: the
+/// index), for finding one by name. At most `FILE_LIMIT`.
+pub fn list_files(repo: &Repository, rev: &str) -> Result<Vec<String>> {
+    const FILE_LIMIT: usize = 200_000;
+    let mut out = Vec::new();
+    match repo.revparse_single(rev).and_then(|o| o.peel_to_commit()) {
+        Ok(commit) => {
+            commit.tree()?.walk(git2::TreeWalkMode::PreOrder, |dir, e| {
+                if out.len() >= FILE_LIMIT {
+                    return git2::TreeWalkResult::Abort;
+                }
+                if e.kind() == Some(git2::ObjectType::Blob) {
+                    out.push(format!("{dir}{}", e.name().unwrap_or("")));
+                }
+                git2::TreeWalkResult::Ok
+            })?;
+        }
+        Err(_) if rev == "HEAD" => {
+            for e in repo.index()?.iter().take(FILE_LIMIT) {
+                out.push(String::from_utf8_lossy(&e.path).into_owned());
+            }
+        }
+        Err(_) => return Err(Error::msg(format!("Unknown revision {rev}"))),
+    }
+    Ok(out)
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileAt {

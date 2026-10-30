@@ -739,6 +739,8 @@ export const api = {
   repoStats: (repo: string) => invoke<RepoStats>("repo_stats", { repo }),
   /** Author pictures as data URLs (null: none), by address. */
   avatars: (emails: string[]) => invoke<Record<string, string | null>>("avatars", { emails }),
+  /** Every file at a commit (HEAD without commits: the index). */
+  listFiles: (repo: string, rev: string) => invoke<string[]>("list_files", { repo, rev }),
   treeAt: (repo: string, rev: string, dir: string) => invoke<TreeEntry[]>("tree_at", { repo, rev, dir }),
   fileAt: (repo: string, rev: string, path: string) => invoke<FileAt>("file_at", { repo, rev, path }),
   bisectStatus: (repo: string) => invoke<BisectStatus>("bisect_status", { repo }),

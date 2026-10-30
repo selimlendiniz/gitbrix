@@ -15,7 +15,8 @@ test("stash files: one from its menu, several picked", async ({ page }) => {
   await prompt.getByRole("button", { name: "Stash" }).click();
   await expect.poll(() => lastCall(page, "stash_paths")).toMatchObject({ paths: ["notes.txt"], message: "notes for later" });
 
-  await page.getByRole("button", { name: "Stash files…" }).click();
+  await page.locator(".wip-panel").getByRole("button", { name: "Stash", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Stash some files…" }).click();
   const pick = page.getByRole("dialog", { name: "Stash files" });
   await expect(pick.locator(".stash-pick .checkbox")).toHaveCount(3);
   const send = pick.getByRole("button", { name: /^Stash/ });

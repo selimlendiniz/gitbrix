@@ -171,7 +171,12 @@ const READS: Record<string, (a: Args) => unknown> = {
           { name: "README.md", path: "README.md", kind: "file", size: 20 },
         ]
       : [{ name: "main.rs", path: "src/main.rs", kind: "file", size: 30 }],
-  file_at: (a) => ({ text: a.path === "src/main.rs" ? "fn main() {\n    println!(\"hi\");\n}\n" : "# Demo\n", binary: false, size: 30 }),
+  file_at: (a) => ({
+    text: a.path === "src/main.rs" ? "fn main() {\n    println!(\"hi\");\n}\n" : "# Demo\n\nA **demo** project.\n",
+    binary: false,
+    size: 30,
+  }),
+  list_files: () => ["README.md", "Cargo.toml", "CHANGELOG.md", "src/main.rs", "src/ui.rs", "src/parser/lexer.rs", "docs/guide.md"],
   release_notes: () => "- Parser: tokenizer\n- Write getting started guide",
   create_release: () => "https://gitlab.com/team/demo-app/-/releases/v0.2.0",
   bisect_status: () => window.__gitbrixBisect ?? { active: false, bad: null, good: [], skipped: [], current: null, remaining: 0, steps: 0, found: null },

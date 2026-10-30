@@ -140,11 +140,18 @@ export function WipPanel() {
                     Discard all
                   </button>
                 )}
-                <button className="link-btn" onClick={() => stashSave()} title="Stash all changes">
+                <button
+                  className="link-btn"
+                  title="Stash all changes, or some files"
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    showMenu(r.left, r.bottom + 4, [
+                      { label: "Stash all changes…", onSelect: () => void stashSave() },
+                      { label: "Stash some files…", onSelect: () => useStashPick.setState({ open: true }) },
+                    ]);
+                  }}
+                >
                   Stash
-                </button>
-                <button className="link-btn" onClick={() => useStashPick.setState({ open: true })} title="Pick the files to stash">
-                  Stash files…
                 </button>
                 <button className="small-btn" onClick={() => run("Staging", (r) => api.stageAll(r), undefined, "status")}>
                   Stage all
