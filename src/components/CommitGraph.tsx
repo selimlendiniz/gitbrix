@@ -456,7 +456,7 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills
           </span>
         ) : (
           <>
-            {ci && <CiMark state={ci.state} url={ci.url} />}
+            {ci && <CiMark state={ci.state} url={ci.url} sha={c.id} />}
             {bisect && <span className={`bisect-mark ${bisect.replace(" ", "-")}`}>{bisect}</span>}
             <span title={`${c.summary}\n${c.id.slice(0, 10)} · ${c.authorName}`}>{c.summary}</span>
           </>

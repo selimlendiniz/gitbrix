@@ -62,6 +62,25 @@ export interface CreatedRequest {
 
 export type CiState = "success" | "failed" | "running" | "pending" | "canceled" | "skipped" | "manual";
 
+export interface CiJob {
+  id: string;
+  name: string;
+  /** GitLab's stage; on GitHub the app running the check. */
+  stage: string;
+  state: CiState | string;
+  url: string;
+  /** Seconds. */
+  duration: number | null;
+  /** The app can show its log and run it again. */
+  hasLog: boolean;
+}
+
+export interface CiPipeline {
+  url: string;
+  state: CiState | null;
+  jobs: CiJob[];
+}
+
 /** CI status of a commit, and where to see it. */
 export interface Ci {
   state: CiState;
@@ -678,6 +697,10 @@ export const api = {
   mergePullRequest: (repo: string, remote: string, number: number, method: MergeMethod, deleteBranch: boolean, whenChecksPass = false) =>
     invoke<"merged" | "scheduled">("merge_pull_request", { repo, remote, number, method, deleteBranch, whenChecksPass }),
 
+  ciJobs: (repo: string, sha: string) => invoke<CiPipeline>("ci_jobs", { repo, sha }),
+  /** The end of a job's log. */
+  ciLog: (repo: string, job: string) => invoke<string>("ci_log", { repo, job }),
+  ciRetry: (repo: string, job: string) => invoke<void>("ci_retry", { repo, job }),
   /** CI status of commits; those without CI are left out. */
   ciStatuses: (repo: string, shas: string[]) => invoke<Record<string, Ci>>("ci_statuses", { repo, shas }),
 

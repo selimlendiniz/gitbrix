@@ -4645,3 +4645,126 @@ body.dragging * {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* A commit's CI */
+.modal.ci-modal {
+  width: min(1100px, calc(100vw - 32px));
+  max-width: none;
+  height: calc(86vh - 16px);
+  display: flex;
+  flex-direction: column;
+}
+
+.ci-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ci-title .spacer {
+  flex: 1;
+}
+
+.ci-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) 1fr;
+  gap: 10px;
+}
+
+.ci-jobs {
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding-right: 6px;
+}
+
+.ci-stage + .ci-stage {
+  margin-top: 8px;
+}
+
+.ci-stage-name {
+  padding: 4px 6px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ci-job {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ci-job:hover {
+  background: var(--row-hover);
+}
+
+.ci-job.selected {
+  background: var(--bg-select);
+}
+
+.ci-job-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ci-log-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ci-log {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  padding: 8px 10px;
+  background: #0b0d11;
+  color: #d7dce5;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ci-log-line.group {
+  color: #7fb8ff;
+  font-weight: 600;
+}
+
+.ci-log-line.error {
+  color: #ff7b72;
+}
+
+/* The 16 terminal colours, on the log's own dark background. */
+.ansi-bold { font-weight: 700; }
+.ansi-fg-0 { color: #6e7681; }
+.ansi-fg-1 { color: #ff7b72; }
+.ansi-fg-2 { color: #56d364; }
+.ansi-fg-3 { color: #e3b341; }
+.ansi-fg-4 { color: #6cb6ff; }
+.ansi-fg-5 { color: #d2a8ff; }
+.ansi-fg-6 { color: #39c5cf; }
+.ansi-fg-7 { color: #d7dce5; }
+.ansi-fg-8 { color: #8b949e; }
+.ansi-fg-9 { color: #ffa198; }
+.ansi-fg-10 { color: #7ee787; }
+.ansi-fg-11 { color: #f2cc60; }
+.ansi-fg-12 { color: #a5d6ff; }
+.ansi-fg-13 { color: #e2c5ff; }
+.ansi-fg-14 { color: #56d4dd; }
+.ansi-fg-15 { color: #ffffff; }

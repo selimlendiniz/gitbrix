@@ -50,6 +50,7 @@ import { loadInbox, loadPrs, usePrView } from "./prs";
 import { loadIssues } from "./issues";
 import { IssueDialog } from "./components/Issues";
 import { ImportDialog } from "./components/Transfer";
+import { CiDialog } from "./components/CiDialog";
 import { checkForUpdates } from "./updates";
 import { isMainWindow } from "./windows";
 import { loadIdentity, loadProfiles } from "./profiles";
@@ -355,6 +356,7 @@ export default function App() {
       <AboutDialog />
       <IssueDialog />
       <ImportDialog />
+      <CiDialog />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
       <CleanupDialog />

@@ -807,7 +807,7 @@ test("review a request in the app: files, diff, comments, merge", async ({ page 
   expect(errors).toEqual([]);
 });
 
-test("CI: marks on commits and requests; a click opens the pipeline", async ({ page }) => {
+test("CI: marks on commits and requests; a click shows the jobs", async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript((first) => {
     window.__gitbrixPrs = { items: [first], problems: [], covered: true, projects: ["gitlab.com/team/demo-app"] };
@@ -836,7 +836,8 @@ test("CI: marks on commits and requests; a click opens the pipeline", async ({ p
   await page.screenshot({ path: "test-results/shots/ci-marks.png" });
 
   await row("Tidy up main").locator(".ci-mark").click();
-  await expect.poll(() => lastCall(page, "plugin:opener|open_url")).toMatchObject({ url: "https://ci.example/p/2" });
+  await expect(page.getByRole("dialog", { name: "CI" })).toBeVisible();
+  expect(await lastCall(page, "ci_jobs")).toMatchObject({ sha: idOf("Tidy up main") });
   expect(errors).toEqual([]);
 });
 

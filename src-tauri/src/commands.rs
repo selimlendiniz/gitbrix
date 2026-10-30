@@ -665,6 +665,23 @@ pub fn merge_pull_request(
     forge::merge(&workdir(&repo)?, &remote, number, &method, delete_branch, when_checks_pass)
 }
 
+/// A commit's pipeline and its jobs (GitHub: check runs).
+#[tauri::command(async)]
+pub fn ci_jobs(repo: String, sha: String) -> Result<forge::ci::Pipeline> {
+    forge::ci::jobs(&workdir(&repo)?, &sha)
+}
+
+/// The end of a job's log.
+#[tauri::command(async)]
+pub fn ci_log(repo: String, job: String) -> Result<String> {
+    forge::ci::log(&workdir(&repo)?, &job)
+}
+
+#[tauri::command(async)]
+pub fn ci_retry(repo: String, job: String) -> Result<()> {
+    forge::ci::retry(&workdir(&repo)?, &job)
+}
+
 /// CI status of commits (only those that have one).
 #[tauri::command(async)]
 pub fn ci_statuses(repo: String, shas: Vec<String>) -> Result<std::collections::HashMap<String, forge::Ci>> {

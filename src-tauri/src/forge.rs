@@ -14,6 +14,7 @@ use crate::accounts::{self, Account};
 use crate::error::{Error, Result};
 use crate::git::{repo as repos, ssh};
 
+pub mod ci;
 pub mod issues;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -895,17 +896,18 @@ mod tests {
                 if let Ok(v) = serde_json::from_slice::<Value>(&body) {
                     kept.lock().unwrap().push((request.clone(), v));
                 }
-                let answer = routes
-                    .iter()
-                    .find(|(prefix, _)| request.starts_with(prefix))
-                    .map(|(_, v)| v.to_string());
-                let (status, text) = match answer {
-                    Some(t) => ("200 OK", t),
-                    None => ("404 Not Found", r#"{"message":"404 Not Found"}"#.to_owned()),
+                let answer = routes.iter().find(|(prefix, _)| request.starts_with(prefix)).map(|(_, v)| v);
+                // A string answers as plain text; {"__redirect": url} redirects.
+                let (status, text, location) = match answer {
+                    Some(Value::String(t)) => ("200 OK", t.clone(), None),
+                    Some(v) if v["__redirect"].is_string() => ("302 Found", String::new(), v["__redirect"].as_str().map(str::to_owned)),
+                    Some(v) => ("200 OK", v.to_string(), None),
+                    None => ("404 Not Found", r#"{"message":"404 Not Found"}"#.to_owned(), None),
                 };
+                let location = location.map(|l| format!("Location: {l}\r\n")).unwrap_or_default();
                 let _ = write!(
                     stream,
-                    "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",
+                    "HTTP/1.1 {status}\r\n{location}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",
                     text.len()
                 );
             }
@@ -2261,15 +2263,24 @@ fn github_ci(p: &Project, token: &str, shas: &[String]) -> Result<HashMap<String
     Ok(out)
 }
 
+/// The project of the first remote (origin first) an account covers, with
+/// its token: where the repository's CI runs.
+fn ci_project(repo: &Path) -> Result<Option<(Project, String)>> {
+    let all = accounts::usable(Some(repo))?;
+    let Some((p, account)) = remotes(repo)?.into_iter().find_map(|(_, url)| project_for(&url, &all)) else {
+        return Ok(None);
+    };
+    let token = accounts::token(&account).ok_or_else(|| Error::msg("The account's token isn't in the system keyring"))?;
+    Ok(Some((p, token)))
+}
+
 /// CI status of the given commits, from the project of the first remote
 /// (origin first) an account covers. Commits without CI are left out.
 pub fn ci_statuses(repo: &Path, shas: &[String]) -> Result<HashMap<String, Ci>> {
-    let all = accounts::usable(Some(repo))?;
-    let Some((p, account)) = remotes(repo)?.into_iter().find_map(|(_, url)| project_for(&url, &all)) else {
-        return Ok(HashMap::new());
-    };
-    let token = accounts::token(&account).ok_or_else(|| Error::msg("The account's token isn't in the system keyring"))?;
-    ci_in(&p, &token, shas)
+    match ci_project(repo)? {
+        Some((p, token)) => ci_in(&p, &token, shas),
+        None => Ok(HashMap::new()),
+    }
 }
 
 fn ci_in(p: &Project, token: &str, shas: &[String]) -> Result<HashMap<String, Ci>> {

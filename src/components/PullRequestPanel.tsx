@@ -262,7 +262,7 @@ export function PullRequestPanel() {
           {pr.draft && <span className="pr-badge">draft</span>}
           {wantsReview(pr) && <span className="pr-badge review">{pr.reviewRequested ? "review" : "approve"}</span>}
           {pr.approved && <span className="pr-badge ok">approved</span>}
-          {pr.ci && <CiMark state={pr.ci} url={pr.url} />}
+          {pr.ci && <CiMark state={pr.ci} url={pr.url} sha={range?.head} />}
         </div>
         <div className="commit-summary">{pr.title}</div>
         <div className="pr-panel-meta dim">
