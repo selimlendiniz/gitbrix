@@ -71,8 +71,46 @@ Kurulabilir paket (release derlemesi):
     MR açınca masaüstü bildirimi gelir (3 dakikada bir kontrol).
 17. Araç çubuğunda sağ üstteki PR simgesi: tüm hesaplarda seni ilgilendiren
     açık MR/PR'lar (To review / Mine / Assigned / All).
+18. **Workspace** (sağ üstte dört kare simgesi, ya da açılış ekranı):
+    "Add → All repositories in a folder…" ile `~/codes`'u seç; her repo
+    için branch, ↑↓, değişen dosya sayısı. "Fetch all" hepsini çeker,
+    satıra tıklamak repoyu açar.
+19. **Profiller** (Ayarlar → Profiles): iş ve kişisel için ad/e-posta,
+    klasör kuralı (örn. `~/codes/is`) ve kullanılacak hesaplar. Sağ
+    üstteki yeşil noktalı düğmeden geçiş yapılır; commit formunun altında
+    "as Ad <e-posta> · profile İş" yazar.
+20. **Terminal**: Ctrl+` ya da sağ üstteki terminal simgesi; repo
+    klasöründe senin kabuğun açılır, her sekmenin kendi terminali var.
+21. **PR/MR açma**: bir branch'e sağ tık → "Create pull request…" (ya da
+    sol paneldeki Pull Requests başlığındaki +). Hedef branch, reviewer,
+    draft; branch remote'ta yoksa önce push edilir.
+22. **PR'ı uygulamada inceleme**: sol paneldeki bir MR'a tıkla → sağda
+    Files (diff'ler uygulamada) ve Conversation (yorumlar, yorum yazma),
+    Approve…, Merge… (squash / merge commit, kaynak branch'i silme).
+23. **CI durumu**: commit satırlarında ✓ / ✕ / ● işaretleri (tıklayınca
+    pipeline açılır), MR'larda da aynı işaret.
+24. **Merge editörü**: conflict'li dosyaya tıkla → üstte Ours / Base /
+    Theirs yan yana, altta düzenlenebilir sonuç; ◀ ▶ ile conflict'ler
+    arasında gez, düğmelerle seç ya da elle yaz, "Save & mark resolved".
+25. **Git LFS**: git-lfs kurulu olmadan çalışır. Untracked bir dosyaya
+    sağ tık → "Track *.uzantı with Git LFS". LFS'li repolarda checkout /
+    pull sonrası dosyalar kendiliğinden indirilir, push'ta nesneler önce
+    yüklenir.
+26. **Patch**: commit'e sağ tık → "Save as patch…" / "Copy as patch";
+    iki commit seçiliyken sağ panelde "Save as patch…" (aralık). Repo
+    menüsü → "Apply patch as commits…" (git am) ya da "…to working tree"
+    (git apply).
 
 ## Bilerek yapmadıklarım
+
+- PR/MR'da satıra yorum *yazma* yok (satır yorumları okunuyor, tıklayınca
+  ilgili dosyanın diff'i açılıyor); genel yorum yazılabiliyor.
+- LFS: git-lfs'in "locking" özelliği ve hunk/satır bazında stage yok;
+  büyük dosyalar yüklenirken bellek yerine akışla gönderiliyor ama
+  indirme/yükleme sırasında iptal düğmesi yok.
+- PR açma, merge ve yorum gerçek bir servise karşı denenmedi (yazma
+  işlemi); testler sahte sunucuyla. Okuma tarafı GitLab test projende
+  canlı denendi.
 
 - Gravatar avatarları: e-posta hash'ini dışarı göndermek demek; onun yerine
   baş harfler kullanılıyor.

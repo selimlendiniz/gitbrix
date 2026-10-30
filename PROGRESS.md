@@ -17,6 +17,65 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-30 — workspaces, profiles, terminal, PR create/review, CI, merge editor, LFS, patches
+
+Selim asked for these in order; each is one commit with tests.
+
+- Workspaces (`git/workspace.rs`, `WorkspaceDialog`): named repository
+  lists (localStorage); each row sums up a repository without loading it
+  (branch, ahead/behind, changed files, conflicts, last fetch); fetch all
+  (4 at a time); add a repository, the open tabs or a folder's
+  repositories (3 levels deep, skipping node_modules/target/…).
+- Profiles (`profiles.rs`, Settings → Profiles, toolbar chip): name and
+  email for commits plus allowed accounts; one active, folder rules win.
+  `ops::author/committer` use the profile unless the repository's own
+  config or GIT_AUTHOR_* set the identity. Accounts for credentials, PR
+  lists and the inbox are filtered by the profile. The commit form shows
+  who commits and why ("profile Work", "repository", "git config").
+- Terminal (`terminal.rs`, portable-pty + xterm.js): the user's shell in
+  the repository folder; one per tab, kept while hidden; Ctrl+` toggles;
+  keys typed there don't trigger app shortcuts.
+- Create pull/merge requests: branch menu / sidebar "+" / palette; target
+  defaults to the project's default branch; reviewers from collaborators
+  (GitHub) or members (GitLab); draft; pushes the branch first when the
+  remote lacks its latest commit.
+- Review in the app: clicking a request opens it in the details panel.
+  Files: the request's head and target are fetched and diffed locally from
+  their merge base (forks too). Conversation: description, comments,
+  review verdicts, line comments (click → that file's diff); comment;
+  approve; merge (merge / squash / rebase on GitHub, merge / squash on
+  GitLab; delete the source branch, never a fork's). Checked live against
+  the GitLab test MR (read only).
+- CI: GitHub `statusCheckRollup` (one GraphQL query with aliases for up to
+  50 commits), GitLab project pipelines (one call); marks on graph rows
+  (click opens the pipeline) and on requests.
+- Three-way merge editor replaces the per-block chooser: ours / base /
+  theirs panes for the conflict at hand with context, the result as an
+  editable text below. Picks rewrite only that conflict's block, so hand
+  edits survive. The base comes from a diff3 re-merge of the index stages
+  (`git2::merge_file`) when the work tree file has none. Ctrl+S saves;
+  saving with markers left asks first.
+- Git LFS (`git/lfs.rs`, no git-lfs needed): pointer parse/write; object
+  store in the common git dir; staging (single and all) stores content
+  and stages the pointer with the work tree file's stat data; status
+  doesn't report filled-in files as modified; pointers left by a
+  checkout/pull/clone are filled in automatically (once per HEAD); push
+  uploads objects the pushed commits refer to (batch API, basic transfer,
+  verify). Endpoint: lfs.url / remote.X.lfsurl / .lfsconfig, else
+  `<remote>.git/info/lfs`; auth with the account token (https only, same
+  host) or `git-lfs-authenticate` over ssh. Tested against an in-memory
+  LFS server.
+- Patches (`git/patch.rs`): save a commit or a compared range as a
+  format-patch mailbox, copy as patch; apply a file as commits (author,
+  date, message kept; RFC 2047 names) or to the work tree. Round-trip
+  tested against `git am` and `git format-patch`.
+- Fixes on the way: menus opened from a modal showed behind it; long
+  dialogs (Settings) now scroll; chevrons ignored their rotation (toolbar
+  down arrows pointed right).
+- Tests: Rust 114 (+16), unit 54, Playwright 50 (+9), e2e 21 steps (+3:
+  workspace, profiles, real terminal; the conflict step uses the new
+  editor). Release bundles rebuilt.
+
 ### 2026-10-29 — Pull Requests window (every account)
 
 - Toolbar button (badge: requests waiting for your approval) and command
