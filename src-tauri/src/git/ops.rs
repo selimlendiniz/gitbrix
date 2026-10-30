@@ -10,7 +10,7 @@ use git2::{
     ObjectType, Oid, Reference, Repository, RepositoryState, ResetType, Signature, StashApplyOptions, StashFlags, Tree,
 };
 
-use super::{hooks, rebase, repo as repos, sign};
+use super::{hooks, lfs, rebase, repo as repos, sign};
 use crate::error::{Error, Result};
 
 fn open(path: &Path) -> Result<Repository> {
@@ -155,6 +155,7 @@ fn stage_path(r: &Repository, index: &mut Index, path: &str) -> Result<()> {
             sm.add_to_index(false)?;
             *index = r.index()?;
         }
+        Ok(meta) if meta.is_file() && lfs::used(r) && lfs::tracked(r, path) => lfs::stage(r, index, path)?,
         Ok(_) => index.add_path(Path::new(path))?,
         Err(_) => {
             let _ = index.conflict_remove(Path::new(path));
@@ -177,8 +178,28 @@ pub fn stage(repo: &Path, paths: &[String]) -> Result<()> {
 pub fn stage_all(repo: &Path) -> Result<()> {
     let r = open(repo)?;
     let mut index = r.index()?;
-    index.add_all(["*"], IndexAddOption::DEFAULT, None)?;
-    index.update_all(["*"], None)?;
+    // LFS files are left to `lfs::stage`, which stages their pointers.
+    let lfs = lfs::used(&r);
+    let workdir = repos::workdir(&r);
+    let mut lfs_paths: Vec<String> = Vec::new();
+    {
+        let mut skip_lfs = |path: &Path, _: &[u8]| -> i32 {
+            let p = path.to_string_lossy();
+            if lfs && workdir.join(path).is_file() && lfs::tracked(&r, &p) {
+                lfs_paths.push(p.into_owned());
+                1
+            } else {
+                0
+            }
+        };
+        index.add_all(["*"], IndexAddOption::DEFAULT, Some(&mut skip_lfs))?;
+        index.update_all(["*"], Some(&mut skip_lfs))?;
+    }
+    lfs_paths.sort();
+    lfs_paths.dedup();
+    for p in &lfs_paths {
+        lfs::stage(&r, &mut index, p)?;
+    }
     index.write()?;
     Ok(())
 }

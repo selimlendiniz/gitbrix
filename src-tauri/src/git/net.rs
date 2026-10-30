@@ -418,6 +418,12 @@ fn push_updates(r: &Repository, remote_name: &str, updates: &[Update], progress:
     }
     hooks::run(r, "pre-push", &[remote_name, &url], Some(&hook_input))?;
 
+    // LFS objects go up before the commits that point at them.
+    if super::lfs::used(r) {
+        let tips: Vec<Oid> = updates.iter().filter_map(|u| u.local.as_deref()).filter_map(|l| r.refname_to_id(l).ok()).collect();
+        super::lfs::push(r, remote_name, &tips, &mut *progress.borrow_mut())?;
+    }
+
     let auth = Auth::new(r.workdir());
     let rejected = RefCell::new(Vec::new());
     let mut cb = callbacks(&progress, &auth);

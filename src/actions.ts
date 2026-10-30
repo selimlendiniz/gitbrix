@@ -562,6 +562,47 @@ export function fileItems(path: string, deleted = false): MenuItem[] {
   ];
 }
 
+/** Track an untracked file's extension (or the file) with Git LFS. */
+export function lfsItems(path: string): MenuItem[] {
+  const base = path.slice(path.lastIndexOf("/") + 1);
+  const dot = base.lastIndexOf(".");
+  const pattern = dot > 0 ? `*${base.slice(dot)}` : path;
+  return [
+    {
+      label: `Track ${pattern} with Git LFS`,
+      hint: "large files",
+      onSelect: () =>
+        s().run("Updating .gitattributes", (r) => api.lfsTrack(r, pattern), `${pattern} is stored with Git LFS from now on`, "status"),
+    },
+  ];
+}
+
+/** Fill in LFS files that are still pointers (after a checkout, pull or
+ *  clone). Tried once per repository state, so a failing server doesn't
+ *  retry on every refresh. */
+let lfsTried = "";
+export async function lfsPullIfNeeded() {
+  const st = s();
+  const repo = st.repo;
+  if (!repo || st.busy) return;
+  const key = `${repo.path}@${repo.headOid}`;
+  if (key === lfsTried) return;
+  let pending = 0;
+  try {
+    pending = await api.lfsPending(repo.path);
+  } catch {
+    return;
+  }
+  if (!pending || s().repo?.path !== repo.path || s().busy) return;
+  lfsTried = key;
+  await st.run(
+    "Downloading LFS files",
+    (r) => api.lfsPull(r),
+    `Downloaded ${pending} LFS file${pending === 1 ? "" : "s"}`,
+    "status",
+  );
+}
+
 /** Ignore choices for an untracked path: the file, its extension, its folder. */
 export function ignoreItems(path: string): MenuItem[] {
   const base = path.slice(path.lastIndexOf("/") + 1);

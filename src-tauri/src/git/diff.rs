@@ -352,6 +352,8 @@ pub fn file_base64(repo: &Repository, rev: Option<&str>, path: &str) -> Result<O
             }
         }
     };
+    // An LFS pointer shows as its content when that is here.
+    let bytes = super::lfs::display_content(repo, &bytes).unwrap_or(bytes);
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(Error::msg("Image too large to show"));
     }

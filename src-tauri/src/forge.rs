@@ -100,7 +100,7 @@ struct Project {
 
 /// The web (https) address of a remote URL, for matching it to an account:
 /// ssh remotes are reached over https on the same host.
-fn web_url(remote: &str) -> Option<String> {
+pub(crate) fn web_url(remote: &str) -> Option<String> {
     let remote = remote.trim();
     let lower = remote.to_ascii_lowercase();
     if lower.starts_with("https://") || lower.starts_with("http://") {

@@ -34,7 +34,7 @@ import { openRepoDialog, Welcome } from "./components/Welcome";
 import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
 import { undoLast } from "./undo";
-import { backgroundFetch } from "./actions";
+import { backgroundFetch, lfsPullIfNeeded } from "./actions";
 import { loadInbox, loadPrs, usePrView } from "./prs";
 import { loadIdentity, loadProfiles } from "./profiles";
 import { loadCi } from "./ci";
@@ -173,6 +173,19 @@ function useCiStatus() {
   }, [minutes]);
 }
 
+/** LFS files left as pointers by a checkout, pull or clone get their
+ * content once the repository settles. */
+function useLfs() {
+  const repoPath = useStore((s) => s.repo?.path);
+  const head = useStore((s) => s.repo?.headOid);
+  const busy = useStore((s) => !!s.busy);
+  useEffect(() => {
+    if (!repoPath || busy) return;
+    const id = setTimeout(() => void lfsPullIfNeeded(), 300);
+    return () => clearTimeout(id);
+  }, [repoPath, head, busy]);
+}
+
 /** Profiles at start; the open repository's commit identity on switching. */
 function useProfiles() {
   const repoPath = useStore((s) => s.repo?.path ?? null);
@@ -209,6 +222,7 @@ export default function App() {
   usePullRequests();
   useProfiles();
   useCiStatus();
+  useLfs();
   useFolderDrop();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);

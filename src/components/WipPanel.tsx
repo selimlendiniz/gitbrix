@@ -2,7 +2,7 @@ import { useState } from "react";
 import { create } from "zustand";
 
 import { api } from "../api";
-import { discardAll, discardFiles, fileItems, ignoreItems, stashSave } from "../actions";
+import { discardAll, discardFiles, fileItems, ignoreItems, lfsItems, stashSave } from "../actions";
 import { useStore } from "../store";
 import { describe, trackHead } from "../undo";
 import { FileViewToggle } from "./CommitPanel";
@@ -106,7 +106,7 @@ export function WipPanel() {
               { separator: true, label: "" },
               { label: "File history", disabled: f.status === "untracked", onSelect: () => openDiff({ kind: "history", path: f.path }) },
               { label: "Blame", disabled: f.status === "untracked" || f.status === "deleted", onSelect: () => openDiff({ kind: "blame", path: f.path, rev: null }) },
-              ...(f.status === "untracked" ? [{ separator: true, label: "" }, ...ignoreItems(f.path)] : []),
+              ...(f.status === "untracked" ? [{ separator: true, label: "" }, ...ignoreItems(f.path), ...lfsItems(f.path)] : []),
               { separator: true, label: "" },
               ...fileItems(f.path, f.status === "deleted"),
             ])

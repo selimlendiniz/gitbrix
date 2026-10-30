@@ -518,6 +518,11 @@ export const api = {
   /** CI status of commits; those without CI are left out. */
   ciStatuses: (repo: string, shas: string[]) => invoke<Record<string, Ci>>("ci_statuses", { repo, shas }),
 
+  /** LFS files in the work tree that are still pointers. */
+  lfsPending: (repo: string) => invoke<number>("lfs_pending", { repo }),
+  lfsPull: (repo: string) => invoke<number>("lfs_pull", { repo }),
+  lfsTrack: (repo: string, pattern: string) => invoke<void>("lfs_track", { repo, pattern }),
+
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
   /** Repositories in a folder, up to three levels down. */
   findRepos: (dir: string) => invoke<string[]>("find_repos", { dir }),

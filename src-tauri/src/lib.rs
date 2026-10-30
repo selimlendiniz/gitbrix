@@ -120,6 +120,9 @@ pub fn run() {
             commands::comment_pull_request,
             commands::merge_pull_request,
             commands::ci_statuses,
+            commands::lfs_pending,
+            commands::lfs_pull,
+            commands::lfs_track,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

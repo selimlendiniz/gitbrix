@@ -93,6 +93,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  lfs_pending: () => (window as { __gitbrixLfsPending?: number }).__gitbrixLfsPending ?? 0,
   ci_statuses: (a) => Object.fromEntries(Object.entries(window.__gitbrixCi ?? {}).filter(([sha]) => (a.shas as string[]).includes(sha))),
   pull_request_form: () => ({
     provider: "gitlab",

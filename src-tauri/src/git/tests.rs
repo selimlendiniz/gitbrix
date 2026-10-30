@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{diff, log, net, ops, rebase, refs, repo, status, workspace};
+use super::{diff, lfs, log, net, ops, rebase, refs, repo, status, workspace};
 
 struct TestRepo {
     _dir: TempDir,
@@ -1701,4 +1701,144 @@ fn a_requests_range_runs_from_where_it_left_its_target() {
         .collect();
     assert_eq!(files, ["b.txt"], "only the request's own change, not the target's");
     assert!(net::pull_request_range(&t.path, "origin", "gitlab", 3, "nope", &mut |_| {}).is_err());
+}
+
+/// A tiny LFS server: the batch API plus object GET/PUT, kept in memory.
+fn lfs_server() -> (String, std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>) {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::sync::{Arc, Mutex};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let objects: Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>> = Arc::default();
+    let store = objects.clone();
+    let href = base.clone();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { break };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            if reader.read_line(&mut line).is_err() {
+                continue;
+            }
+            let mut len = 0;
+            loop {
+                let mut h = String::new();
+                reader.read_line(&mut h).unwrap();
+                if h.trim().is_empty() {
+                    break;
+                }
+                if let Some(v) = h.to_ascii_lowercase().strip_prefix("content-length:") {
+                    len = v.trim().parse().unwrap();
+                }
+            }
+            let mut body = vec![0; len];
+            reader.read_exact(&mut body).unwrap();
+            let mut parts = line.split_whitespace();
+            let (method, path) = (parts.next().unwrap_or(""), parts.next().unwrap_or("").to_owned());
+            let (status, answer): (&str, Vec<u8>) = if path.ends_with("/objects/batch") {
+                let req: serde_json::Value = serde_json::from_slice(&body).unwrap();
+                let op = req["operation"].as_str().unwrap().to_owned();
+                let have = store.lock().unwrap();
+                let objs: Vec<serde_json::Value> = req["objects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|o| {
+                        let oid = o["oid"].as_str().unwrap();
+                        let url = format!("{href}/objects/{oid}");
+                        match (op.as_str(), have.contains_key(oid)) {
+                            ("download", true) => serde_json::json!({ "oid": oid, "size": o["size"], "actions": { "download": { "href": url } } }),
+                            ("download", false) => serde_json::json!({ "oid": oid, "error": { "code": 404, "message": "Object does not exist" } }),
+                            (_, true) => serde_json::json!({ "oid": oid, "size": o["size"] }),
+                            (_, false) => serde_json::json!({ "oid": oid, "size": o["size"], "actions": {
+                                "upload": { "href": url }, "verify": { "href": format!("{href}/verify") } } }),
+                        }
+                    })
+                    .collect();
+                ("200 OK", serde_json::json!({ "objects": objs }).to_string().into_bytes())
+            } else if let Some(oid) = path.strip_prefix("/objects/") {
+                if method == "PUT" {
+                    store.lock().unwrap().insert(oid.to_owned(), body);
+                    ("200 OK", Vec::new())
+                } else {
+                    match store.lock().unwrap().get(oid) {
+                        Some(b) => ("200 OK", b.clone()),
+                        None => ("404 Not Found", Vec::new()),
+                    }
+                }
+            } else {
+                ("200 OK", Vec::new())
+            };
+            let _ = write!(stream, "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", answer.len());
+            let _ = stream.write_all(&answer);
+        }
+    });
+    (base, objects)
+}
+
+#[test]
+fn lfs_files_go_up_as_objects_and_come_back_as_content() {
+    let (server, objects) = lfs_server();
+    let t = TestRepo::new();
+    let bare = t.add_origin();
+    t.git(&["config", "lfs.url", &format!("{server}/repo.git/info/lfs")]);
+    t.write(".gitattributes", "*.bin filter=lfs diff=lfs merge=lfs -text\n");
+    let content = "big binary-ish content\n".repeat(500);
+    t.write("art.bin", &content);
+    t.write("readme.txt", "small\n");
+    ops::stage_all(&t.path).unwrap();
+
+    // The index holds a pointer; the content went to the object store.
+    let r = t.open();
+    let entry = r.index().unwrap().get_path(Path::new("art.bin"), 0).unwrap();
+    let pointer = lfs::Pointer::parse(r.find_blob(entry.id).unwrap().content()).expect("a pointer is staged");
+    assert_eq!(pointer.size, content.len() as u64);
+    assert_eq!(fs::read_to_string(lfs::object_path(&r, &pointer.oid)).unwrap(), content);
+    let st = status::status(&r).unwrap();
+    assert!(st.unstaged.is_empty(), "{:?}", st.unstaged.iter().map(|e| &e.path).collect::<Vec<_>>());
+
+    ops::commit(&t.path, "add art", false).unwrap();
+    net::push_branch(&t.path, "origin", "main", false, &mut |_| {}).unwrap();
+    assert_eq!(objects.lock().unwrap().get(&pointer.oid).map(|b| b.len()), Some(content.len()), "uploaded before the push");
+
+    // A fresh clone has the pointer until it pulls.
+    let other = TempDir::new().unwrap();
+    let clone = net::clone(other.path(), bare.to_str().unwrap(), "c", &mut |_| {}).unwrap();
+    git_in(&clone, &["config", "lfs.url", &format!("{server}/repo.git/info/lfs")]);
+    let cr = repo::open(&clone).unwrap();
+    assert!(lfs::Pointer::parse(&fs::read(clone.join("art.bin")).unwrap()).is_some());
+    assert_eq!(lfs::pending(&cr).unwrap().len(), 1);
+    assert_eq!(lfs::pull(&clone, &mut |_| {}).unwrap(), 1);
+    assert_eq!(fs::read_to_string(clone.join("art.bin")).unwrap(), content);
+    assert!(lfs::pending(&cr).unwrap().is_empty());
+    let st = status::status(&repo::open(&clone).unwrap()).unwrap();
+    assert!(st.unstaged.is_empty() && st.staged.is_empty(), "pulled files aren't changes");
+
+    // A real change shows, and stages as a new pointer.
+    fs::write(clone.join("art.bin"), "changed\n").unwrap();
+    let st = status::status(&repo::open(&clone).unwrap()).unwrap();
+    assert_eq!(st.unstaged.iter().map(|e| e.path.as_str()).collect::<Vec<_>>(), ["art.bin"]);
+    ops::stage(&clone, &["art.bin".into()]).unwrap();
+    let cr = repo::open(&clone).unwrap();
+    let e = cr.index().unwrap().get_path(Path::new("art.bin"), 0).unwrap();
+    assert_eq!(lfs::Pointer::parse(cr.find_blob(e.id).unwrap().content()).unwrap().size, 8);
+}
+
+#[test]
+fn lfs_pointers_and_tracking() {
+    let p = lfs::Pointer { oid: "a".repeat(64), size: 12 };
+    assert_eq!(lfs::Pointer::parse(p.text().as_bytes()), Some(p.clone()));
+    assert_eq!(lfs::Pointer::parse(b"version https://git-lfs.github.com/spec/v1\noid sha256:xyz\nsize 1\n"), None);
+    assert_eq!(lfs::Pointer::parse(b"just text"), None);
+
+    let t = TestRepo::new();
+    lfs::track(&t.path, "*.psd").unwrap();
+    lfs::track(&t.path, "*.psd").unwrap();
+    lfs::track(&t.path, "my file.zip").unwrap();
+    assert_eq!(
+        fs::read_to_string(t.path.join(".gitattributes")).unwrap(),
+        "*.psd filter=lfs diff=lfs merge=lfs -text\nmy[[:space:]]file.zip filter=lfs diff=lfs merge=lfs -text\n"
+    );
+    assert!(lfs::tracked(&t.open(), "deep/a.psd") && !lfs::tracked(&t.open(), "a.txt"));
+    assert!(lfs::track(&t.path, " ").is_err());
 }

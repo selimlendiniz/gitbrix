@@ -68,7 +68,36 @@ pub fn parse_url(url: &str) -> Option<(String, Option<String>, String)> {
     (!host.is_empty() && !path.is_empty()).then(|| (host, None, path.to_owned()))
 }
 
-fn quote(s: &str) -> String {
+/// `ssh [-p port] host <remote command>`, through `GIT_SSH_COMMAND`,
+/// `core.sshCommand` or `GIT_SSH` when set, as git runs it.
+pub fn command(host: String, port: Option<String>, remote: &str) -> Command {
+    let mut ssh_args: Vec<String> = Vec::new();
+    if let Some(p) = port {
+        ssh_args.extend(["-p".into(), p]);
+    }
+    ssh_args.push(host);
+    ssh_args.push(remote.to_owned());
+
+    let configured = std::env::var("GIT_SSH_COMMAND").ok().or_else(|| SSH_COMMAND.with(|c| c.borrow().clone()));
+    let mut cmd = match configured {
+        // Like git: the command is shell text, the arguments follow.
+        Some(c) => {
+            let mut cmd = Command::new("sh");
+            cmd.arg("-c").arg(format!("{c} \"$@\"")).arg(c);
+            cmd
+        }
+        None => Command::new(std::env::var_os("GIT_SSH").unwrap_or_else(|| "ssh".into())),
+    };
+    cmd.args(&ssh_args);
+    // No terminal is attached: prompts go to the desktop's askpass
+    // helper (KDE: ksshaskpass) when one is configured.
+    if std::env::var_os("SSH_ASKPASS").is_some() {
+        cmd.env("SSH_ASKPASS_REQUIRE", "force");
+    }
+    cmd
+}
+
+pub fn quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
 
@@ -85,29 +114,8 @@ impl SmartSubtransport for SshExec {
             Service::UploadPackLs | Service::UploadPack => "git-upload-pack",
             Service::ReceivePackLs | Service::ReceivePack => "git-receive-pack",
         };
-        let mut ssh_args: Vec<String> = Vec::new();
-        if let Some(p) = port {
-            ssh_args.extend(["-p".into(), p]);
-        }
-        ssh_args.push(host);
-        ssh_args.push(format!("{service} {}", quote(&path)));
-
-        let configured = std::env::var("GIT_SSH_COMMAND").ok().or_else(|| SSH_COMMAND.with(|c| c.borrow().clone()));
-        let mut cmd = match configured {
-            // Like git: the command is shell text, the arguments follow.
-            Some(c) => {
-                let mut cmd = Command::new("sh");
-                cmd.arg("-c").arg(format!("{c} \"$@\"")).arg(c);
-                cmd
-            }
-            None => Command::new(std::env::var_os("GIT_SSH").unwrap_or_else(|| "ssh".into())),
-        };
-        cmd.args(&ssh_args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        // No terminal is attached: prompts go to the desktop's askpass
-        // helper (KDE: ksshaskpass) when one is configured.
-        if std::env::var_os("SSH_ASKPASS").is_some() {
-            cmd.env("SSH_ASKPASS_REQUIRE", "force");
-        }
+        let mut cmd = command(host, port, &format!("{service} {}", quote(&path)));
+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
         let mut child = cmd
             .spawn()
             .map_err(|e| git2::Error::from_str(&format!("Couldn't run ssh: {e}. Is OpenSSH installed?")))?;

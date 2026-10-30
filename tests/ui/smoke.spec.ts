@@ -787,3 +787,21 @@ test("CI: marks on commits and requests; a click opens the pipeline", async ({ p
   await expect.poll(() => lastCall(page, "plugin:opener|open_url")).toMatchObject({ url: "https://ci.example/p/2" });
   expect(errors).toEqual([]);
 });
+
+test("LFS: pointers are filled in on their own; untracked files can be tracked", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    (window as { __gitbrixLfsPending?: number }).__gitbrixLfsPending = 2;
+  });
+  await page.goto("/?open");
+  await expect(page.getByText("Downloaded 2 LFS files")).toBeVisible();
+  // Once per repository state, not on every refresh.
+  await page.getByTitle("Refresh (F5)").click();
+  await page.waitForTimeout(600);
+  expect((await calls(page)).filter((c) => c === "lfs_pull")).toHaveLength(1);
+
+  await page.locator(".wip-panel .file-row", { hasText: "notes.txt" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Track \*\.txt with Git LFS/ }).click();
+  await expect.poll(() => lastCall(page, "lfs_track")).toMatchObject({ pattern: "*.txt" });
+  expect(errors).toEqual([]);
+});

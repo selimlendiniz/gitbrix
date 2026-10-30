@@ -13,7 +13,7 @@ use crate::accounts;
 use crate::forge;
 use crate::profiles;
 use crate::terminal::{self, Terminals};
-use crate::git::{diff, history, log, net, ops, rebase, refs, repo, status, workspace, worktree};
+use crate::git::{diff, history, lfs, log, net, ops, rebase, refs, repo, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -598,4 +598,22 @@ pub fn merge_pull_request(repo: String, remote: String, number: u64, method: Str
 #[tauri::command(async)]
 pub fn ci_statuses(repo: String, shas: Vec<String>) -> Result<std::collections::HashMap<String, forge::Ci>> {
     forge::ci_statuses(&workdir(&repo)?, &shas)
+}
+
+/// How many LFS files in the work tree are still pointers.
+#[tauri::command(async)]
+pub fn lfs_pending(repo: String) -> Result<usize> {
+    Ok(lfs::pending(&open(&repo)?)?.len())
+}
+
+/// Download LFS content for the files that are still pointers.
+#[tauri::command(async)]
+pub fn lfs_pull(app: tauri::AppHandle, repo: String) -> Result<usize> {
+    lfs::pull(&workdir(&repo)?, &mut progress(&app))
+}
+
+/// Track files matching `pattern` with LFS (.gitattributes).
+#[tauri::command(async)]
+pub fn lfs_track(repo: String, pattern: String) -> Result<()> {
+    lfs::track(&workdir(&repo)?, &pattern)
 }

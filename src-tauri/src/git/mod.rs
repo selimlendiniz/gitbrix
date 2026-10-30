@@ -2,6 +2,7 @@ pub mod diff;
 pub mod graph;
 pub mod history;
 pub mod hooks;
+pub mod lfs;
 pub mod log;
 pub mod net;
 pub mod ops;

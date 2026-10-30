@@ -84,6 +84,18 @@ pub fn status(repo: &Repository) -> Result<WorkingStatus> {
             out.unstaged.push(StatusEntry { path, old_path: None, status: st });
         }
     }
+    // An LFS file filled in from its pointer reads as modified whenever its
+    // stat data doesn't settle it; it isn't if it's the pointer's content.
+    if out.unstaged.iter().any(|e| e.status == "modified") && super::lfs::used(repo) {
+        let index = repo.index()?;
+        out.unstaged.retain(|e| {
+            e.status != "modified"
+                || !super::lfs::tracked(repo, &e.path)
+                || !index
+                    .get_path(std::path::Path::new(&e.path), 0)
+                    .is_some_and(|ie| super::lfs::matches_index(repo, &e.path, ie.id))
+        });
+    }
     Ok(out)
 }
 
