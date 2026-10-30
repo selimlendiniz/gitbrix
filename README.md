@@ -51,8 +51,9 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
 - Auto-refresh when files or refs change outside the app
 - Tabs for several repositories, command palette (Ctrl+K), dark and light
   themes, resizable panels, keyboard shortcuts (press `?`), own title bar
-- Workspaces: many repositories in one list with branch, ahead/behind and
-  local changes; fetch them all at once; add a folder's repositories
+- Workspaces (a pinned tab): many repositories in one list with branch,
+  ahead/behind and local changes; fetch them all at once; add a folder's
+  repositories
 - Profiles (work, personal…): the name and email commits are made with,
   and which accounts are used; folder rules pick the profile per
   repository

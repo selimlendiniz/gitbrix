@@ -27,7 +27,8 @@ import { Splitter } from "./components/Splitter";
 import { TabBar } from "./components/TabBar";
 import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
-import { WorkspaceDialog } from "./components/WorkspaceDialog";
+import { WorkspaceView } from "./components/WorkspaceView";
+import { useWorkspaces } from "./workspaces";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { toggleTerminal } from "./terminal";
 import { openRepoDialog, Welcome } from "./components/Welcome";
@@ -228,12 +229,15 @@ export default function App() {
   const compareId = useStore((s) => s.compareId);
   const diffSource = useStore((s) => s.diffSource);
   const prView = usePrView((s) => s.pr);
+  const onWorkspaces = useWorkspaces((s) => s.open);
   useGlobalKeys();
 
   return (
     <div className="app">
       <TabBar />
-      {repo ? (
+      {onWorkspaces ? (
+        <WorkspaceView />
+      ) : repo ? (
         <>
           <Toolbar />
           <div className="main" style={{ gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr) ${detailsWidth}px` }}>
@@ -288,7 +292,6 @@ export default function App() {
       <SettingsDialog />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
-      <WorkspaceDialog />
       <DragGhost />
       <ShortcutsDialog />
       <RepoDialogs />

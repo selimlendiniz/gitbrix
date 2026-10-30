@@ -578,7 +578,7 @@ test("pull requests window: points to Settings without accounts", async ({ page 
 
 test("title bar: own window buttons, also on the welcome screen", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".titlebar-name")).toHaveText("gitbrix");
+  await expect(page.locator(".titlebar .tab.pinned")).toHaveText("Workspaces");
   for (const [name, cmd] of [
     ["Minimize", "plugin:window|minimize"],
     ["Maximize", "plugin:window|toggle_maximize"],
@@ -589,43 +589,64 @@ test("title bar: own window buttons, also on the welcome screen", async ({ page 
   }
   await page.goto("/?open");
   await expect(page.locator(".titlebar .tab.active")).toHaveText("demo-app");
+  await expect(page.locator(".titlebar .tab").first()).toHaveText("Workspaces");
   await expect(page.locator(".titlebar-drag")).toHaveAttribute("data-tauri-drag-region", "true");
   await page.locator(".titlebar").screenshot({ path: "test-results/shots/titlebar.png" });
 });
 
-test("workspace: repositories side by side, fetch all, open one", async ({ page }) => {
+test("workspaces: a pinned tab with every workspace; fetch all, open a repository", async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript(() => {
     window.__gitbrixFound = ["/home/me/code/api", "/home/me/code/web", "/home/me/code/missing"];
   });
   await page.goto("/?open");
-  await page.getByTitle("Workspace", { exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Workspace" });
-  await dialog.getByRole("button", { name: "Add the open tabs" }).click();
-  await expect(dialog.locator(".ws-row")).toHaveCount(1);
-  await expect(dialog.locator(".ws-row")).toContainText("demo-app");
-  await expect(dialog.locator(".ws-row")).toContainText("changed");
+  const pinned = page.locator(".titlebar .tab.pinned");
+  await expect(pinned).toHaveText("Workspaces");
+  // Pinned: no close button.
+  await expect(pinned.locator(".tab-close")).toHaveCount(0);
+  await pinned.click();
+  const view = page.getByTestId("workspaces");
+  await expect(pinned).toHaveClass(/active/);
+  await expect(page.locator(".titlebar .tab.active")).toHaveCount(1);
+  await view.getByRole("button", { name: "Add the open tabs" }).click();
+  await expect(view.locator(".ws-row:not(.ws-cols)")).toHaveCount(1);
+  await expect(view.locator(".ws-row", { hasText: "demo-app" })).toContainText("changed");
 
   // A folder's repositories join it (the folder picker answers in mock mode).
-  await dialog.getByRole("button", { name: "Add" }).click();
+  await view.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByText("All repositories in a folder…").click();
-  await expect(dialog.locator(".ws-row")).toHaveCount(4);
-  const api = dialog.locator(".ws-row", { hasText: "api" });
+  await expect(view.locator(".ws-row:not(.ws-cols)")).toHaveCount(4);
+  const api = view.locator(".ws-row", { hasText: "api" });
   await expect(api).toContainText("↓2");
-  await expect(dialog.locator(".ws-row", { hasText: "missing" })).toContainText("could not find repository");
+  await expect(view.locator(".ws-row", { hasText: "missing" })).toContainText("could not find repository");
+  await expect(view.locator(".ws-summary")).toContainText("4 repositories · 1 with changes · 2 behind");
+
+  // A second workspace shows in the list on the left.
+  await view.getByTitle("New workspace").click();
+  await page.getByRole("dialog").getByRole("textbox").fill("Work");
+  await page.getByRole("button", { name: "Create" }).click();
+  await expect(view.locator(".ws-item")).toHaveCount(2);
+  await expect(view.locator(".ws-item.selected")).toContainText("Work");
+  await view.locator(".ws-item", { hasText: "Workspace" }).click();
+  await expect(view.locator(".ws-row:not(.ws-cols)")).toHaveCount(4);
   await page.screenshot({ path: "test-results/shots/workspace.png" });
 
-  await dialog.getByRole("button", { name: "Fetch all" }).click();
+  await view.getByRole("button", { name: "Fetch all" }).click();
   await expect
     .poll(() => page.evaluate(() => window.__gitbrixCalls.filter((c) => c.cmd === "fetch").map((c) => c.args.repo)))
     .toHaveLength(4);
 
-  // Kept across restarts.
+  // The repository tab brings the repository back.
+  await page.locator(".titlebar .tab", { hasText: "demo-app" }).click();
+  await expect(view).toHaveCount(0);
+  await expect(page.locator(".graph-row").first()).toBeVisible();
+
+  // Kept across restarts; a row opens its repository.
   await page.reload();
-  await page.getByTitle("Workspace", { exact: true }).click();
-  await expect(dialog.locator(".ws-row")).toHaveCount(4);
+  await pinned.click();
+  await expect(view.locator(".ws-item")).toHaveCount(2);
   await api.click();
-  await expect(dialog).toHaveCount(0);
+  await expect(view).toHaveCount(0);
   await expect.poll(() => lastCall(page, "open_repo")).toMatchObject({ path: "/home/me/code/api" });
   expect(errors).toEqual([]);
 });

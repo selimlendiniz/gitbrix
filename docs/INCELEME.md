@@ -71,10 +71,11 @@ Kurulabilir paket (release derlemesi):
     MR açınca masaüstü bildirimi gelir (3 dakikada bir kontrol).
 17. Araç çubuğunda sağ üstteki PR simgesi: tüm hesaplarda seni ilgilendiren
     açık MR/PR'lar (To review / Mine / Assigned / All).
-18. **Workspace** (sağ üstte dört kare simgesi, ya da açılış ekranı):
-    "Add → All repositories in a folder…" ile `~/codes`'u seç; her repo
-    için branch, ↑↓, değişen dosya sayısı. "Fetch all" hepsini çeker,
-    satıra tıklamak repoyu açar.
+18. **Workspaces** (başlık çubuğunda en soldaki sabit sekme): solda
+    workspace listesi (+ ile yenisi, sağ tıkla yeniden adlandır / sil),
+    sağda seçilenin repoları. "Add → All repositories in a folder…" ile
+    `~/codes`'u seç; her repo için branch, ↑↓, değişen dosya sayısı.
+    "Fetch all" hepsini çeker, satıra tıklamak repoyu kendi sekmesinde açar.
 19. **Profiller** (Ayarlar → Profiles): iş ve kişisel için ad/e-posta,
     klasör kuralı (örn. `~/codes/is`) ve kullanılacak hesaplar. Sağ
     üstteki yeşil noktalı düğmeden geçiş yapılır; commit formunun altında

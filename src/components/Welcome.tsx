@@ -6,7 +6,7 @@ import { relativeTime } from "../format";
 import { loadRecent, removeRecent } from "../recent";
 import { useStore } from "../store";
 import { IconClose, IconCloud, IconFolder, IconPlus, IconWorkspace } from "./Icons";
-import { useWorkspaces } from "../workspaces";
+import { showWorkspaces } from "../workspaces";
 import { useRepoDialog } from "./RepoDialogs";
 
 export async function openRepoDialog() {
@@ -45,8 +45,8 @@ export function Welcome() {
           <button className="secondary-btn" onClick={() => useRepoDialog.setState({ kind: "init" })} disabled={loading}>
             <IconPlus size={15} /> New repository…
           </button>
-          <button className="secondary-btn" onClick={() => useWorkspaces.setState({ open: true })} disabled={loading}>
-            <IconWorkspace size={15} /> Workspace…
+          <button className="secondary-btn" onClick={showWorkspaces} disabled={loading}>
+            <IconWorkspace size={15} /> Workspaces
           </button>
         </div>
 

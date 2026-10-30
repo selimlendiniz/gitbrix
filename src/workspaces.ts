@@ -30,6 +30,7 @@ function load(): Saved {
 }
 
 interface State extends Saved {
+  /** The pinned Workspaces tab is the one shown. */
   open: boolean;
   /** Latest summary per repository path. */
   summaries: Record<string, RepoSummary>;
@@ -48,6 +49,20 @@ export const useWorkspaces = create<State>(() => ({
   fetching: [],
   fetchErrors: {},
 }));
+
+export function showWorkspaces() {
+  useWorkspaces.setState({ open: true });
+  void loadSummaries();
+}
+
+export function hideWorkspaces() {
+  useWorkspaces.setState({ open: false });
+}
+
+// Opening a repository (palette, recent list, drop) shows its tab.
+useStore.subscribe((st, prev) => {
+  if (st.repo?.path !== prev.repo?.path && st.repo && useWorkspaces.getState().open) hideWorkspaces();
+});
 
 function save() {
   const { list, active } = useWorkspaces.getState();

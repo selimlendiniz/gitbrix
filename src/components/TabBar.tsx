@@ -1,12 +1,13 @@
 // The window's title bar (the system one is turned off in tauri.conf.json):
-// repository tabs, empty space to drag the window by (double-click
-// maximizes), and the minimize / maximize / close buttons.
+// the pinned Workspaces tab, repository tabs, empty space to drag the
+// window by (double-click maximizes), and the window buttons.
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 
 import { useStore } from "../store";
-import { IconClose, IconPlus } from "./Icons";
+import { hideWorkspaces, showWorkspaces, useWorkspaces } from "../workspaces";
+import { IconClose, IconPlus, IconWorkspace } from "./Icons";
 
 function useMaximized() {
   const [maximized, setMaximized] = useState(false);
@@ -64,47 +65,64 @@ export function TabBar() {
   const openRepo = useStore((s) => s.openRepo);
   const closeTab = useStore((s) => s.closeTab);
   const closeRepo = useStore((s) => s.closeRepo);
+  const onWorkspaces = useWorkspaces((s) => s.open);
 
   return (
     <header className="tabbar titlebar" data-tauri-drag-region>
-      {tabs.length === 0 && (
-        <span className="titlebar-name" data-tauri-drag-region>
-          gitbrix
-        </span>
-      )}
-      {tabs.length > 0 && (
-        <nav className="tabs" role="tablist" data-tauri-drag-region>
-          {tabs.map((t) => {
-            const active = t.path === repo?.path;
-            return (
-              <div
-                key={t.path}
-                role="tab"
-                aria-selected={active}
-                className={`tab${active ? " active" : ""}`}
-                title={t.path}
-                onClick={() => !active && !busy && openRepo(t.path)}
-                onAuxClick={(e) => e.button === 1 && closeTab(t.path)}
+      <nav className="tabs" role="tablist" data-tauri-drag-region>
+        {/* Pinned: always first, can't be closed. */}
+        <div
+          role="tab"
+          aria-selected={onWorkspaces}
+          className={`tab pinned${onWorkspaces ? " active" : ""}`}
+          title="Workspaces"
+          onClick={showWorkspaces}
+        >
+          <IconWorkspace size={13} />
+          <span className="tab-name">Workspaces</span>
+        </div>
+        {tabs.map((t) => {
+          const active = !onWorkspaces && t.path === repo?.path;
+          return (
+            <div
+              key={t.path}
+              role="tab"
+              aria-selected={active}
+              className={`tab${active ? " active" : ""}`}
+              title={t.path}
+              onClick={() => {
+                if (busy || active) return;
+                hideWorkspaces();
+                if (t.path !== repo?.path) void openRepo(t.path);
+              }}
+              onAuxClick={(e) => e.button === 1 && closeTab(t.path)}
+            >
+              <span className="tab-name">{t.name}</span>
+              <button
+                className="tab-close"
+                title="Close tab"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeTab(t.path);
+                }}
               >
-                <span className="tab-name">{t.name}</span>
-                <button
-                  className="tab-close"
-                  title="Close tab"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeTab(t.path);
-                  }}
-                >
-                  <IconClose size={10} />
-                </button>
-              </div>
-            );
-          })}
-          <button className="tab-new" title="Open another repository" onClick={() => !busy && closeRepo()}>
-            <IconPlus size={12} />
-          </button>
-        </nav>
-      )}
+                <IconClose size={10} />
+              </button>
+            </div>
+          );
+        })}
+        <button
+          className="tab-new"
+          title="Open another repository"
+          onClick={() => {
+            if (busy) return;
+            hideWorkspaces();
+            closeRepo();
+          }}
+        >
+          <IconPlus size={12} />
+        </button>
+      </nav>
       <div className="titlebar-drag" data-tauri-drag-region />
       <WindowControls />
     </header>
