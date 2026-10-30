@@ -670,3 +670,24 @@ test("profiles: add work and personal, switch, see who commits", async ({ page }
   await expect(page.locator(".commit-identity")).toContainText("selim@home.example");
   expect(errors).toEqual([]);
 });
+
+test("terminal: opens under the graph, keys go to the shell, not to shortcuts", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await page.getByTitle("Terminal (Ctrl+`)").click();
+  const panel = page.getByTestId("terminal");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".xterm")).toBeVisible();
+  await expect.poll(() => lastCall(page, "terminal_open")).toMatchObject({ repo: "/home/demo/codes/demo-app" });
+  await page.keyboard.type("ls");
+  // Ctrl+K is the shell's (kill line), not the command palette.
+  await page.keyboard.press("Control+k");
+  await expect(page.locator(".palette")).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.__gitbrixCalls.filter((c) => c.cmd === "terminal_write").map((c) => c.args.data).join("")))
+    .toBe("ls\u000b");
+  await page.screenshot({ path: "test-results/shots/terminal.png" });
+  await page.keyboard.press("Control+`");
+  await expect(panel).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

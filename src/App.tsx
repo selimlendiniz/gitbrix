@@ -26,6 +26,8 @@ import { TabBar } from "./components/TabBar";
 import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
 import { WorkspaceDialog } from "./components/WorkspaceDialog";
+import { TerminalPanel } from "./components/TerminalPanel";
+import { toggleTerminal } from "./terminal";
 import { openRepoDialog, Welcome } from "./components/Welcome";
 import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
@@ -44,6 +46,13 @@ function useGlobalKeys() {
     const onKey = (e: KeyboardEvent) => {
       const s = useStore.getState();
       const mod = e.ctrlKey || e.metaKey;
+      if (mod && (e.key === "`" || e.code === "Backquote") && s.repo) {
+        e.preventDefault();
+        toggleTerminal();
+        return;
+      }
+      // Keys typed into the terminal belong to the shell (Ctrl+R, Ctrl+K…).
+      if ((e.target as HTMLElement | null)?.closest?.(".terminal-panel")) return;
       if ((mod && e.key.toLowerCase() === "k") || (mod && e.shiftKey && e.key.toLowerCase() === "p")) {
         e.preventDefault();
         usePalette.setState((p) => ({ open: !p.open }));
@@ -200,6 +209,7 @@ export default function App() {
             </div>
             <section className="center">
               <OperationBanner />
+              <div className="center-view">
               {diffSource?.kind === "conflict" ? (
                 <ConflictView />
               ) : diffSource?.kind === "history" ? (
@@ -215,6 +225,8 @@ export default function App() {
               ) : (
                 <CommitGraph />
               )}
+              </div>
+              <TerminalPanel />
             </section>
             <aside className="details">
               {compareId ? (

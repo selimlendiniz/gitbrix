@@ -12,6 +12,7 @@ use crate::error::{Error, Result};
 use crate::accounts;
 use crate::forge;
 use crate::profiles;
+use crate::terminal::{self, Terminals};
 use crate::git::{diff, history, log, net, ops, rebase, refs, repo, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
@@ -536,4 +537,25 @@ pub fn save_profiles(profiles: profiles::Profiles) -> Result<profiles::Profiles>
 #[tauri::command(async)]
 pub fn identity(repo: String) -> Result<profiles::Identity> {
     Ok(profiles::identity(&open(&repo)?))
+}
+
+/// A shell in the repository's folder; returns the session id.
+#[tauri::command]
+pub fn terminal_open(app: tauri::AppHandle, state: tauri::State<Terminals>, repo: String, cols: u16, rows: u16) -> Result<u32> {
+    terminal::open(app, &state, &workdir(&repo)?.to_string_lossy(), cols, rows)
+}
+
+#[tauri::command]
+pub fn terminal_write(state: tauri::State<Terminals>, id: u32, data: String) -> Result<()> {
+    terminal::write(&state, id, &data)
+}
+
+#[tauri::command]
+pub fn terminal_resize(state: tauri::State<Terminals>, id: u32, cols: u16, rows: u16) -> Result<()> {
+    terminal::resize(&state, id, cols, rows)
+}
+
+#[tauri::command]
+pub fn terminal_close(state: tauri::State<Terminals>, id: u32) -> Result<()> {
+    terminal::close(&state, id)
 }

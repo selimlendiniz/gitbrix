@@ -470,6 +470,38 @@ try {
     if (granted !== true) throw new Error(`notification permission: ${granted}`);
   });
 
+  await step("workspace: sums up repositories and finds them in a folder", async () => {
+    const [sum] = await js("return window.__TAURI_INTERNALS__.invoke('repo_summaries', { paths: [arguments[0]] })", repo);
+    if (!sum.info || sum.info.name !== "demo-app" || sum.error) throw new Error(`summary ${JSON.stringify(sum)}`);
+    const found = await js("return window.__TAURI_INTERNALS__.invoke('find_repos', { dir: arguments[0] })", demo);
+    if (!found.includes(repo)) throw new Error(`find_repos ${JSON.stringify(found)}`);
+  });
+
+  await step("profiles: a profile's identity signs commits outside repo-local config", async () => {
+    const saved = await js(
+      "return window.__TAURI_INTERNALS__.invoke('save_profiles', { profiles: { active: 'w', list: [{ id: 'w', name: 'Work', userName: 'E2E Work', userEmail: 'e2e@work.example', folders: [], accounts: [] }] } })",
+    );
+    if (saved.active !== "w") throw new Error(`saved ${JSON.stringify(saved)}`);
+    // The demo repository sets its own user.name, which wins.
+    const id = await js("return window.__TAURI_INTERNALS__.invoke('identity', { repo: arguments[0] })", repo);
+    if (id.source !== "repository") throw new Error(`identity ${JSON.stringify(id)}`);
+    await js("return window.__TAURI_INTERNALS__.invoke('save_profiles', { profiles: { active: null, list: [] } })");
+  });
+
+  await step("terminal: a real shell in the repository folder", async () => {
+    await click('button[title^="Terminal"]');
+    await waitFor("terminal", () => js("return !!document.querySelector('.terminal-panel .xterm-helper-textarea')"));
+    await sleep(800); // let the shell print its prompt
+    await type(".terminal-panel .xterm-helper-textarea", "echo gitbrix-$((40+2)) && pwd\uE007");
+    const cwd = await js("return document.querySelector('.terminal-path').textContent");
+    await waitFor("shell output", async () => {
+      const out = (await text(".terminal-panel .xterm-rows")) ?? "";
+      return out.includes("gitbrix-42") && out.includes(cwd.split("/").pop());
+    });
+    await shot("terminal");
+    await click('button[title^="Terminal"]');
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

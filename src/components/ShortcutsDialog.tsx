@@ -5,6 +5,7 @@ export const useShortcuts = create<{ open: boolean }>(() => ({ open: false }));
 const SHORTCUTS: [string, string][] = [
   ["Ctrl+K, Ctrl+Shift+P", "Command palette"],
   ["Ctrl+F", "Search commits"],
+  ["Ctrl+`", "Show or hide the terminal"],
   ["Enter / Shift+Enter", "Next / previous search match"],
   ["↑ ↓ Home End", "Move through commits (graph focused)"],
   ["Ctrl/Shift+click", "Compare two commits"],

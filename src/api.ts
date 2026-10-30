@@ -438,6 +438,12 @@ export const api = {
   profiles: () => invoke<Profiles>("get_profiles"),
   saveProfiles: (profiles: Profiles) => invoke<Profiles>("save_profiles", { profiles }),
   identity: (repo: string) => invoke<Identity>("identity", { repo }),
+
+  /** A shell in the repository's folder; returns the session id. */
+  terminalOpen: (repo: string, cols: number, rows: number) => invoke<number>("terminal_open", { repo, cols, rows }),
+  terminalWrite: (id: number, data: string) => invoke<void>("terminal_write", { id, data }),
+  terminalResize: (id: number, cols: number, rows: number) => invoke<void>("terminal_resize", { id, cols, rows }),
+  terminalClose: (id: number) => invoke<void>("terminal_close", { id }),
 };
 
 export function errorText(e: unknown): string {

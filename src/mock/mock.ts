@@ -90,6 +90,7 @@ const READS: Record<string, (a: Args) => unknown> = {
     ),
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
+  terminal_open: () => 7,
   save_profiles: (a) => {
     const next = a.profiles as typeof profiles;
     if (next.list.some((p) => !p.userName || !p.userEmail)) throw "Profile needs a name and an email for commits";

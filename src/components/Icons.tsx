@@ -61,6 +61,13 @@ export const IconPullRequest = (p: P) => (
   </Svg>
 );
 
+export const IconTerminal = (p: P) => (
+  <Svg {...p}>
+    <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+    <path d="M4.5 6l2 2-2 2M8.5 10.5h3" />
+  </Svg>
+);
+
 export const IconWorkspace = (p: P) => (
   <Svg {...p}>
     <rect x="2" y="2" width="5" height="5" rx="1" />

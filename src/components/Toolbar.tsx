@@ -17,6 +17,7 @@ import {
   IconPop,
   IconSearch,
   IconSettings,
+  IconTerminal,
   IconUndo,
   IconWorkspace,
 } from "./Icons";
@@ -27,6 +28,7 @@ import { PullRequestsButton } from "./PullRequestsDialog";
 import { ProfileButton } from "./Profiles";
 import { useSettingsDialog } from "./SettingsDialog";
 import { useWorkspaces } from "../workspaces";
+import { toggleTerminal, useTerminal } from "../terminal";
 
 function ToolButton({
   icon,
@@ -88,6 +90,7 @@ export function Toolbar() {
   const closeTab = useStore((s) => s.closeTab);
   const undoStack = useUndo((s) => s.stack);
   const pullMode = useSettings((s) => s.pullMode);
+  const terminalOpen = useTerminal((s) => s.open);
   if (!repo) return null;
   const undoEntry = nextUndo(undoStack, repo.path);
 
@@ -181,6 +184,14 @@ export function Toolbar() {
         )}
         <ProfileButton />
         <PullRequestsButton />
+        <button
+          className={`icon-btn${terminalOpen ? " on" : ""}`}
+          title="Terminal (Ctrl+`)"
+          aria-pressed={terminalOpen}
+          onClick={toggleTerminal}
+        >
+          <IconTerminal size={15} />
+        </button>
         <button className="icon-btn" title="Workspace" onClick={() => useWorkspaces.setState({ open: true })}>
           <IconWorkspace size={15} />
         </button>

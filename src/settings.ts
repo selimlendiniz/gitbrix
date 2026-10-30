@@ -19,6 +19,7 @@ export interface Settings {
   prNotify: boolean;
   sidebarWidth: number;
   detailsWidth: number;
+  terminalHeight: number;
 }
 
 const KEY = "gitbrix.settings";
@@ -36,6 +37,7 @@ export const DEFAULTS: Settings = {
   prNotify: true,
   sidebarWidth: 240,
   detailsWidth: 380,
+  terminalHeight: 240,
 };
 
 function load(): Settings {

@@ -26,6 +26,7 @@ import { useSettingsDialog } from "./SettingsDialog";
 import { useShortcuts } from "./ShortcutsDialog";
 import { openRepoDialog } from "./Welcome";
 import { useWorkspaces } from "../workspaces";
+import { toggleTerminal } from "../terminal";
 
 export const usePalette = create<{ open: boolean }>(() => ({ open: false }));
 
@@ -85,6 +86,7 @@ function useCommands(): Command[] {
       add("Action", "Search commits", () => window.dispatchEvent(new Event("gitbrix:find")), "Ctrl+F");
       add("Action", "Show working tree changes", () => st.select(WIP_ID, true));
       add("Action", "Reflog — recover lost commits", () => void st.openDiff({ kind: "reflog" }));
+      add("Action", "Show or hide the terminal", toggleTerminal, "Ctrl+`");
       add("Action", "Go to HEAD", () => repo.headOid && st.select(repo.headOid, true));
       for (const r of graph?.refs ?? []) {
         if (r.kind === "local" && !r.isHead) add("Checkout", r.name, () => checkoutRef(r));

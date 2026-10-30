@@ -4,6 +4,7 @@ mod error;
 mod forge;
 mod git;
 mod profiles;
+mod terminal;
 mod watch;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -13,6 +14,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .manage(watch::WatchState::default())
+        .manage(terminal::Terminals::default())
         .setup(|app| {
             use tauri::Manager;
             if let Ok(dir) = app.path().app_config_dir() {
@@ -107,6 +109,10 @@ pub fn run() {
             commands::get_profiles,
             commands::save_profiles,
             commands::identity,
+            commands::terminal_open,
+            commands::terminal_write,
+            commands::terminal_resize,
+            commands::terminal_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
