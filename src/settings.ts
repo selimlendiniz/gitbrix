@@ -22,6 +22,8 @@ export interface Settings {
   prNotify: boolean;
   /** Desktop notification for comments on the user's requests and mentions. */
   commentNotify: boolean;
+  /** Desktop notification when the checked-out commit's CI finishes. */
+  ciNotify: boolean;
   /** Author pictures from Gravatar (sends a hash of each address). */
   gravatar: boolean;
   /** Where releases are announced (`latest.json`); empty = no updates. */
@@ -48,6 +50,7 @@ export const DEFAULTS: Settings = {
   prPoll: 3,
   prNotify: true,
   commentNotify: true,
+  ciNotify: true,
   gravatar: true,
   updateUrl: "",
   updateCheck: true,

@@ -13,7 +13,7 @@ import { useStore } from "../store";
 import { loadTabSummaries, markOf, TabMark, useTabSummaries } from "../tabStatus";
 import { hideWorkspaces, showWorkspaces, useWorkspaces } from "../workspaces";
 import { IconChevron, IconClose, IconPlus, IconWorkspace } from "./Icons";
-import { AccountButton, ActivityButton, AppMenu, InboxBell, TitleSearch } from "./TitlebarItems";
+import { AccountButton, ActivityButton, AppMenu, BranchCi, InboxBell, TitleSearch } from "./TitlebarItems";
 
 function useMaximized() {
   const [maximized, setMaximized] = useState(false);
@@ -254,6 +254,7 @@ export function TabBar() {
         <TitleSearch />
       </div>
       <div className="title-buttons">
+        <BranchCi />
         <ActivityButton />
         <InboxBell />
         <AccountButton />

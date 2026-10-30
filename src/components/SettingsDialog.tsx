@@ -146,6 +146,15 @@ export function SettingsDialog() {
               { value: "off", label: "Off" },
             ]}
           />
+          <span>CI</span>
+          <Choice
+            value={settings.ciNotify ? "on" : "off"}
+            onChange={(v) => set({ ciNotify: v === "on" })}
+            options={[
+              { value: "on", label: "Notify when my branch's CI finishes" },
+              { value: "off", label: "Off" },
+            ]}
+          />
           <span>Author pictures</span>
           <span className="settings-inline">
             <Choice

@@ -17,7 +17,10 @@ import { loadRecent } from "../recent";
 import { useSettings } from "../settings";
 import { checkForUpdates, installUpdate, updateStatus, useUpdates } from "../updates";
 import { MenuItem, useStore } from "../store";
-import { reviewPullRequest } from "../workspaces";
+import { reviewPullRequest, useWorkspaces } from "../workspaces";
+import { useCi } from "../ci";
+import { CiMark } from "./CiMark";
+import { openCi } from "./CiDialog";
 import { Avatar } from "./Avatar";
 import { usePalette } from "./CommandPalette";
 import { IconActivity, IconAlert, IconBell, IconFetch, IconSearch, IconUser } from "./Icons";
@@ -395,6 +398,29 @@ function UpdateBox() {
         </button>
       )}
     </div>
+  );
+}
+
+/** The checked-out commit's CI, for the branch being worked on. */
+export function BranchCi() {
+  const repo = useStore((s) => s.repo);
+  const onWorkspaces = useWorkspaces((s) => s.open);
+  const ci = useCi((s) => (repo?.headOid && s.repo === repo.path ? s.statuses[repo.headOid] : undefined));
+  if (!repo || !ci || onWorkspaces) return null;
+  const word: Record<string, string> = { success: "passed", failed: "failed", running: "running", pending: "pending", canceled: "canceled", skipped: "skipped", manual: "manual" };
+  return (
+    <button
+      type="button"
+      className={`title-btn branch-ci ci-${ci.state}`}
+      title={`CI of ${repo.headBranch ?? "the checked-out commit"}: ${word[ci.state] ?? ci.state} — click for jobs and logs`}
+      aria-label="CI of the checked-out branch"
+      onClick={() => openCi(repo.headOid!)}
+    >
+      <CiMark state={ci.state} />
+      <span className="branch-ci-text">
+        {repo.headBranch ?? repo.headOid?.slice(0, 7)} {word[ci.state] ?? ci.state}
+      </span>
+    </button>
   );
 }
 

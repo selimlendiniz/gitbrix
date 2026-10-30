@@ -4862,3 +4862,26 @@ body.dragging * {
   display: flex;
   justify-content: flex-end;
 }
+
+.title-btn.branch-ci {
+  gap: 5px;
+  width: auto;
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+
+.branch-ci .ci-mark {
+  pointer-events: none;
+}
+
+.branch-ci-text {
+  max-width: 160px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+}
+
+.branch-ci.ci-failed .branch-ci-text {
+  color: var(--danger);
+}
