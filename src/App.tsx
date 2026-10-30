@@ -1,9 +1,11 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useLayoutEffect, useState } from "react";
 
 import "./App.css";
-import { WIP_ID } from "./api";
+
+import { api, WIP_ID } from "./api";
 import { CommandPalette, usePalette } from "./components/CommandPalette";
 import { CommitGraph } from "./components/CommitGraph";
 import { CommitPanel } from "./components/CommitPanel";
@@ -43,7 +45,7 @@ import { openRepoDialog, Welcome } from "./components/Welcome";
 import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
 import { undoLast } from "./undo";
-import { backgroundFetch, lfsPullIfNeeded } from "./actions";
+import { backgroundFetch, lfsPullIfNeeded, newWindow } from "./actions";
 import { loadInbox, loadPrs, usePrView } from "./prs";
 import { loadIssues } from "./issues";
 import { IssueDialog } from "./components/Issues";
@@ -87,6 +89,12 @@ function useGlobalKeys() {
       } else if (e.key === "o" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         void openRepoDialog();
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        newWindow();
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === "q") {
+        e.preventDefault();
+        void api.quitApp();
       }
     };
     // Something may have changed outside the app (terminal, editor).
@@ -229,6 +237,18 @@ function useTheme() {
   }, [theme]);
 }
 
+/** The window's name in the task switcher: the repository it shows. */
+function useWindowTitle() {
+  const name = useStore((s) => s.repo?.name);
+  const onWorkspaces = useWorkspaces((s) => s.open);
+  useEffect(() => {
+    const title = name && !onWorkspaces ? `${name} — gitbrix` : "gitbrix";
+    void getCurrentWindow()
+      .setTitle(title)
+      .catch(() => {});
+  }, [name, onWorkspaces]);
+}
+
 export default function App() {
   const repo = useStore((s) => s.repo);
   const winW = useWindowWidth();
@@ -242,6 +262,7 @@ export default function App() {
   useCiStatus();
   useLfs();
   useFolderDrop();
+  useWindowTitle();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);
   const multi = useStore((s) => s.multi.length);

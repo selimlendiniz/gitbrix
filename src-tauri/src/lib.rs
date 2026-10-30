@@ -27,11 +27,20 @@ pub fn run() {
             }
             Ok(())
         })
+        // A closed window's watcher and shells go with it.
+        .on_window_event(|window, event| {
+            use tauri::Manager;
+            if let tauri::WindowEvent::Destroyed = event {
+                watch::unwatch(&window.state::<watch::WatchState>(), window.label());
+                terminal::close_window(&window.state::<terminal::Terminals>(), window.label());
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::initial_repo,
             commands::open_repo,
             commands::watch_repo,
             commands::unwatch_repo,
+            commands::quit_app,
             commands::repo_info,
             commands::get_graph,
             commands::get_status,

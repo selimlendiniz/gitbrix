@@ -51,7 +51,9 @@ let accounts: { id: string }[] = [];
 // `?open` in the URL plays the role of a path on the command line.
 const READS: Record<string, (a: Args) => unknown> = {
   initial_repo: () => (new URLSearchParams(location.search).has("open") ? fixture.info.path : null),
-  open_repo: () => info(),
+  // Another path looks like the fixture under that folder's name.
+  open_repo: (a) =>
+    !a.path || a.path === fixture.info.path ? info() : { ...info(), path: a.path, name: String(a.path).split("/").pop() },
   repo_info: () => info(),
   get_graph: () => fixture.graph,
   get_status: () => fixture.status,

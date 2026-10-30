@@ -69,7 +69,8 @@ test("title bar: app menu, search box, about", async ({ page }) => {
 
   await page.getByRole("button", { name: "gitbrix menu" }).click();
   await page.getByRole("menuitem", { name: "Quit" }).click();
-  expect(await callCount(page, "plugin:window|close")).toBe(1);
+  // Every window, not just this one.
+  expect(await callCount(page, "quit_app")).toBe(1);
   expect(errors).toEqual([]);
 });
 

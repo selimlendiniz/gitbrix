@@ -11,6 +11,7 @@ import { api, Conversation, errorText, PullRequest, PullRequestInbox, PullReques
 import { begin, end } from "./activity";
 import { useSettings } from "./settings";
 import { useStore } from "./store";
+import { isMainWindow } from "./windows";
 
 export interface RepoPrs extends PullRequests {
   error?: string;
@@ -165,6 +166,9 @@ function show(prs: PullRequest[]) {
 }
 
 function remember(sources: Source[]) {
+  // One window keeps the memory and notifies, so a request isn't
+  // announced once per window.
+  if (!isMainWindow) return;
   const { fresh, mem } = newForReview(sources, loadMemory());
   saveMemory(mem);
   notify(fresh);

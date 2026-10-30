@@ -54,6 +54,13 @@ export const useWorkspaces = create<State>(() => ({
   fetchErrors: {},
 }));
 
+// Changed in another window.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === KEY) useWorkspaces.setState(load());
+  });
+}
+
 export function showWorkspaces() {
   useWorkspaces.setState({ open: true });
   void loadSummaries();

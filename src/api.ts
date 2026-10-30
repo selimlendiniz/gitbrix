@@ -492,6 +492,8 @@ export const api = {
   openRepo: (path: string) => invoke<RepoInfo>("open_repo", { path }),
   watchRepo: (repo: string) => invoke<void>("watch_repo", { repo }),
   unwatchRepo: () => invoke<void>("unwatch_repo"),
+  /** Close every window. */
+  quitApp: () => invoke<void>("quit_app"),
   repoInfo: (repo: string) => invoke<RepoInfo>("repo_info", { repo }),
   graph: (repo: string, limit: number, filter: GraphFilter) => invoke<Graph>("get_graph", { repo, limit, filter }),
   status: (repo: string) => invoke<WorkingStatus>("get_status", { repo }),

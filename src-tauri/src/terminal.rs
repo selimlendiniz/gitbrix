@@ -17,6 +17,8 @@ use tauri::{AppHandle, Emitter};
 use crate::error::{Error, Result};
 
 struct Session {
+    /// The window it's shown in; its output goes only there.
+    window: String,
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
@@ -51,7 +53,7 @@ fn pty_error(e: impl std::fmt::Display) -> Error {
     Error::msg(format!("Terminal: {e}"))
 }
 
-pub fn open(app: AppHandle, state: &Terminals, cwd: &str, cols: u16, rows: u16) -> Result<u32> {
+pub fn open(app: AppHandle, state: &Terminals, window: &str, cwd: &str, cols: u16, rows: u16) -> Result<u32> {
     let pair = native_pty_system().openpty(size(cols, rows)).map_err(pty_error)?;
     let mut cmd = CommandBuilder::new(shell());
     cmd.cwd(cwd);
@@ -63,9 +65,10 @@ pub fn open(app: AppHandle, state: &Terminals, cwd: &str, cols: u16, rows: u16) 
     let mut reader = pair.master.try_clone_reader().map_err(pty_error)?;
     let writer = pair.master.take_writer().map_err(pty_error)?;
     let id = state.next.fetch_add(1, Ordering::Relaxed) + 1;
-    state.sessions.lock().unwrap_or_else(|e| e.into_inner()).insert(id, Session { master: pair.master, writer, child });
+    state.sessions.lock().unwrap_or_else(|e| e.into_inner()).insert(id, Session { window: window.to_owned(), master: pair.master, writer, child });
 
     let sessions = state.sessions.clone();
+    let window = window.to_owned();
     std::thread::spawn(move || {
         let mut buf = [0u8; 16 * 1024];
         loop {
@@ -73,14 +76,14 @@ pub fn open(app: AppHandle, state: &Terminals, cwd: &str, cols: u16, rows: u16) 
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
                     let data = base64::engine::general_purpose::STANDARD.encode(&buf[..n]);
-                    let _ = app.emit("terminal-output", Output { id, data });
+                    let _ = app.emit_to(window.as_str(), "terminal-output", Output { id, data });
                 }
             }
         }
         if let Some(mut s) = sessions.lock().unwrap_or_else(|e| e.into_inner()).remove(&id) {
             let _ = s.child.wait();
         }
-        let _ = app.emit("terminal-exit", id);
+        let _ = app.emit_to(window.as_str(), "terminal-exit", id);
     });
     Ok(id)
 }
@@ -100,6 +103,15 @@ pub fn write(state: &Terminals, id: u32, data: &str) -> Result<()> {
 
 pub fn resize(state: &Terminals, id: u32, cols: u16, rows: u16) -> Result<()> {
     with(state, id, |s| s.master.resize(size(cols, rows)).map_err(pty_error))
+}
+
+/// Ends the shells of a window that closed.
+pub fn close_window(state: &Terminals, window: &str) {
+    for s in state.sessions.lock().unwrap_or_else(|e| e.into_inner()).values_mut() {
+        if s.window == window {
+            let _ = s.child.kill();
+        }
+    }
 }
 
 /// Ends the shell; the reader thread then reports `terminal-exit`.

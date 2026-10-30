@@ -7,6 +7,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { ReactNode, useEffect, useState } from "react";
 import { create } from "zustand";
 
+import { newWindow } from "../actions";
 import { clearProblems, seeProblems, useActivity } from "../activity";
 import { api, PullRequest } from "../api";
 import { relativeTime } from "../format";
@@ -32,7 +33,7 @@ function menuAt(el: HTMLElement, items: MenuItem[], alignRight = false) {
 }
 
 /** The gitbrix mark: open, clone, recent repositories, settings, about, quit. */
-export function AppMenu({ onQuit }: { onQuit: () => void }) {
+export function AppMenu({ onQuit, onCloseWindow }: { onQuit: () => void; onCloseWindow: () => void }) {
   return (
     <button
       type="button"
@@ -45,6 +46,7 @@ export function AppMenu({ onQuit }: { onQuit: () => void }) {
           { label: "Open repository…", hint: "Ctrl+O", onSelect: () => void openRepoDialog() },
           { label: "Clone repository…", onSelect: () => useRepoDialog.setState({ kind: "clone" }) },
           { label: "New repository…", onSelect: () => useRepoDialog.setState({ kind: "init" }) },
+          { label: "New window", hint: "Ctrl+Shift+N", onSelect: () => newWindow() },
           ...(recent.length
             ? [
                 { separator: true, label: "" },
@@ -62,7 +64,8 @@ export function AppMenu({ onQuit }: { onQuit: () => void }) {
           { label: "Keyboard shortcuts", hint: "?", onSelect: () => useShortcuts.setState({ open: true }) },
           { label: "About gitbrix", onSelect: () => useAbout.setState({ open: true }) },
           { separator: true, label: "" },
-          { label: "Quit", hint: "Alt+F4", onSelect: onQuit },
+          { label: "Close window", hint: "Alt+F4", onSelect: onCloseWindow },
+          { label: "Quit", hint: "Ctrl+Q", onSelect: onQuit },
         ]);
       }}
     >

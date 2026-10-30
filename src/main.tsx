@@ -6,6 +6,7 @@ import { api } from "./api";
 import { useStore } from "./store";
 import { loadTabs } from "./tabs";
 import { hideWorkspaces, openInBackground, showWorkspaces } from "./workspaces";
+import { isMainWindow, windowRepo } from "./windows";
 
 declare global {
   interface Window {
@@ -27,6 +28,14 @@ async function start() {
       <App />
     </React.StrictMode>,
   );
+  // A window opened for a repository shows it.
+  if (!isMainWindow) {
+    if (windowRepo) {
+      hideWorkspaces();
+      void useStore.getState().openRepo(windowRepo);
+    } else showWorkspaces();
+    return;
+  }
   // A path on the command line opens that repository; otherwise the app
   // starts on the Workspaces tab with the last session's repository behind it.
   const initial = await api.initialRepo().catch(() => null);

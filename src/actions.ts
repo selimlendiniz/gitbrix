@@ -13,9 +13,21 @@ import { useRelease } from "./components/ReleaseDialog";
 import { begin, end } from "./activity";
 import { createPullRequest, loadInbox, loadPrs, openPullRequest, prLabel, usePrs } from "./prs";
 import { MenuItem, useStore } from "./store";
+import { openWindow } from "./windows";
 import { pushUndo, trackHead } from "./undo";
 
 const s = () => useStore.getState();
+
+/** A new window, with `repo` if given. */
+export function newWindow(repo?: string) {
+  openWindow(repo, (text) => s().toast("error", `Couldn't open a window: ${text}`));
+}
+
+/** The tab goes to a window of its own. */
+export function moveTabToWindow(path: string) {
+  newWindow(path);
+  s().closeTab(path);
+}
 
 export function copy(text: string, done = "Copied to clipboard") {
   navigator.clipboard?.writeText(text).then(

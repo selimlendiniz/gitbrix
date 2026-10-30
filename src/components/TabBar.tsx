@@ -7,6 +7,8 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { copy, moveTabToWindow } from "../actions";
+import { api } from "../api";
 import { useStore } from "../store";
 import { loadTabSummaries, markOf, TabMark, useTabSummaries } from "../tabStatus";
 import { hideWorkspaces, showWorkspaces, useWorkspaces } from "../workspaces";
@@ -146,7 +148,7 @@ export function TabBar() {
 
   return (
     <header className="tabbar titlebar" data-tauri-drag-region>
-      <AppMenu onQuit={() => void getCurrentWindow().close()} />
+      <AppMenu onQuit={() => void api.quitApp()} onCloseWindow={() => void getCurrentWindow().close()} />
       <nav
         className="tabs"
         role="tablist"
@@ -180,6 +182,21 @@ export function TabBar() {
               title={t.path}
               onClick={() => switchTo(t.path)}
               onAuxClick={(e) => e.button === 1 && closeTab(t.path)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                useStore.getState().showMenu(e.clientX, e.clientY, [
+                  { label: "Move to new window", onSelect: () => moveTabToWindow(t.path) },
+                  { separator: true, label: "" },
+                  { label: "Close tab", onSelect: () => closeTab(t.path) },
+                  {
+                    label: "Close other tabs",
+                    disabled: tabs.length < 2,
+                    onSelect: () => tabs.filter((o) => o.path !== t.path).forEach((o) => closeTab(o.path)),
+                  },
+                  { separator: true, label: "" },
+                  { label: "Copy path", onSelect: () => copy(t.path) },
+                ]);
+              }}
             >
               <span className="tab-name">{t.name}</span>
               <TabMarks mark={mark} />

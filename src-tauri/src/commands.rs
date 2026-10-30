@@ -43,13 +43,19 @@ pub fn open_repo(path: String) -> Result<repo::RepoInfo> {
 }
 
 #[tauri::command]
-pub fn watch_repo(app: tauri::AppHandle, state: tauri::State<WatchState>, repo: String) -> Result<()> {
-    watch::watch(app, &state, &repo)
+pub fn watch_repo(app: tauri::AppHandle, window: tauri::Window, state: tauri::State<WatchState>, repo: String) -> Result<()> {
+    watch::watch(app, &state, window.label(), &repo)
 }
 
 #[tauri::command]
-pub fn unwatch_repo(state: tauri::State<WatchState>) {
-    watch::unwatch(&state);
+pub fn unwatch_repo(window: tauri::Window, state: tauri::State<WatchState>) {
+    watch::unwatch(&state, window.label());
+}
+
+/// Close every window: the app ends.
+#[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 #[tauri::command(async)]
@@ -555,8 +561,15 @@ pub fn identity(repo: String) -> Result<profiles::Identity> {
 
 /// A shell in the repository's folder; returns the session id.
 #[tauri::command]
-pub fn terminal_open(app: tauri::AppHandle, state: tauri::State<Terminals>, repo: String, cols: u16, rows: u16) -> Result<u32> {
-    terminal::open(app, &state, &workdir(&repo)?.to_string_lossy(), cols, rows)
+pub fn terminal_open(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+    state: tauri::State<Terminals>,
+    repo: String,
+    cols: u16,
+    rows: u16,
+) -> Result<u32> {
+    terminal::open(app, &state, window.label(), &workdir(&repo)?.to_string_lossy(), cols, rows)
 }
 
 #[tauri::command]

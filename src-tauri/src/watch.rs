@@ -4,6 +4,7 @@
 //! Events are filtered (ignored files, object database churn, lock files)
 //! and debounced, then a single `repo-changed` event is emitted.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::sync::Mutex;
@@ -26,9 +27,10 @@ struct Changed {
     git: bool,
 }
 
-/// The single active watcher; replaced when another repo is opened.
+/// One watcher per window (by label), for the repository it shows;
+/// replaced when the window opens another.
 #[derive(Default)]
-pub struct WatchState(Mutex<Option<RecommendedWatcher>>);
+pub struct WatchState(Mutex<HashMap<String, RecommendedWatcher>>);
 
 /// Does a change at `path` affect what the UI shows?
 pub fn is_relevant(path: &Path, workdir: &Path, gitdir: &Path, ignored: impl Fn(&Path) -> bool) -> bool {
@@ -57,7 +59,7 @@ pub fn changes_content(kind: &EventKind) -> bool {
     !matches!(kind, EventKind::Access(_))
 }
 
-pub fn watch(app: AppHandle, state: &WatchState, repo_path: &str) -> Result<()> {
+pub fn watch(app: AppHandle, state: &WatchState, window: &str, repo_path: &str) -> Result<()> {
     let repo = git2::Repository::discover(repo_path)?;
     let workdir: PathBuf = repo.workdir().ok_or_else(|| Error::msg("bare repository"))?.to_path_buf();
     let gitdir = repo.path().to_path_buf();
@@ -121,12 +123,12 @@ pub fn watch(app: AppHandle, state: &WatchState, repo_path: &str) -> Result<()> 
         }
     });
 
-    *state.0.lock().unwrap() = Some(watcher);
+    state.0.lock().unwrap().insert(window.to_owned(), watcher);
     Ok(())
 }
 
-pub fn unwatch(state: &WatchState) {
-    *state.0.lock().unwrap() = None;
+pub fn unwatch(state: &WatchState, window: &str) {
+    state.0.lock().unwrap().remove(window);
 }
 
 #[cfg(test)]

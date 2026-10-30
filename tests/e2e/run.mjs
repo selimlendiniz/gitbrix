@@ -568,6 +568,49 @@ try {
     if (git("symbolic-ref", "--short", "HEAD") !== back) throw new Error("not back on the branch");
   });
 
+  await step("clashes: a remote branch changing the same lines is flagged", async () => {
+    const back = git("symbolic-ref", "--short", "HEAD");
+    const base = git("rev-parse", "HEAD");
+    git("switch", "-q", "-c", "e2e-clash");
+    writeFileSync(join(repo, "clash.txt"), "theirs\n");
+    git("add", "clash.txt");
+    git("commit", "-q", "-m", "Theirs");
+    git("update-ref", "refs/remotes/origin/e2e-clash", git("rev-parse", "HEAD"));
+    git("switch", "-q", back);
+    git("branch", "-q", "-D", "e2e-clash");
+    writeFileSync(join(repo, "clash.txt"), "ours\n");
+    git("add", "clash.txt");
+    git("commit", "-q", "-m", "Ours");
+    await waitFor("clash warning", async () => (await text(".overlap-btn")) === "Conflicts with 1 branch");
+    await click(".overlap-btn");
+    await waitFor("clash list", async () => (await text(".overlap-row")).includes("origin/e2e-clash"));
+    if (!(await text(".overlap-files.conflict")).includes("clash.txt")) throw new Error("clash.txt not listed");
+    await shot("clashes");
+    await js("document.querySelector('.menu-backdrop').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))");
+    git("update-ref", "-d", "refs/remotes/origin/e2e-clash");
+    git("reset", "-q", "--hard", base);
+    await waitFor("no clash", async () => (await text(".overlap-btn")) === null);
+  });
+
+  await step("windows: a tab moves to a window of its own", async () => {
+    const main = await wd("GET", `/session/${session}/window`);
+    await js(`const t = [...document.querySelectorAll('.tab')].find((e) => e.querySelector('.tab-name')?.textContent === 'demo-app');
+      const r = t.getBoundingClientRect();
+      t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 5, clientY: r.top + 5 }));`);
+    await waitFor("tab menu", () => js("return !!document.querySelector('[role=menuitem]')"));
+    await js("[...document.querySelectorAll('[role=menuitem]')].find((e) => e.textContent.includes('Move to new window')).click()");
+    const other = await waitFor("second window", async () => (await wd("GET", `/session/${session}/window/handles`)).find((h) => h !== main));
+    await wd("POST", `/session/${session}/window`, { handle: other });
+    await waitFor("repository in the new window", async () => (await text(".tab.active .tab-name")) === "demo-app" && (await js("return document.querySelectorAll('.graph-row').length")) > 3);
+    await shot("second-window");
+    await wd("DELETE", `/session/${session}/window`);
+    await wd("POST", `/session/${session}/window`, { handle: main });
+    // Gone from the first window.
+    if ((await js("return [...document.querySelectorAll('.tab .tab-name')].map((e) => e.textContent)")).includes("demo-app")) {
+      throw new Error("the tab is still in the first window");
+    }
+  });
+
   await wd("DELETE", `/session/${session}`);
   console.log(`e2e: ${results.length} steps passed`);
 } catch (e) {

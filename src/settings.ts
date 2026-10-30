@@ -57,6 +57,13 @@ function load(): Settings {
 
 export const useSettings = create<Settings>(load);
 
+// Changed in another window.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === KEY) useSettings.setState(load());
+  });
+}
+
 export function updateSettings(patch: Partial<Settings>) {
   useSettings.setState(patch);
   try {

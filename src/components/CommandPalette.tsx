@@ -10,6 +10,8 @@ import {
   checkoutRef,
   createBranch,
   fetchAll,
+  moveTabToWindow,
+  newWindow,
   pull,
   push,
   remoteOf,
@@ -112,6 +114,8 @@ function useCommands(): Command[] {
     add("Repository", "Open repository…", () => void openRepoDialog(), "Ctrl+O");
     add("Repository", "Clone repository…", () => useRepoDialog.setState({ kind: "clone" }));
     add("Repository", "New repository…", () => useRepoDialog.setState({ kind: "init" }));
+    add("Window", "New window", () => newWindow(), "Ctrl+Shift+N");
+    if (repo) add("Window", `Move ${repo.name} to a new window`, () => moveTabToWindow(repo.path));
     for (const t of tabs) if (t.path !== repo?.path) add("Switch tab", t.name, () => void st.openRepo(t.path), t.path);
     for (const r of loadRecent()) {
       if (!tabs.some((t) => t.path === r.path)) add("Open recent", r.name, () => void st.openRepo(r.path), r.path);
