@@ -4,36 +4,82 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 
-import { api, Conversation, errorText, FileChange, MergeMethod, PrComment, PullRequest, RequestRange } from "../api";
+import { api, Conversation, errorText, FileChange, MergeMethod, PullRequest, RequestRange, ReviewVerdict } from "../api";
 import { approvePullRequest, checkoutPullRequest } from "../actions";
 import { relativeTime } from "../format";
-import { loadInbox, loadPrs, prLabel, tidyAfterMerge, usePrView, wantsReview } from "../prs";
+import { loadInbox, loadPrs, prKey, prLabel, tidyAfterMerge, usePrView, wantsReview } from "../prs";
 import { useStore } from "../store";
 import { CiMark } from "./CiMark";
 import { FileList } from "./FileList";
 import { Markdown } from "./Markdown";
+import { Threads } from "./Threads";
+import { removePending, submitReview, useReview, type Pending } from "../review";
 
 const when = (iso: string) => {
   const t = Date.parse(iso) / 1000;
   return Number.isNaN(t) ? "" : relativeTime(t);
 };
 
-function CommentItem({ c, url, onPath }: { c: PrComment; url: string; onPath: (path: string) => void }) {
+const NO_PENDING: Pending[] = [];
+
+function ReviewBox({ pr }: { pr: PullRequest }) {
+  const pending = useReview((s) => s.pending[prKey(pr)] ?? NO_PENDING);
+  const [body, setBody] = useState("");
+  const [verdict, setVerdict] = useState<ReviewVerdict>("comment");
+  const [busy, setBusy] = useState(false);
+  const verdicts: { value: ReviewVerdict; label: string }[] = [
+    { value: "comment", label: "Comment" },
+    ...(pr.canApprove ? [{ value: "approve" as const, label: "Approve" }] : []),
+    // GitLab has no "request changes" in its API.
+    ...(pr.provider === "github" && !pr.mine ? [{ value: "request_changes" as const, label: "Request changes" }] : []),
+  ];
+  const send = async () => {
+    setBusy(true);
+    if (await submitReview(pr, body, verdict)) {
+      setBody("");
+      setVerdict("comment");
+    }
+    setBusy(false);
+  };
   return (
-    <div className={`pr-comment${c.system ? " system" : ""}`}>
-      <div className="pr-comment-head">
-        <strong>{c.author}</strong>
-        {c.verdict === "APPROVED" && <span className="pr-badge ok">approved</span>}
-        {c.verdict === "CHANGES_REQUESTED" && <span className="pr-badge review">changes requested</span>}
-        {c.path && (
-          <button type="button" className="link-btn pr-comment-path" onClick={() => onPath(c.path!)}>
-            {c.path}
-            {c.line ? `:${c.line}` : ""}
-          </button>
-        )}
-        <span className="dim">{when(c.created)}</span>
+    <div className="review-box" data-testid="review">
+      <div className="review-box-head">
+        <strong>Your review</strong>
+        <span className="dim">
+          {pending.length
+            ? `${pending.length} comment${pending.length === 1 ? "" : "s"} waiting to be sent`
+            : "Add line comments to it from the diffs, then send them together"}
+        </span>
       </div>
-      {c.body && (c.system ? <div className="pr-comment-body">{c.body}</div> : <Markdown className="pr-comment-body" text={c.body} html={c.html} url={url} />)}
+      {pending.map((c, i) => (
+        <div key={i} className="review-pending">
+          <span className="pr-comment-path">
+            {c.path}:{c.newLine ?? c.oldLine}
+          </span>
+          <span className="review-pending-body">{c.body.split("\n")[0]}</span>
+          <button type="button" className="link-btn" onClick={() => removePending(pr, i)}>
+            Remove
+          </button>
+        </div>
+      ))}
+      <textarea rows={2} placeholder="Summary (optional)" value={body} disabled={busy} onChange={(e) => setBody(e.target.value)} />
+      <div className="review-box-actions">
+        <span className="segmented">
+          {verdicts.map((v) => (
+            <button key={v.value} type="button" className={verdict === v.value ? "on" : ""} onClick={() => setVerdict(v.value)}>
+              {v.label}
+            </button>
+          ))}
+        </span>
+        <button
+          type="button"
+          className="small-btn primary"
+          disabled={busy || (verdict !== "approve" && !pending.length && !body.trim())}
+          onClick={() => void send()}
+        >
+          {busy ? "Sending…" : "Send review"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -206,6 +252,7 @@ export function PullRequestPanel() {
   const adds = files?.reduce((n, f) => n + f.additions, 0) ?? 0;
   const dels = files?.reduce((n, f) => n + f.deletions, 0) ?? 0;
   const people = conv?.comments.filter((c) => !c.system).length ?? 0;
+  const pendingCount = useReview((s) => s.pending[prKey(pr)]?.length ?? 0);
 
   return (
     <div className="commit-panel pr-panel" data-testid="pull-request">
@@ -255,6 +302,11 @@ export function PullRequestPanel() {
           </button>
           <button type="button" className={tab === "conversation" ? "on" : ""} onClick={() => setTab("conversation")}>
             Conversation {conv ? <span className="side-count">{people}</span> : null}
+            {pendingCount > 0 && (
+              <span className="pr-badge review" title="Comments in your review, not sent yet">
+                {pendingCount} pending
+              </span>
+            )}
           </button>
         </span>
         {tab === "files" && files && (
@@ -287,9 +339,8 @@ export function PullRequestPanel() {
               ) : (
                 <div className="dim pr-description">No description.</div>
               )}
-              {conv.comments.map((c, i) => (
-                <CommentItem key={i} c={c} url={pr.url} onPath={openFile} />
-              ))}
+              <Threads comments={conv.comments} url={pr.url} onPath={openFile} />
+              <ReviewBox pr={pr} />
               <form
                 className="pr-reply"
                 onSubmit={(e) => {

@@ -2147,3 +2147,21 @@ fn overlaps_find_conflicts_and_shared_edits_with_remote_branches() {
     assert_eq!((found[0].branch.as_str(), found[0].conflicts.len()), ("origin/far", 0));
     assert_eq!(found[0].edited, vec!["a.txt".to_owned()]);
 }
+
+#[test]
+fn suggestions_replace_lines_of_a_clean_file() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "one\ntwo\nthree\nfour\n", "first");
+    let r = t.open();
+    ops::apply_suggestion(&r, "a.txt", 2, 3, "TWO\nTWO AND A HALF\nTHREE").unwrap();
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "one\nTWO\nTWO AND A HALF\nTHREE\nfour\n");
+    // Changed now: a second suggestion would land on the wrong lines.
+    assert!(ops::apply_suggestion(&r, "a.txt", 1, 1, "x").unwrap_err().to_string().contains("uncommitted"));
+    t.git(&["checkout", "--", "a.txt"]);
+    // An empty suggestion removes the lines; out of range is refused.
+    ops::apply_suggestion(&r, "a.txt", 4, 4, "").unwrap();
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "one\ntwo\nthree\n");
+    t.git(&["checkout", "--", "a.txt"]);
+    assert!(ops::apply_suggestion(&r, "a.txt", 4, 9, "x").is_err());
+    assert!(ops::apply_suggestion(&r, "missing.txt", 1, 1, "x").is_err());
+}

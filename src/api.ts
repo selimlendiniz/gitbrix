@@ -125,6 +125,13 @@ export interface RequestRange {
 }
 
 export interface PrComment {
+  /** The service's id (a GitLab note, a GitHub comment). */
+  id: string;
+  /** Its discussion (GitLab) or review thread (GitHub); none on its own. */
+  thread: string | null;
+  /** Its thread can be resolved, and is. */
+  resolvable: boolean;
+  resolved: boolean;
   author: string;
   body: string;
   /** The body as the service renders it, if it said. */
@@ -132,9 +139,27 @@ export interface PrComment {
   created: string;
   path: string | null;
   line: number | null;
+  /** First line of a comment on several lines. */
+  startLine?: number | null;
   /** GitHub review verdict: APPROVED, CHANGES_REQUESTED… */
   verdict: string | null;
   system: boolean;
+}
+
+/** Where a line comment goes. */
+export interface LineAt {
+  path: string;
+  oldPath: string | null;
+  newLine: number | null;
+  oldLine: number | null;
+}
+
+export type ReviewVerdict = "comment" | "approve" | "request_changes";
+
+export interface NewReview {
+  body: string;
+  verdict: ReviewVerdict;
+  comments: (LineAt & { body: string })[];
 }
 
 export interface Conversation {
@@ -640,6 +665,16 @@ export const api = {
     body: string,
   ) => invoke<void>("comment_pull_request_line", { repo, remote, number, at, body }),
   /** `merged` now, or `scheduled` to merge once checks pass. */
+  replyPullRequest: (repo: string, remote: string, number: number, thread: string, first: string, body: string) =>
+    invoke<void>("reply_pull_request", { repo, remote, number, thread, first, body }),
+  resolvePullRequestThread: (repo: string, remote: string, number: number, thread: string, resolved: boolean) =>
+    invoke<void>("resolve_pull_request_thread", { repo, remote, number, thread, resolved }),
+  /** Line comments, a summary and a verdict sent together. */
+  reviewPullRequest: (repo: string, remote: string, number: number, review: NewReview) =>
+    invoke<void>("review_pull_request", { repo, remote, number, review }),
+  /** Lines `from`..=`to` of a clean work tree file become `text`. */
+  applySuggestion: (repo: string, path: string, from: number, to: number, text: string) =>
+    invoke<void>("apply_suggestion", { repo, path, from, to, text }),
   mergePullRequest: (repo: string, remote: string, number: number, method: MergeMethod, deleteBranch: boolean, whenChecksPass = false) =>
     invoke<"merged" | "scheduled">("merge_pull_request", { repo, remote, number, method, deleteBranch, whenChecksPass }),
 

@@ -1,13 +1,15 @@
 import { Fragment, useEffect, useState } from "react";
 
-import { api, DiffLine, errorText, FileDiff, PrComment, RequestRange } from "../api";
+import { api, DiffLine, errorText, FileDiff, LineAt, PrComment, PullRequest, RequestRange } from "../api";
 import { discardFiles } from "../actions";
 import { shortId, statusLetter } from "../format";
 import { diffTokens, Token } from "../diff/highlight";
 import { buildPatch, lineRange } from "../diff/patch";
 import { splitRows } from "../diff/split";
 import { updateSettings, useSettings } from "../settings";
-import { usePrView } from "../prs";
+import { prKey, usePrView } from "../prs";
+import { addPending, removePending, suggestionTemplate, useReview, type Pending } from "../review";
+import { Threads } from "./Threads";
 import { Markdown } from "./Markdown";
 import { DiffSource, useStore } from "../store";
 import { IconClose } from "./Icons";
@@ -175,36 +177,41 @@ export function sidesOf(source: DiffSource, headOid: string | null): Sides | und
 }
 
 interface Review {
+  pr: PullRequest;
   range: RequestRange;
   comments: PrComment[];
+  pending: Pending[];
   post: (diff: FileDiff, line: DiffLine, body: string) => Promise<boolean>;
 }
+
+function lineAt(diff: FileDiff, line: DiffLine): LineAt {
+  return {
+    path: diff.path,
+    oldPath: diff.oldPath,
+    newLine: line.kind === "del" ? null : line.newNo,
+    oldLine: line.kind === "add" ? null : line.oldNo,
+  };
+}
+
+const NO_PENDING: Pending[] = [];
 
 /** The request under review, with a way to comment on its lines. */
 function usePrReview(): Review | null {
   const pr = usePrView((s) => s.pr);
   const range = usePrView((s) => s.range);
   const conv = usePrView((s) => s.conv);
+  const pending = useReview((s) => (pr ? (s.pending[prKey(pr)] ?? NO_PENDING) : NO_PENDING));
   if (!pr || !range) return null;
   return {
+    pr,
     range,
     comments: conv?.comments ?? [],
+    pending,
     async post(diff, line, body) {
       const repo = useStore.getState().repo?.path;
       if (!repo) return false;
       try {
-        await api.commentPullRequestLine(
-          repo,
-          pr.remote,
-          pr.number,
-          {
-            path: diff.path,
-            oldPath: diff.oldPath,
-            newLine: line.kind === "del" ? null : line.newNo,
-            oldLine: line.kind === "add" ? null : line.oldNo,
-          },
-          body,
-        );
+        await api.commentPullRequestLine(repo, pr.remote, pr.number, lineAt(diff, line), body);
         usePrView.setState({ conv: await api.pullRequestConversation(repo, pr.remote, pr.number) });
         return true;
       } catch (e) {
@@ -221,39 +228,67 @@ function commentsOn(review: Review, path: string, l: DiffLine): PrComment[] {
   return review.comments.filter((c) => !c.system && c.path === path && c.line != null && c.line === line);
 }
 
-function LineComments({ comments }: { comments: PrComment[] }) {
-  const url = usePrView((s) => s.pr?.url);
+/** Comments of the pending review on this line, with their index. */
+function pendingOn(review: Review, path: string, l: DiffLine): [Pending, number][] {
+  return review.pending
+    .map((p, i) => [p, i] as [Pending, number])
+    .filter(([p]) => p.path === path && (l.kind === "del" ? p.oldLine === l.oldNo && p.newLine == null : p.newLine === l.newNo));
+}
+
+function LineComments({ review, comments, pending }: { review: Review; comments: PrComment[]; pending: [Pending, number][] }) {
   return (
     <div className="line-comments">
-      {comments.map((c, k) => (
-        <div key={k} className="line-comment">
-          <strong>{c.author}</strong>
-          <Markdown className="line-comment-body" text={c.body} html={c.html} url={url} />
+      <Threads comments={comments} url={review.pr.url} />
+      {pending.map(([p, i]) => (
+        <div key={i} className="pr-comment pending">
+          <div className="pr-comment-head">
+            <span className="pr-badge review">pending</span>
+            <span className="dim">in your review, not sent yet</span>
+            <button type="button" className="link-btn" onClick={() => removePending(review.pr, i)}>
+              Remove
+            </button>
+          </div>
+          <Markdown className="pr-comment-body" text={p.body} url={review.pr.url} />
         </div>
       ))}
     </div>
   );
 }
 
-function Composer({ onSend, onCancel }: { onSend: (body: string) => Promise<boolean>; onCancel: () => void }) {
+function Composer({
+  review,
+  diff,
+  line,
+  onCancel,
+}: {
+  review: Review;
+  diff: FileDiff;
+  line: DiffLine;
+  onCancel: () => void;
+}) {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const send = async () => {
     if (!body.trim()) return;
     setBusy(true);
-    if (await onSend(body)) onCancel();
+    if (await review.post(diff, line, body)) onCancel();
     setBusy(false);
+  };
+  const later = () => {
+    if (!body.trim()) return;
+    addPending(review.pr, { ...lineAt(diff, line), body });
+    onCancel();
   };
   return (
     <div className="line-composer">
       <textarea
         autoFocus
         rows={3}
-        placeholder="Comment on this line (Ctrl+Enter sends)"
+        placeholder="Comment on this line (Ctrl+Enter adds it to your review)"
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void send();
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) later();
           if (e.key === "Escape") {
             e.stopPropagation();
             onCancel();
@@ -262,11 +297,26 @@ function Composer({ onSend, onCancel }: { onSend: (body: string) => Promise<bool
         disabled={busy}
       />
       <div className="line-composer-actions">
+        {line.kind !== "del" && (
+          <button
+            type="button"
+            className="small-btn suggest-btn"
+            title="Propose new text for this line"
+            disabled={busy}
+            onClick={() => setBody((b) => `${b}${b && !b.endsWith("\n") ? "\n" : ""}${suggestionTemplate(review.pr.provider, line.text)}\n`)}
+          >
+            Suggest change
+          </button>
+        )}
+        <span className="spacer" />
         <button type="button" className="small-btn" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
-        <button type="button" className="small-btn primary" onClick={() => void send()} disabled={busy || !body.trim()}>
-          {busy ? "Sending…" : "Comment"}
+        <button type="button" className="small-btn" onClick={() => void send()} disabled={busy || !body.trim()} title="Send this comment on its own now">
+          {busy ? "Sending…" : "Comment now"}
+        </button>
+        <button type="button" className="small-btn primary" onClick={later} disabled={busy || !body.trim()}>
+          Add to review
         </button>
       </div>
     </div>
@@ -394,6 +444,7 @@ export function DiffContent({
             {mode === "unified"
               ? h.lines.map((l, j) => {
                   const here = review ? commentsOn(review, diff.path, l) : [];
+                  const waiting = review ? pendingOn(review, diff.path, l) : [];
                   return (
                     <Fragment key={j}>
                       <UnifiedLine
@@ -403,9 +454,9 @@ export function DiffContent({
                         onPick={wip && !diff.lossy && l.kind !== "ctx" ? (extend) => pick(i, j, extend) : undefined}
                         onComment={review ? () => setComposing(`${i}:${j}`) : undefined}
                       />
-                      {here.length > 0 && <LineComments comments={here} />}
+                      {review && (here.length > 0 || waiting.length > 0) && <LineComments review={review} comments={here} pending={waiting} />}
                       {review && composing === `${i}:${j}` && (
-                        <Composer onSend={(body) => review.post(diff, l, body)} onCancel={() => setComposing(null)} />
+                        <Composer review={review} diff={diff} line={l} onCancel={() => setComposing(null)} />
                       )}
                     </Fragment>
                   );

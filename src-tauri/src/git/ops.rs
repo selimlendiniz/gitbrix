@@ -1208,3 +1208,29 @@ mod tests {
         assert!(out.contains("@@ -1,1 +1,1 @@\n-a\n\\ No newline at end of file\n+b\n"), "{out}");
     }
 }
+
+/// Put a suggested change into a work tree file: lines `from`..=`to`
+/// (1-based) become `text`. The suggestion was made on the committed
+/// file, so a file with uncommitted changes is left alone.
+pub fn apply_suggestion(r: &Repository, path: &str, from: usize, to: usize, text: &str) -> Result<()> {
+    let status = r.status_file(Path::new(path)).map_err(|_| Error::msg(format!("{path} isn't in this repository")))?;
+    if !status.is_empty() {
+        return Err(Error::msg(format!("{path} has uncommitted changes; commit or stash them first")));
+    }
+    let full = repos::workdir(r).join(path);
+    let content = std::fs::read_to_string(&full).map_err(|e| Error::msg(format!("Can't read {path}: {e}")))?;
+    let newline = if content.contains("\r\n") { "\r\n" } else { "\n" };
+    let ends = content.ends_with('\n');
+    let mut lines: Vec<&str> = content.lines().collect();
+    if from == 0 || from > to || to > lines.len() {
+        return Err(Error::msg(format!("{path} has no lines {from}–{to}; is the request's branch checked out?")));
+    }
+    let new: Vec<&str> = if text.is_empty() { Vec::new() } else { text.lines().collect() };
+    lines.splice(from - 1..to, new);
+    let mut out = lines.join(newline);
+    if ends && !out.is_empty() {
+        out.push_str(newline);
+    }
+    std::fs::write(&full, out)?;
+    Ok(())
+}

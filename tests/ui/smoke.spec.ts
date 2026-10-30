@@ -776,11 +776,11 @@ test("review a request in the app: files, diff, comments, merge", async ({ page 
   await expect(diff).toBeVisible();
   // Line comments show under their line; any line takes a new one.
   const line3 = diff.locator(".dl", { hasText: "pub fn theme" });
-  await expect(diff.locator(".line-comment")).toContainText("Too dark?");
+  await expect(diff.locator(".line-comments")).toContainText("Too dark?");
   await line3.hover();
   await line3.getByRole("button", { name: "Comment on this line" }).click();
   await diff.getByPlaceholder(/Comment on this line/).fill("Use the palette here");
-  await diff.locator(".line-composer").getByRole("button", { name: "Comment" }).click();
+  await diff.locator(".line-composer").getByRole("button", { name: "Comment now" }).click();
   await expect.poll(() => lastCall(page, "comment_pull_request_line")).toMatchObject({
     number: 5,
     at: { path: "src/ui.rs", newLine: 3, oldLine: null },
@@ -794,7 +794,7 @@ test("review a request in the app: files, diff, comments, merge", async ({ page 
   await expect(panel.locator(".pr-description")).toHaveText("Makes the UI darker.");
   await expect(panel.locator(".pr-comment", { hasText: "Too dark?" })).toContainText("src/ui.rs:3");
   await panel.getByPlaceholder("Write a comment").fill("Looks fine to me");
-  await panel.getByRole("button", { name: "Comment", exact: true }).click();
+  await panel.locator("form.pr-reply").getByRole("button", { name: "Comment", exact: true }).click();
   await expect.poll(() => lastCall(page, "comment_pull_request")).toMatchObject({ number: 5, body: "Looks fine to me" });
   await page.screenshot({ path: "test-results/shots/pr-review-conversation.png" });
 

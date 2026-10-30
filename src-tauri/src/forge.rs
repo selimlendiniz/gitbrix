@@ -978,8 +978,12 @@ mod tests {
     fn github_conversation_merges_comments_reviews_and_lines() {
         let (addr, log) = serve(vec![
             ("GET /repos/team/app/pulls/4/comments", json!([
-                { "user": { "login": "ada" }, "body": "Off by one?", "created_at": "2026-10-02T00:00:00Z", "path": "src/a.rs", "line": 12 }
+                { "id": 70, "user": { "login": "ada" }, "body": "Off by one?", "created_at": "2026-10-02T00:00:00Z", "path": "src/a.rs", "line": 12 },
+                { "id": 71, "in_reply_to_id": 70, "user": { "login": "me" }, "body": "Fixed", "created_at": "2026-10-04T00:00:00Z", "path": "src/a.rs", "line": 12 }
             ])),
+            ("POST /graphql", json!({ "data": { "repository": { "pullRequest": { "reviewThreads": { "nodes": [
+                { "id": "PRRT_1", "isResolved": true, "comments": { "nodes": [{ "databaseId": 70 }, { "databaseId": 71 }] } }
+            ] } } } } })),
             ("GET /repos/team/app/pulls/4/reviews", json!([
                 { "user": { "login": "ada" }, "body": "", "state": "COMMENTED", "submitted_at": "2026-10-02T00:00:01Z" },
                 { "user": { "login": "grace" }, "body": "Ship it", "state": "APPROVED", "submitted_at": "2026-10-03T00:00:00Z" }
@@ -995,7 +999,11 @@ mod tests {
         assert_eq!(c.description_html.as_deref(), Some("<p>Fixes <a href=\"https://github.com/team/app/issues/1\">#1</a></p>"));
         assert_eq!(c.comments[0].html.as_deref(), Some("<p>First</p>"));
         // Asked for the rendered text everywhere.
-        assert!(log.lock().unwrap().iter().all(|l| l.contains("<application/vnd.github.full+json>")), "{:?}", log.lock().unwrap());
+        assert!(
+            log.lock().unwrap().iter().filter(|l| l.starts_with("GET")).all(|l| l.contains("<application/vnd.github.full+json>")),
+            "{:?}",
+            log.lock().unwrap()
+        );
         assert!(c.open);
         assert_eq!((c.mergeable, c.merge_status.as_str()), (Some(false), "has conflicts"));
         type Seen<'a> = (&'a str, Option<&'a str>, Option<u64>, Option<&'a str>);
@@ -1006,17 +1014,33 @@ mod tests {
             .collect();
         assert_eq!(
             seen,
-            [("First", None, None, None), ("Off by one?", Some("src/a.rs"), Some(12), None), ("Ship it", None, None, Some("APPROVED"))]
+            [
+                ("First", None, None, None),
+                ("Off by one?", Some("src/a.rs"), Some(12), None),
+                ("Ship it", None, None, Some("APPROVED")),
+                ("Fixed", Some("src/a.rs"), Some(12), None)
+            ]
         );
+        // The review thread from GraphQL, both comments in it.
+        let thread: Vec<_> = c.comments.iter().filter(|x| x.thread.as_deref() == Some("PRRT_1")).map(|x| x.id.as_str()).collect();
+        assert_eq!(thread, ["70", "71"]);
+        assert!(c.comments[1].resolvable && c.comments[1].resolved);
+        assert_eq!(c.comments[0].thread, None);
     }
 
     #[test]
     fn gitlab_conversation_reads_notes_and_merge_status() {
         let (addr, _) = serve(vec![
-            ("GET /api/v4/projects/team%2Fapp/merge_requests/9/notes", json!([
-                { "author": { "username": "bot" }, "body": "added 1 commit", "created_at": "2026-10-01T00:00:00Z", "system": true },
-                { "author": { "username": "ada" }, "body": "Rename this", "created_at": "2026-10-02T00:00:00Z", "system": false,
-                  "position": { "new_path": "lib.rs", "new_line": 3 } }
+            ("GET /api/v4/projects/team%2Fapp/merge_requests/9/discussions", json!([
+                { "id": "d1", "individual_note": true, "notes": [
+                    { "id": 1, "author": { "username": "bot" }, "body": "added 1 commit", "created_at": "2026-10-01T00:00:00Z", "system": true }
+                ] },
+                { "id": "d2", "individual_note": false, "notes": [
+                    { "id": 2, "author": { "username": "ada" }, "body": "Rename this", "created_at": "2026-10-02T00:00:00Z", "system": false,
+                      "position": { "new_path": "lib.rs", "new_line": 3 }, "resolvable": true, "resolved": false },
+                    { "id": 3, "author": { "username": "me" }, "body": "Done", "created_at": "2026-10-04T00:00:00Z", "system": false,
+                      "resolvable": true, "resolved": false }
+                ] }
             ])),
             ("GET /api/v4/projects/team%2Fapp/merge_requests/9", json!({ "description": "Body", "state": "opened", "detailed_merge_status": "not_approved" })),
         ]);
@@ -1024,6 +1048,10 @@ mod tests {
         assert_eq!((c.mergeable, c.merge_status.as_str()), (Some(false), "not approved"));
         assert!(c.comments[0].system && !c.comments[1].system);
         assert_eq!((c.comments[1].path.as_deref(), c.comments[1].line), (Some("lib.rs"), Some(3)));
+        // A note on its own has no thread; the discussion's notes share one.
+        assert_eq!(c.comments[0].thread, None);
+        assert_eq!((c.comments[1].thread.as_deref(), c.comments[2].thread.as_deref()), (Some("d2"), Some("d2")));
+        assert!(c.comments[1].resolvable && !c.comments[1].resolved && c.comments[2].id == "3");
         // No GraphQL here: the app renders the text itself.
         assert!(c.description_html.is_none() && c.comments.iter().all(|x| x.html.is_none()));
     }
@@ -1031,10 +1059,14 @@ mod tests {
     #[test]
     fn gitlab_conversation_takes_gitlabs_html() {
         let (addr, log, bodies) = serve_bodies(vec![
-            ("GET /api/v4/projects/team%2Fapp/merge_requests/9/notes", json!([
-                { "id": 11, "author": { "username": "ada" }, "body": "See #12", "created_at": "2026-10-02T00:00:00Z", "system": false,
-                  "position": { "new_path": "lib.rs", "new_line": 3 } },
-                { "id": 12, "author": { "username": "grace" }, "body": "ok", "created_at": "2026-10-03T00:00:00Z", "system": false }
+            ("GET /api/v4/projects/team%2Fapp/merge_requests/9/discussions", json!([
+                { "id": "a", "individual_note": false, "notes": [
+                    { "id": 11, "author": { "username": "ada" }, "body": "See #12", "created_at": "2026-10-02T00:00:00Z", "system": false,
+                      "position": { "new_path": "lib.rs", "new_line": 3 }, "resolvable": true, "resolved": true }
+                ] },
+                { "id": "b", "individual_note": true, "notes": [
+                    { "id": 12, "author": { "username": "grace" }, "body": "ok", "created_at": "2026-10-03T00:00:00Z", "system": false }
+                ] }
             ])),
             ("GET /api/v4/projects/team%2Fapp/merge_requests/9", json!({ "description": "**Body**", "state": "opened" })),
             ("POST /api/graphql", json!({ "data": { "project": { "mergeRequest": {
@@ -1050,11 +1082,80 @@ mod tests {
         assert!(c.comments[0].html.as_deref().unwrap().contains("issues/12"));
         // Not in GitLab's answer: rendered by the app.
         assert_eq!(c.comments[1].html, None);
+        assert!(c.comments[0].resolved);
         let bodies = bodies.lock().unwrap();
         let (_, sent) = bodies.iter().find(|(r, _)| r == "POST /api/graphql").unwrap();
         assert_eq!(sent["variables"], json!({ "path": "team/app", "iid": "9" }));
         assert!(log.lock().unwrap().iter().all(|l| l.ends_with("[Bearer tok]")));
         assert_eq!(gid_number("gid://gitlab/Note/77"), Some(77));
+    }
+
+    #[test]
+    fn reviews_go_out_together() {
+        let at = |line: u64| LineRef { path: "src/a.rs".into(), old_path: None, new_line: Some(line), old_line: None };
+        let review = NewReview {
+            body: "Two things".into(),
+            verdict: "request_changes".into(),
+            comments: vec![ReviewComment { at: at(3), body: "Rename".into() }, ReviewComment { at: LineRef { new_line: None, old_line: Some(9), ..at(0) }, body: "Why gone?".into() }],
+        };
+        let (addr, _, bodies) = serve_bodies(vec![
+            ("POST /repos/team/app/pulls/4/reviews", json!({})),
+            ("GET /repos/team/app/pulls/4", json!({ "head": { "sha": "abc" } })),
+        ]);
+        review_in(&project("github", &addr, "me"), "tok", 4, &review).unwrap();
+        let sent = bodies.lock().unwrap()[0].1.clone();
+        assert_eq!((sent["event"].as_str(), sent["commit_id"].as_str(), sent["body"].as_str()), (Some("REQUEST_CHANGES"), Some("abc"), Some("Two things")));
+        assert_eq!(sent["comments"], json!([
+            { "path": "src/a.rs", "line": 3, "side": "RIGHT", "body": "Rename" },
+            { "path": "src/a.rs", "line": 9, "side": "LEFT", "body": "Why gone?" }
+        ]));
+
+        let (addr, log, bodies) = serve_bodies(vec![
+            ("POST /api/v4/projects/team%2Fapp/merge_requests/9/draft_notes/bulk_publish", json!({})),
+            ("POST /api/v4/projects/team%2Fapp/merge_requests/9/draft_notes", json!({})),
+            ("POST /api/v4/projects/team%2Fapp/merge_requests/9/approve", json!({})),
+            ("GET /api/v4/projects/team%2Fapp/merge_requests/9", json!({ "diff_refs": { "base_sha": "b", "start_sha": "s", "head_sha": "h" } })),
+        ]);
+        let gl = project("gitlab", &format!("{addr}/api/v4"), "me");
+        assert!(review_in(&gl, "tok", 9, &review).is_err(), "GitLab has no request-changes verdict here");
+        review_in(&gl, "tok", 9, &NewReview { verdict: "approve".into(), ..review }).unwrap();
+        let calls: Vec<String> = log.lock().unwrap().iter().map(|l| l.split(" <").next().unwrap().to_owned()).collect();
+        let draft = "POST /api/v4/projects/team%2Fapp/merge_requests/9/draft_notes";
+        assert_eq!(calls.iter().filter(|c| *c == draft).count(), 3);
+        let publish = calls.iter().position(|c| c.ends_with("bulk_publish")).unwrap();
+        assert!(publish > calls.iter().rposition(|c| c == draft).unwrap());
+        assert!(calls.last().unwrap().ends_with("/approve"));
+        let bodies = bodies.lock().unwrap();
+        assert_eq!(bodies[0].1["position"]["new_line"], 3);
+        assert_eq!(bodies[0].1["position"]["head_sha"], "h");
+        assert_eq!(bodies[2].1, json!({ "note": "Two things" }));
+    }
+
+    #[test]
+    fn replying_and_resolving_threads() {
+        let (addr, log, bodies) = serve_bodies(vec![
+            ("POST /repos/team/app/pulls/4/comments/70/replies", json!({})),
+            ("POST /graphql", json!({ "data": { "resolveReviewThread": { "thread": { "isResolved": true } } } })),
+        ]);
+        let gh = project("github", &addr, "me");
+        reply_in(&gh, "tok", 4, "PRRT_1", "70", "Fixed").unwrap();
+        resolve_in(&gh, "tok", 4, "PRRT_1", true).unwrap();
+        assert!(reply_in(&gh, "tok", 4, "PRRT_1", "70", " ").is_err());
+        let sent = bodies.lock().unwrap().clone();
+        assert_eq!(sent[0].1["body"], "Fixed");
+        assert_eq!(sent[1].1["variables"]["id"], "PRRT_1");
+        assert!(sent[1].1["query"].as_str().unwrap().contains("resolveReviewThread"));
+        assert!(log.lock().unwrap().iter().all(|l| l.ends_with("[Bearer tok]")));
+
+        let (addr, _, bodies) = serve_bodies(vec![
+            ("POST /api/v4/projects/team%2Fapp/merge_requests/9/discussions/d2/notes", json!({})),
+            ("PUT /api/v4/projects/team%2Fapp/merge_requests/9/discussions/d2", json!({})),
+        ]);
+        let gl = project("gitlab", &format!("{addr}/api/v4"), "me");
+        reply_in(&gl, "tok", 9, "d2", "2", "Done").unwrap();
+        resolve_in(&gl, "tok", 9, "d2", false).unwrap();
+        let sent = bodies.lock().unwrap().clone();
+        assert_eq!((sent[0].1["body"].as_str(), sent[1].1["resolved"].as_bool()), (Some("Done"), Some(false)));
     }
 
     #[test]
@@ -1577,6 +1678,14 @@ fn create_in(p: &Project, token: &str, new: &NewRequest) -> Result<Created> {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Comment {
+    /// The service's id of the comment (a GitLab note, a GitHub comment).
+    pub id: String,
+    /// The discussion it belongs to: GitLab's discussion id, GitHub's
+    /// review thread; none for a comment on its own.
+    pub thread: Option<String>,
+    /// Its thread can be resolved, and is.
+    pub resolvable: bool,
+    pub resolved: bool,
     pub author: String,
     pub body: String,
     /// The body as the service renders it, when it said.
@@ -1585,6 +1694,8 @@ pub struct Comment {
     pub created: String,
     pub path: Option<String>,
     pub line: Option<u64>,
+    /// The first line of a comment on several lines (to `line`).
+    pub start_line: Option<u64>,
     /// A review's verdict on GitHub (`APPROVED`, `CHANGES_REQUESTED`).
     pub verdict: Option<String>,
     /// Made by the service ("added 2 commits"), not a person.
@@ -1608,15 +1719,95 @@ pub struct Conversation {
 
 fn github_comment(c: &Value, path: bool) -> Comment {
     Comment {
+        id: c["id"].as_u64().map(|i| i.to_string()).unwrap_or_default(),
+        thread: None,
+        resolvable: false,
+        resolved: false,
         author: c["user"]["login"].as_str().unwrap_or("ghost").to_owned(),
         body: text(&c["body"]),
         html: c["body_html"].as_str().map(str::to_owned),
         created: c["created_at"].as_str().or_else(|| c["submitted_at"].as_str()).unwrap_or("").to_owned(),
         path: path.then(|| text(&c["path"])).filter(|p| !p.is_empty()),
         line: if path { c["line"].as_u64().or_else(|| c["original_line"].as_u64()) } else { None },
+        start_line: if path { c["start_line"].as_u64().or_else(|| c["original_start_line"].as_u64()) } else { None },
         verdict: None,
         system: false,
     }
+}
+
+const GITHUB_THREADS: &str = "query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) { nodes { id isResolved comments(first: 100) { nodes { databaseId } } } }
+    }
+  }
+}";
+
+/// Each review comment's thread (GraphQL id) and whether it's resolved;
+/// empty when GitHub can't say.
+fn github_threads(p: &Project, token: &str, number: u64) -> HashMap<u64, (String, bool)> {
+    let Some((owner, name)) = p.path.split_once('/') else { return HashMap::new() };
+    let body = json!({ "query": GITHUB_THREADS, "variables": { "owner": owner, "name": name, "number": number } });
+    let Ok(data) = request("POST", &p.graphql, token, Some(&body)) else { return HashMap::new() };
+    let mut out = HashMap::new();
+    for t in data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"].as_array().into_iter().flatten() {
+        let (id, resolved) = (text(&t["id"]), t["isResolved"].as_bool().unwrap_or(false));
+        for c in t["comments"]["nodes"].as_array().into_iter().flatten() {
+            if let Some(n) = c["databaseId"].as_u64() {
+                out.insert(n, (id.clone(), resolved));
+            }
+        }
+    }
+    out
+}
+
+/// Answer in a thread. `first` is the thread's first comment (GitHub
+/// replies to a comment, GitLab to a discussion).
+fn reply_in(p: &Project, token: &str, number: u64, thread: &str, first: &str, body: &str) -> Result<()> {
+    if body.trim().is_empty() {
+        return Err(Error::msg("Write something first"));
+    }
+    match p.provider.as_str() {
+        "github" => {
+            let first: u64 = first.parse().map_err(|_| Error::msg("No comment to reply to"))?;
+            let url = format!("{}/repos/{}/pulls/{number}/comments/{first}/replies", p.api, p.path);
+            request("POST", &url, token, Some(&json!({ "body": body })))?;
+        }
+        _ => {
+            let url = format!("{}/projects/{}/merge_requests/{number}/discussions/{}/notes", p.api, encode(&p.path), encode(thread));
+            request("POST", &url, token, Some(&json!({ "body": body })))?;
+        }
+    }
+    Ok(())
+}
+
+/// Mark a thread resolved, or open it again.
+fn resolve_in(p: &Project, token: &str, number: u64, thread: &str, resolved: bool) -> Result<()> {
+    match p.provider.as_str() {
+        "github" => {
+            let mutation = if resolved { "resolveReviewThread" } else { "unresolveReviewThread" };
+            let query = format!("mutation($id: ID!) {{ {mutation}(input: {{threadId: $id}}) {{ thread {{ isResolved }} }} }}");
+            let data = request("POST", &p.graphql, token, Some(&json!({ "query": query, "variables": { "id": thread } })))?;
+            if let Some(err) = data["errors"].as_array().and_then(|e| e.first()) {
+                return Err(Error::msg(format!("{}: {}", p.host, text(&err["message"]))));
+            }
+        }
+        _ => {
+            let url = format!("{}/projects/{}/merge_requests/{number}/discussions/{}", p.api, encode(&p.path), encode(thread));
+            request("PUT", &url, token, Some(&json!({ "resolved": resolved })))?;
+        }
+    }
+    Ok(())
+}
+
+pub fn reply(repo: &Path, remote: &str, number: u64, thread: &str, first: &str, body: &str) -> Result<()> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    reply_in(&p, &token, number, thread, first, body)
+}
+
+pub fn resolve(repo: &Path, remote: &str, number: u64, thread: &str, resolved: bool) -> Result<()> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    resolve_in(&p, &token, number, thread, resolved)
 }
 
 /// A merge request's description and notes as GitLab renders them.
@@ -1669,8 +1860,20 @@ fn conversation_in(p: &Project, token: &str, number: u64) -> Result<Conversation
             for c in list(format!("{base}/issues/{number}/comments?per_page=100"))? {
                 comments.push(github_comment(&c, false));
             }
+            let threads = github_threads(p, token, number);
             for c in list(format!("{base}/pulls/{number}/comments?per_page=100"))? {
-                comments.push(github_comment(&c, true));
+                let mut comment = github_comment(&c, true);
+                // Replies point at the first comment of their thread.
+                let root = c["in_reply_to_id"].as_u64().or_else(|| c["id"].as_u64()).unwrap_or(0);
+                match c["id"].as_u64().and_then(|id| threads.get(&id)) {
+                    Some((thread, resolved)) => {
+                        comment.thread = Some(thread.clone());
+                        comment.resolvable = true;
+                        comment.resolved = *resolved;
+                    }
+                    None => comment.thread = Some(format!("comment:{root}")),
+                }
+                comments.push(comment);
             }
             for r in list(format!("{base}/pulls/{number}/reviews?per_page=100"))? {
                 let state = text(&r["state"]);
@@ -1700,20 +1903,35 @@ fn conversation_in(p: &Project, token: &str, number: u64) -> Result<Conversation
         _ => {
             let base = format!("{}/projects/{}/merge_requests/{number}", p.api, encode(&p.path));
             let mr = get(&base, token)?;
-            let notes = get(&format!("{base}/notes?sort=asc&order_by=created_at&per_page=100"), token)?;
+            let discussions = get(&format!("{base}/discussions?per_page=100"), token)?;
             let html = gitlab_html(p, token, number);
-            for n in notes.as_array().into_iter().flatten() {
-                let position = &n["position"];
-                comments.push(Comment {
-                    author: text(&n["author"]["username"]),
-                    body: text(&n["body"]),
-                    html: n["id"].as_u64().and_then(|id| html.notes.get(&id).cloned()),
-                    created: text(&n["created_at"]),
-                    path: position["new_path"].as_str().or_else(|| position["old_path"].as_str()).map(str::to_owned),
-                    line: position["new_line"].as_u64().or_else(|| position["old_line"].as_u64()),
-                    verdict: None,
-                    system: n["system"].as_bool().unwrap_or(false),
-                });
+            for d in discussions.as_array().into_iter().flatten() {
+                let notes = d["notes"].as_array().cloned().unwrap_or_default();
+                let resolvable = notes.iter().any(|n| n["resolvable"].as_bool() == Some(true));
+                let resolved = resolvable
+                    && notes.iter().filter(|n| n["resolvable"].as_bool() == Some(true)).all(|n| n["resolved"].as_bool() == Some(true));
+                let thread = (d["individual_note"].as_bool() != Some(true)).then(|| text(&d["id"]));
+                for n in &notes {
+                    let position = &n["position"];
+                    comments.push(Comment {
+                        id: n["id"].as_u64().map(|i| i.to_string()).unwrap_or_default(),
+                        thread: thread.clone(),
+                        resolvable,
+                        resolved,
+                        author: text(&n["author"]["username"]),
+                        body: text(&n["body"]),
+                        html: n["id"].as_u64().and_then(|id| html.notes.get(&id).cloned()),
+                        created: text(&n["created_at"]),
+                        path: position["new_path"].as_str().or_else(|| position["old_path"].as_str()).map(str::to_owned),
+                        line: position["new_line"].as_u64().or_else(|| position["old_line"].as_u64()),
+                        start_line: position["line_range"]["start"]["new_line"]
+                            .as_u64()
+                            .or_else(|| position["line_range"]["start"]["old_line"].as_u64())
+                            .filter(|start| Some(*start) != position["new_line"].as_u64().or_else(|| position["old_line"].as_u64())),
+                        verdict: None,
+                        system: n["system"].as_bool().unwrap_or(false),
+                    });
+                }
             }
             let status = mr["detailed_merge_status"].as_str().or_else(|| mr["merge_status"].as_str()).unwrap_or("").to_owned();
             Conversation {
@@ -1757,6 +1975,109 @@ pub struct LineRef {
     pub old_line: Option<u64>,
 }
 
+/// Where on a merge request's diff a line is, as GitLab takes it.
+fn gitlab_position(mr: &Value, at: &LineRef) -> Value {
+    let refs = &mr["diff_refs"];
+    let mut position = json!({
+        "position_type": "text",
+        "base_sha": refs["base_sha"],
+        "start_sha": refs["start_sha"],
+        "head_sha": refs["head_sha"],
+        "new_path": at.path,
+        "old_path": at.old_path.as_deref().unwrap_or(&at.path),
+    });
+    if let Some(n) = at.new_line {
+        position["new_line"] = json!(n);
+    }
+    if let Some(o) = at.old_line {
+        position["old_line"] = json!(o);
+    }
+    position
+}
+
+/// A line comment waiting in a review.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewComment {
+    #[serde(flatten)]
+    pub at: LineRef,
+    pub body: String,
+}
+
+/// A review: line comments, a summary and a verdict (`comment`, `approve`,
+/// or `request_changes` on GitHub), sent together.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewReview {
+    pub body: String,
+    pub verdict: String,
+    pub comments: Vec<ReviewComment>,
+}
+
+fn review_in(p: &Project, token: &str, number: u64, review: &NewReview) -> Result<()> {
+    if review.comments.iter().any(|c| c.body.trim().is_empty() || (c.at.new_line.is_none() && c.at.old_line.is_none())) {
+        return Err(Error::msg("A comment in the review is empty or not on a line"));
+    }
+    match p.provider.as_str() {
+        "github" => {
+            let event = match review.verdict.as_str() {
+                "approve" => "APPROVE",
+                "request_changes" => "REQUEST_CHANGES",
+                "comment" => "COMMENT",
+                other => return Err(Error::msg(format!("Unknown verdict {other}"))),
+            };
+            if event != "APPROVE" && review.body.trim().is_empty() && review.comments.is_empty() {
+                return Err(Error::msg("Write something first"));
+            }
+            if event == "REQUEST_CHANGES" && review.body.trim().is_empty() {
+                return Err(Error::msg("Say what should change"));
+            }
+            let base = format!("{}/repos/{}/pulls/{number}", p.api, p.path);
+            let pr = get(&base, token)?;
+            let comments: Vec<Value> = review
+                .comments
+                .iter()
+                .map(|c| {
+                    let (line, side) = match (c.at.new_line, c.at.old_line) {
+                        (Some(n), _) => (n, "RIGHT"),
+                        (None, o) => (o.unwrap_or(0), "LEFT"),
+                    };
+                    json!({ "path": c.at.path, "line": line, "side": side, "body": c.body })
+                })
+                .collect();
+            let body = json!({ "commit_id": text(&pr["head"]["sha"]), "body": review.body, "event": event, "comments": comments });
+            request("POST", &format!("{base}/reviews"), token, Some(&body))?;
+        }
+        _ => {
+            if !matches!(review.verdict.as_str(), "comment" | "approve") {
+                return Err(Error::msg("GitLab reviews either comment or approve"));
+            }
+            let base = format!("{}/projects/{}/merge_requests/{number}", p.api, encode(&p.path));
+            let mr = get(&base, token)?;
+            // Drafts first, then published together, as GitLab's own review.
+            for c in &review.comments {
+                let note = json!({ "note": c.body, "position": gitlab_position(&mr, &c.at) });
+                request("POST", &format!("{base}/draft_notes"), token, Some(&note))?;
+            }
+            if !review.body.trim().is_empty() {
+                request("POST", &format!("{base}/draft_notes"), token, Some(&json!({ "note": review.body })))?;
+            }
+            if !review.comments.is_empty() || !review.body.trim().is_empty() {
+                request("POST", &format!("{base}/draft_notes/bulk_publish"), token, None)?;
+            }
+            if review.verdict == "approve" {
+                request("POST", &format!("{base}/approve"), token, None)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn review(repo: &Path, remote: &str, number: u64, review: &NewReview) -> Result<()> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    review_in(&p, &token, number, review)
+}
+
 fn line_comment_in(p: &Project, token: &str, number: u64, at: &LineRef, body: &str) -> Result<()> {
     if body.trim().is_empty() {
         return Err(Error::msg("Write something first"));
@@ -1779,21 +2100,7 @@ fn line_comment_in(p: &Project, token: &str, number: u64, at: &LineRef, body: &s
         _ => {
             let base = format!("{}/projects/{}/merge_requests/{number}", p.api, encode(&p.path));
             let mr = get(&base, token)?;
-            let refs = &mr["diff_refs"];
-            let mut position = json!({
-                "position_type": "text",
-                "base_sha": refs["base_sha"],
-                "start_sha": refs["start_sha"],
-                "head_sha": refs["head_sha"],
-                "new_path": at.path,
-                "old_path": at.old_path.as_deref().unwrap_or(&at.path),
-            });
-            if let Some(n) = at.new_line {
-                position["new_line"] = json!(n);
-            }
-            if let Some(o) = at.old_line {
-                position["old_line"] = json!(o);
-            }
+            let position = gitlab_position(&mr, at);
             request("POST", &format!("{base}/discussions"), token, Some(&json!({ "body": body, "position": position })))?;
         }
     }

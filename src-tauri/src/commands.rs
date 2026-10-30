@@ -628,6 +628,31 @@ pub fn comment_pull_request(repo: String, remote: String, number: u64, body: Str
     forge::comment(&workdir(&repo)?, &remote, number, &body)
 }
 
+/// Answer in a request's thread (`first`: its first comment).
+#[tauri::command(async)]
+pub fn reply_pull_request(repo: String, remote: String, number: u64, thread: String, first: String, body: String) -> Result<()> {
+    forge::reply(&workdir(&repo)?, &remote, number, &thread, &first, &body)
+}
+
+/// Send a review: line comments, a summary and a verdict together.
+#[tauri::command(async)]
+pub fn review_pull_request(repo: String, remote: String, number: u64, review: forge::NewReview) -> Result<()> {
+    forge::review(&workdir(&repo)?, &remote, number, &review)
+}
+
+/// Put a suggested change into a file of the work tree: lines `from`..=`to`
+/// (1-based) become `text`. Refused when the file has uncommitted changes.
+#[tauri::command(async)]
+pub fn apply_suggestion(repo: String, path: String, from: usize, to: usize, text: String) -> Result<()> {
+    ops::apply_suggestion(&open(&repo)?, &path, from, to, &text)
+}
+
+/// Resolve a request's thread, or open it again.
+#[tauri::command(async)]
+pub fn resolve_pull_request_thread(repo: String, remote: String, number: u64, thread: String, resolved: bool) -> Result<()> {
+    forge::resolve(&workdir(&repo)?, &remote, number, &thread, resolved)
+}
+
 #[tauri::command(async)]
 pub fn merge_pull_request(
     repo: String,
