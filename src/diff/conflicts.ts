@@ -23,6 +23,9 @@ export interface ConflictSegment {
   theirs: string[];
   oursLabel: string;
   theirsLabel: string;
+  /** Lines of the `<<<<<<<` and `>>>>>>>` markers (0-based, inclusive). */
+  start: number;
+  end: number;
 }
 
 export type Segment = TextSegment | ConflictSegment;
@@ -81,6 +84,8 @@ export function parseConflicts(text: string): Parsed {
       theirs: lines.slice(sep + 1, end),
       oursLabel: label(lines[start]),
       theirsLabel: label(lines[end]),
+      start,
+      end,
     });
     i = end + 1;
   }
@@ -117,4 +122,40 @@ export function resolve(parsed: Parsed, choices: (Choice | undefined)[]): string
   }
   const text = out.join("\n");
   return parsed.finalNewline && out.length ? text + "\n" : text;
+}
+
+const sameLines = (a: string[], b: string[]) => a.length === b.length && a.every((l, i) => l.replace(/\r$/, "") === b[i].replace(/\r$/, ""));
+
+/** The conflicts of `text`, in order. */
+export function conflictsOf(text: string): ConflictSegment[] {
+  return parseConflicts(text).segments.filter((s): s is ConflictSegment => s.kind === "conflict");
+}
+
+/** `text` with its `index`-th conflict block replaced by `lines`; the rest
+ *  stays byte for byte as it was (hand edits included). */
+export function replaceConflict(text: string, index: number, lines: string[]): string {
+  const c = conflictsOf(text)[index];
+  if (!c) return text;
+  const finalNewline = text.endsWith("\n");
+  const all = (finalNewline ? text.slice(0, -1) : text).split("\n");
+  all.splice(c.start, c.end - c.start + 1, ...lines);
+  const joined = all.join("\n");
+  return finalNewline && all.length ? joined + "\n" : joined;
+}
+
+/** Where block `index` of `text` starts and ends, in characters (for
+ *  selecting it in a text box). */
+export function conflictRange(text: string, index: number): [number, number] | null {
+  const c = conflictsOf(text)[index];
+  if (!c) return null;
+  const lines = text.split("\n");
+  const offset = (line: number) => lines.slice(0, line).reduce((n, l) => n + l.length + 1, 0);
+  return [offset(c.start), offset(c.end) + lines[c.end].length];
+}
+
+/** The base of a conflict: its own `|||||||` section, else the one of the
+ *  conflict with the same two sides in a diff3 merge of the file. */
+export function baseOf(c: ConflictSegment, diff3: ConflictSegment[]): string[] | null {
+  if (c.base) return c.base;
+  return diff3.find((d) => sameLines(d.ours, c.ours) && sameLines(d.theirs, c.theirs))?.base ?? null;
 }

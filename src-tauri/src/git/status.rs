@@ -100,6 +100,21 @@ pub struct ConflictFile {
     /// Work tree file with conflict markers (`None` if missing).
     pub working: Option<String>,
     pub binary: bool,
+    /// The three versions merged again with each conflict's base shown
+    /// (diff3 style), whatever style the work tree file was written in.
+    pub merged: Option<String>,
+}
+
+/// `ours` and `theirs` merged over `base`, conflicts in diff3 style.
+fn diff3(base: Option<&str>, ours: &str, theirs: &str) -> Option<String> {
+    let (mut b, mut o, mut t) = (git2::MergeFileInput::new(), git2::MergeFileInput::new(), git2::MergeFileInput::new());
+    b.content(base.unwrap_or("").as_bytes());
+    o.content(ours.as_bytes());
+    t.content(theirs.as_bytes());
+    let mut opts = git2::MergeFileOptions::new();
+    opts.style_diff3(true).ancestor_label("base").our_label("ours").their_label("theirs");
+    let merged = git2::merge_file(&b, &o, &t, Some(&mut opts)).ok()?;
+    String::from_utf8(merged.content().to_vec()).ok()
 }
 
 pub fn conflict_file(repo: &Repository, path: &str) -> Result<ConflictFile> {
@@ -132,5 +147,9 @@ pub fn conflict_file(repo: &Repository, path: &str) -> Result<ConflictFile> {
     let base = blob(&c.ancestor)?;
     let wd = repo.workdir().expect("non-bare").join(path);
     let working = std::fs::read(&wd).ok().map(|b| String::from_utf8_lossy(&b).into_owned());
-    Ok(ConflictFile { path: path.to_owned(), ours, theirs, base, working, binary })
+    let merged = match (&ours, &theirs) {
+        (Some(o), Some(t)) if !binary => diff3(base.as_deref(), o, t),
+        _ => None,
+    };
+    Ok(ConflictFile { path: path.to_owned(), ours, theirs, base, working, binary, merged })
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseConflicts, resolve } from "../../src/diff/conflicts";
+import { baseOf, conflictRange, conflictsOf, parseConflicts, replaceConflict, resolve } from "../../src/diff/conflicts";
 
 const file = [
   "top",
@@ -68,5 +68,37 @@ describe("CRLF files", () => {
     expect(p.segments.map((s) => s.kind)).toEqual(["text", "conflict", "text"]);
     expect(p.segments[1]).toMatchObject({ oursLabel: "HEAD", theirsLabel: "side" });
     expect(resolve(p, ["theirs"])).toBe("top\r\ntheirs\r\nend\r\n");
+  });
+});
+
+describe("editing conflicts in place", () => {
+  it("replaces one block and keeps everything else, hand edits included", () => {
+    const edited = file.replace("middle", "middle, edited by hand");
+    const once = replaceConflict(edited, 1, ["c"]);
+    expect(once).toBe(["top", "<<<<<<< HEAD", "ours 1", "ours 2", "=======", "theirs", ">>>>>>> feature", "middle, edited by hand", "c", "end", ""].join("\n"));
+    // What was the first block is still the first.
+    const twice = replaceConflict(once, 0, ["ours 1", "theirs"]);
+    expect(twice).toBe("top\nours 1\ntheirs\nmiddle, edited by hand\nc\nend\n");
+    expect(conflictsOf(twice)).toEqual([]);
+    expect(replaceConflict(twice, 0, ["x"])).toBe(twice);
+  });
+
+  it("keeps CRLF lines and a missing final newline", () => {
+    const crlf = "a\r\n<<<<<<< HEAD\r\nx\r\n=======\r\ny\r\n>>>>>>> b\r\nz";
+    expect(replaceConflict(crlf, 0, ["y\r"])).toBe("a\r\ny\r\nz");
+  });
+
+  it("finds a block's characters", () => {
+    const [from, to] = conflictRange(file, 0)!;
+    expect(file.slice(from, to)).toBe("<<<<<<< HEAD\nours 1\nours 2\n=======\ntheirs\n>>>>>>> feature");
+    expect(conflictRange(file, 5)).toBeNull();
+  });
+
+  it("borrows a conflict's base from the diff3 merge", () => {
+    const diff3 = conflictsOf("<<<<<<< ours\nours 1\nours 2\n||||||| base\nold\n=======\ntheirs\n>>>>>>> theirs\n");
+    const [plain, withBase] = conflictsOf(file);
+    expect(baseOf(plain, diff3)).toEqual(["old"]);
+    expect(baseOf(withBase, diff3)).toEqual(["b"]);
+    expect(baseOf({ ...plain, ours: ["other"] }, diff3)).toBeNull();
   });
 });

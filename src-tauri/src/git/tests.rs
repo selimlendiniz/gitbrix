@@ -516,6 +516,11 @@ fn conflict_file_has_all_three_sides() {
     assert_eq!(c.base.as_deref(), Some("top\nbase\nbottom\n"));
     let w = c.working.unwrap();
     assert!(w.contains("<<<<<<< HEAD") && w.contains(">>>>>>> other"), "{w}");
+    // Merged again with the base in each conflict, for the merge editor.
+    assert_eq!(
+        c.merged.as_deref(),
+        Some("top\n<<<<<<< ours\nours\n||||||| base\nbase\n=======\ntheirs\n>>>>>>> theirs\nbottom\n")
+    );
     assert!(status::conflict_file(&t.open(), "nope.txt").is_err());
 }
 

@@ -263,9 +263,13 @@ try {
       js(`return [...document.querySelectorAll('.wip-panel .file-row')].some(r => r.textContent.includes('conflict.txt'))`),
     );
     await js(`[...document.querySelectorAll('.wip-panel .file-row')].find(r => r.textContent.includes('conflict.txt')).click()`);
-    await waitFor("conflict view", () => js("return !!document.querySelector('.conflict-block')"));
+    await waitFor("merge editor", () => js("return !!document.querySelector('.merge-editor .merge-pane.base .merge-hunk')"));
+    // The base comes from a diff3 merge even though the file has no base section.
+    const base = await text(".merge-pane.base .merge-hunk");
+    if (base.trim() !== "base") throw new Error(`base pane: ${JSON.stringify(base)}`);
     await shot("08-conflict");
-    await js(`[...document.querySelectorAll('.conflict-choices button')].find(b => b.textContent === 'Both').click()`);
+    await js(`[...document.querySelectorAll('.merge-nav-picks button')].find(b => b.textContent === 'Both').click()`);
+    await waitFor("result resolved", () => js("return document.querySelector('.merge-text').value === 'ours\\ntheirs\\n'"));
     await shot("09-conflict-chosen");
     await js(`[...document.querySelectorAll('.diff-header button')].find(b => b.textContent.includes('Save')).click()`);
     await waitFor("resolved", () => !git("diff", "--name-only", "--diff-filter=U"));

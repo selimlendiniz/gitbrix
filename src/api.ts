@@ -254,6 +254,8 @@ export interface ConflictFile {
   base: string | null;
   working: string | null;
   binary: boolean;
+  /** The three versions merged again with each conflict's base (diff3). */
+  merged: string | null;
 }
 
 export interface HistoryEntry {

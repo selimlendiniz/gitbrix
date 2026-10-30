@@ -121,9 +121,10 @@ export const IconMinus = (p: P) => (
 );
 
 export const IconChevron = (p: P & { open?: boolean }) => {
-  const { open, ...rest } = p;
+  const { open, style, ...rest } = p;
+  // A caller's own rotation (a down or left arrow) is kept when closed.
   return (
-    <Svg {...rest} style={{ transform: open ? "rotate(90deg)" : undefined, transition: "transform 120ms" }}>
+    <Svg {...rest} style={{ ...style, transform: open ? "rotate(90deg)" : style?.transform, transition: "transform 120ms" }}>
       <path d="M6 3.5l4.5 4.5L6 12.5" />
     </Svg>
   );
