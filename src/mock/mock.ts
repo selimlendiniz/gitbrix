@@ -100,6 +100,8 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  release_notes: () => "- Parser: tokenizer\n- Write getting started guide",
+  create_release: () => "https://gitlab.com/team/demo-app/-/releases/v0.2.0",
   bisect_status: () => window.__gitbrixBisect ?? { active: false, bad: null, good: [], skipped: [], current: null, remaining: 0, steps: 0, found: null },
   bisect_start: () => window.__gitbrixBisect,
   bisect_mark: () => window.__gitbrixBisect,

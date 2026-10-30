@@ -699,3 +699,16 @@ pub fn bisect_run(app: tauri::AppHandle, repo: String, command: String) -> Resul
 pub fn comment_pull_request_line(repo: String, remote: String, number: u64, at: forge::LineRef, body: String) -> Result<()> {
     forge::line_comment(&workdir(&repo)?, &remote, number, &at, &body)
 }
+
+/// Commits since the previous tag, as release notes.
+#[tauri::command(async)]
+pub fn release_notes(repo: String, tag: String) -> Result<String> {
+    ops::check_name(&tag)?;
+    history::release_notes(&open(&repo)?, &tag)
+}
+
+/// Make a GitHub/GitLab release of a tag already pushed to `remote`.
+#[tauri::command(async)]
+pub fn create_release(repo: String, remote: String, release: forge::NewRelease) -> Result<String> {
+    forge::release(&workdir(&repo)?, &remote, &release)
+}

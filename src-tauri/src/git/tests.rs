@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{diff, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace};
+use super::{diff, history, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace};
 
 struct TestRepo {
     _dir: TempDir,
@@ -2004,4 +2004,27 @@ fn bisect_finds_the_first_bad_commit_by_hand_and_by_command() {
 
     assert!(bisect::start(&t.path, &ids[0], "HEAD").is_err(), "good must be older");
     assert!(bisect::verdict(&t.path, "good", None).is_err(), "nothing running");
+}
+
+#[test]
+fn release_notes_list_commits_since_the_previous_tag() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    t.git(&["tag", "v1.0"]);
+    t.commit("a.txt", "2\n", "Fix the parser");
+    t.git(&["switch", "-q", "-c", "side"]);
+    t.commit("b.txt", "b\n", "Add export");
+    t.git(&["switch", "-q", "main"]);
+    t.git(&["merge", "-q", "--no-ff", "side", "-m", "Merge side"]);
+    t.git(&["tag", "-a", "v1.1", "-m", "v1.1"]);
+    t.commit("a.txt", "3\n", "after");
+    t.git(&["tag", "v1.2"]);
+
+    let notes = history::release_notes(&t.open(), "v1.1").unwrap();
+    let mut lines: Vec<&str> = notes.lines().collect();
+    lines.sort();
+    assert_eq!(lines, ["- Add export", "- Fix the parser"]);
+    assert_eq!(history::release_notes(&t.open(), "v1.0").unwrap(), "- first");
+    assert_eq!(history::release_notes(&t.open(), "v1.2").unwrap(), "- after");
+    assert!(history::release_notes(&t.open(), "nope").is_err());
 }

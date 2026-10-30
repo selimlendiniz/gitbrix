@@ -564,6 +564,10 @@ export const api = {
   /** Revert in this order (newest first). */
   revertMany: (repo: string, ids: string[]) => invoke<number>("revert_many", { repo, ids }),
 
+  releaseNotes: (repo: string, tag: string) => invoke<string>("release_notes", { repo, tag }),
+  /** Returns the release's page. The tag must already be on the remote. */
+  createRelease: (repo: string, remote: string, release: { tag: string; name: string; notes: string; draft: boolean; prerelease: boolean }) =>
+    invoke<string>("create_release", { repo, remote, release }),
   bisectStatus: (repo: string) => invoke<BisectStatus>("bisect_status", { repo }),
   bisectStart: (repo: string, bad: string, good: string) => invoke<BisectStatus>("bisect_start", { repo, bad, good }),
   /** A verdict for `rev`, or for the commit being tested. */

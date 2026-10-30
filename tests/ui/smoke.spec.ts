@@ -1091,3 +1091,24 @@ test("bisect: mark bad and good to start, verdicts from the banner, the culprit 
   await expect(page.locator(".op-banner.bisect")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("release: a tag's menu pushes the tag, then releases it with the notes", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await page.locator(".pill", { hasText: /^v0\.2\.0/ }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Create release/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Create release" });
+  await expect(dialog.locator("textarea")).toHaveValue("- Parser: tokenizer\n- Write getting started guide");
+  await dialog.locator("input").first().fill("Version 0.2");
+  await page.screenshot({ path: "test-results/shots/release.png" });
+  await dialog.getByRole("button", { name: "Push tag and release" }).click();
+  await expect(page.getByText("Released v0.2.0")).toBeVisible();
+  const cmds = await calls(page);
+  expect(cmds.indexOf("push_tag")).toBeLessThan(cmds.indexOf("create_release"));
+  expect(await lastCall(page, "push_tag")).toMatchObject({ remote: "origin", tag: "v0.2.0", delete: false });
+  expect(await lastCall(page, "create_release")).toMatchObject({
+    remote: "origin",
+    release: { tag: "v0.2.0", name: "Version 0.2", draft: false, prerelease: false },
+  });
+  expect(errors).toEqual([]);
+});

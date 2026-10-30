@@ -1086,6 +1086,23 @@ mod tests {
     }
 
     #[test]
+    fn releases_are_made_from_tags() {
+        let new = NewRelease { tag: "v1.2.0".into(), name: " ".into(), notes: "- Fix it".into(), draft: true, prerelease: false };
+        let (addr, _, bodies) = serve_bodies(vec![("POST /repos/team/app/releases", json!({ "html_url": "https://github.com/team/app/releases/tag/v1.2.0" }))]);
+        let url = release_in(&project("github", &addr, "me"), "tok", &new).unwrap();
+        assert_eq!(url, "https://github.com/team/app/releases/tag/v1.2.0");
+        assert_eq!(
+            bodies.lock().unwrap()[0].1,
+            json!({ "tag_name": "v1.2.0", "name": "v1.2.0", "body": "- Fix it", "draft": true, "prerelease": false })
+        );
+
+        let (addr, _, bodies) = serve_bodies(vec![("POST /api/v4/projects/team%2Fapp/releases", json!({}))]);
+        let url = release_in(&project("gitlab", &format!("{addr}/api/v4"), "me"), "tok", &NewRelease { name: "First".into(), ..new }).unwrap();
+        assert_eq!(url, "https://git.test/team/app/-/releases/v1.2.0");
+        assert_eq!(bodies.lock().unwrap()[0].1, json!({ "tag_name": "v1.2.0", "name": "First", "description": "- Fix it" }));
+    }
+
+    #[test]
     fn error_details_come_from_every_shape() {
         assert_eq!(error_detail(&json!({ "message": ["Another open merge request already exists"] })), "Another open merge request already exists");
         assert_eq!(error_detail(&json!({ "message": { "title": ["can't be blank"] } })), "title can't be blank");
@@ -1786,4 +1803,44 @@ fn ci_in(p: &Project, token: &str, shas: &[String]) -> Result<HashMap<String, Ci
         "github" => github_ci(p, token, shas),
         _ => Ok(gitlab_pipelines(p, token)?.into_iter().filter(|(sha, _)| shas.contains(sha)).collect()),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Releases
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewRelease {
+    pub tag: String,
+    pub name: String,
+    pub notes: String,
+    /// GitHub only.
+    pub draft: bool,
+    /// GitHub only.
+    pub prerelease: bool,
+}
+
+/// Make a release of a tag that is already on the remote; returns its page.
+fn release_in(p: &Project, token: &str, new: &NewRelease) -> Result<String> {
+    if new.tag.trim().is_empty() {
+        return Err(Error::msg("Pick a tag"));
+    }
+    let name = if new.name.trim().is_empty() { new.tag.clone() } else { new.name.trim().to_owned() };
+    match p.provider.as_str() {
+        "github" => {
+            let body = json!({ "tag_name": new.tag, "name": name, "body": new.notes, "draft": new.draft, "prerelease": new.prerelease });
+            let rel = request("POST", &format!("{}/repos/{}/releases", p.api, p.path), token, Some(&body))?;
+            Ok(text(&rel["html_url"]))
+        }
+        _ => {
+            let body = json!({ "tag_name": new.tag, "name": name, "description": new.notes });
+            request("POST", &format!("{}/projects/{}/releases", p.api, encode(&p.path)), token, Some(&body))?;
+            Ok(format!("https://{}/{}/-/releases/{}", p.host, p.path, encode(&new.tag)))
+        }
+    }
+}
+
+pub fn release(repo: &Path, remote: &str, new: &NewRelease) -> Result<String> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    release_in(&p, &token, new)
 }

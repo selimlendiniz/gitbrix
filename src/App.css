@@ -1600,6 +1600,11 @@ textarea {
   margin-top: 6px;
 }
 
+.release-flags {
+  display: flex;
+  gap: 16px;
+}
+
 .settings-inline {
   display: flex;
   align-items: center;

@@ -274,3 +274,41 @@ mod tests {
         assert_eq!(glob_escape("a*b?[c]"), "a\\*b\\?\\[c\\]");
     }
 }
+
+/// Release notes for `tag`: one line per commit since the newest older tag
+/// it contains (or since the beginning), newest first, merges left out.
+pub fn release_notes(repo: &Repository, tag: &str) -> Result<String> {
+    let target = repo
+        .revparse_single(&format!("refs/tags/{tag}"))
+        .and_then(|o| o.peel_to_commit())
+        .map_err(|_| Error::msg(format!("No tag named {tag}")))?;
+    // The previous release: the closest other tag the target contains (one
+    // no other such tag comes after).
+    let mut previous: Option<git2::Oid> = None;
+    for name in repo.tag_names(None)?.iter().flatten().flatten() {
+        if name == tag {
+            continue;
+        }
+        let Ok(c) = repo.revparse_single(&format!("refs/tags/{name}")).and_then(|o| o.peel_to_commit()) else { continue };
+        if c.id() == target.id() || !repo.graph_descendant_of(target.id(), c.id()).unwrap_or(false) {
+            continue;
+        }
+        if previous.is_none_or(|p| repo.graph_descendant_of(c.id(), p).unwrap_or(false)) {
+            previous = Some(c.id());
+        }
+    }
+    let mut walk = repo.revwalk()?;
+    walk.push(target.id())?;
+    if let Some(p) = previous {
+        walk.hide(p)?;
+    }
+    let mut lines = Vec::new();
+    for id in walk.take(500) {
+        let c = repo.find_commit(id?)?;
+        if c.parent_count() > 1 {
+            continue;
+        }
+        lines.push(format!("- {}", c.summary().ok().flatten().unwrap_or("")));
+    }
+    Ok(lines.join("\n"))
+}

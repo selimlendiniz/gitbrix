@@ -9,6 +9,7 @@ import { api, CommitRow, errorText, PullMode, PullRequest, RebaseStep, RefInfo, 
 import { shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
 import { bisectMenu } from "./bisect";
+import { useRelease } from "./components/ReleaseDialog";
 import { createPullRequest, loadInbox, loadPrs, openPullRequest, prLabel, usePrs } from "./prs";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
@@ -383,6 +384,7 @@ function refMenuItems(ref: RefInfo): MenuItem[] {
       { label: "Create branch here…", onSelect: () => createBranch(ref.name, ref.name) },
       { separator: true, label: "" },
       ...tagRemoteItems(ref),
+      { label: "Create release…", hint: "GitHub / GitLab", disabled: !s().remotes.length, onSelect: () => useRelease.setState({ tag: ref.name }) },
       { separator: true, label: "" },
       { label: "Delete tag…", danger: true, onSelect: () => deleteTag(ref) },
       { label: "Copy tag name", onSelect: () => copy(ref.name) },
