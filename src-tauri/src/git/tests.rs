@@ -1667,3 +1667,33 @@ fn a_profile_for_the_folder_signs_commits_unless_the_repo_says_otherwise() {
     ops::commit(&t.path, "as work", false).unwrap();
     assert_eq!(t.git(&["log", "-1", "--format=%an <%ae> / %cn <%ce>"]), "Work Me <me@work.example> / Work Me <me@work.example>");
 }
+
+#[test]
+fn a_requests_range_runs_from_where_it_left_its_target() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "base");
+    let bare = t.add_origin();
+    t.git(&["push", "-q", "origin", "main"]);
+    let fork_point = t.git(&["rev-parse", "HEAD"]);
+    let head = t.commit("b.txt", "x\n", "request work");
+    git_in(&t.path, &["push", "-q", "origin", "HEAD:refs/merge-requests/3/head"]);
+    // The target moves on meanwhile, in another clone.
+    let other = TempDir::new().unwrap();
+    git_in(other.path(), &["clone", "-q", bare.to_str().unwrap(), "c"]);
+    let c = other.path().join("c");
+    isolate(&c);
+    fs::write(c.join("a.txt"), "2\n").unwrap();
+    git_in(&c, &["commit", "-qam", "target moves"]);
+    git_in(&c, &["push", "-q", "origin", "main"]);
+    t.git(&["reset", "-q", "--hard", &fork_point]);
+
+    let range = net::pull_request_range(&t.path, "origin", "gitlab", 3, "main", &mut |_| {}).unwrap();
+    assert_eq!((range.base.as_str(), range.head.as_str()), (fork_point.as_str(), head.as_str()));
+    let files: Vec<String> = diff::compare(&t.open(), git2::Oid::from_str(&range.base).unwrap(), git2::Oid::from_str(&range.head).unwrap())
+        .unwrap()
+        .into_iter()
+        .map(|f| f.path)
+        .collect();
+    assert_eq!(files, ["b.txt"], "only the request's own change, not the target's");
+    assert!(net::pull_request_range(&t.path, "origin", "gitlab", 3, "nope", &mut |_| {}).is_err());
+}

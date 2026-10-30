@@ -60,6 +60,34 @@ export interface CreatedRequest {
   warning: string | null;
 }
 
+/** A request's own commits: from where it leaves its target to its head. */
+export interface RequestRange {
+  base: string;
+  head: string;
+}
+
+export interface PrComment {
+  author: string;
+  body: string;
+  created: string;
+  path: string | null;
+  line: number | null;
+  /** GitHub review verdict: APPROVED, CHANGES_REQUESTED… */
+  verdict: string | null;
+  system: boolean;
+}
+
+export interface Conversation {
+  description: string;
+  comments: PrComment[];
+  open: boolean;
+  /** null while the service is still working it out. */
+  mergeable: boolean | null;
+  mergeStatus: string;
+}
+
+export type MergeMethod = "merge" | "squash" | "rebase";
+
 export interface Profile {
   id: string;
   name: string;
@@ -465,6 +493,15 @@ export const api = {
   pullRequestForm: (repo: string, remote: string) => invoke<RequestForm>("pull_request_form", { repo, remote }),
   createPullRequest: (repo: string, remote: string, request: NewRequest) =>
     invoke<CreatedRequest>("create_pull_request", { repo, remote, request }),
+
+  pullRequestRange: (repo: string, remote: string, number: number, target: string) =>
+    invoke<RequestRange>("pull_request_range", { repo, remote, number, target }),
+  pullRequestConversation: (repo: string, remote: string, number: number) =>
+    invoke<Conversation>("pull_request_conversation", { repo, remote, number }),
+  commentPullRequest: (repo: string, remote: string, number: number, body: string) =>
+    invoke<void>("comment_pull_request", { repo, remote, number, body }),
+  mergePullRequest: (repo: string, remote: string, number: number, method: MergeMethod, deleteBranch: boolean) =>
+    invoke<void>("merge_pull_request", { repo, remote, number, method, deleteBranch }),
 
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
   /** Repositories in a folder, up to three levels down. */

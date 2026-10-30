@@ -220,24 +220,66 @@ pub fn fetch_remote(repo: &Path, remote: &str, progress: Progress) -> Result<()>
 /// Check out the head of a pull/merge request from a fork on a local
 /// branch (`pr/12` for GitHub, `mr/12` for GitLab), creating it or moving
 /// it forward to the request's latest commit. Returns the branch name.
+/// Where a request's commits live on the service: GitHub `refs/pull/N/head`,
+/// GitLab `refs/merge-requests/N/head` (forks' requests too).
+fn request_ref(provider: &str, number: u64) -> Result<String> {
+    match provider {
+        "github" => Ok(format!("refs/pull/{number}/head")),
+        "gitlab" => Ok(format!("refs/merge-requests/{number}/head")),
+        other => Err(Error::msg(format!("Unknown provider {other}"))),
+    }
+}
+
+/// Fetch a request's head (plus `extra` refspecs); returns its commit.
+fn fetch_request_head(r: &Repository, remote: &str, head_ref: &str, extra: &[&str], progress: Shared) -> Result<Oid> {
+    let mut specs = vec![head_ref];
+    specs.extend_from_slice(extra);
+    fetch_refspecs(r, remote, &specs, progress)?;
+    let mut tip = None;
+    let mut first = None;
+    r.fetchhead_foreach(|name, _, oid, _| {
+        first.get_or_insert(*oid);
+        if name == head_ref {
+            tip = Some(*oid);
+            return false;
+        }
+        true
+    })
+    .or_else(|e| if tip.is_some() { Ok(()) } else { Err(e) })?;
+    tip.or(first).ok_or_else(|| Error::msg(format!("{remote} has no {head_ref}")))
+}
+
+/// The commits a request changes: its head, and where it leaves its target
+/// branch (the merge base with the target's latest commit, fetched now).
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestRange {
+    pub base: String,
+    pub head: String,
+}
+
+pub fn pull_request_range(repo: &Path, remote: &str, provider: &str, number: u64, target: &str, progress: Progress) -> Result<RequestRange> {
+    ops::check_name(remote)?;
+    ops::check_name(target)?;
+    let head_ref = request_ref(provider, number)?;
+    let r = open(repo)?;
+    let tracking = format!("refs/remotes/{remote}/{target}");
+    let target_spec = format!("+refs/heads/{target}:{tracking}");
+    let head = fetch_request_head(&r, remote, &head_ref, &[&target_spec], &RefCell::new(progress))?;
+    let target_tip = r
+        .refname_to_id(&tracking)
+        .map_err(|_| Error::msg(format!("{remote} has no branch {target}")))?;
+    let base = r.merge_base(head, target_tip)?;
+    Ok(RequestRange { base: base.to_string(), head: head.to_string() })
+}
+
 pub fn checkout_pull_request(repo: &Path, remote: &str, provider: &str, number: u64, progress: Progress) -> Result<String> {
     ops::check_name(remote)?;
-    let (head_ref, branch) = match provider {
-        "github" => (format!("refs/pull/{number}/head"), format!("pr/{number}")),
-        "gitlab" => (format!("refs/merge-requests/{number}/head"), format!("mr/{number}")),
-        other => return Err(Error::msg(format!("Unknown provider {other}"))),
-    };
+    let head_ref = request_ref(provider, number)?;
+    let branch = if provider == "github" { format!("pr/{number}") } else { format!("mr/{number}") };
     {
         let r = open(repo)?;
-        fetch_refspecs(&r, remote, &[&head_ref], &RefCell::new(progress))?;
-        // The fetched commit is FETCH_HEAD's only entry.
-        let mut tip = None;
-        r.fetchhead_foreach(|_, _, oid, _| {
-            tip = Some(*oid);
-            false
-        })
-        .or_else(|e| if tip.is_some() { Ok(()) } else { Err(e) })?;
-        let tip = tip.ok_or_else(|| Error::msg(format!("{remote} has no {head_ref}")))?;
+        let tip = fetch_request_head(&r, remote, &head_ref, &[], &RefCell::new(progress))?;
         let commit = r.find_commit(tip)?;
         match r.find_branch(&branch, BranchType::Local) {
             Err(_) => {

@@ -1185,6 +1185,101 @@ textarea {
   margin-left: 6px;
 }
 
+.pr-panel-meta {
+  font-size: 12px;
+  margin: 2px 0 8px;
+}
+
+.pr-panel .stash-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pr-merge-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.pr-merge-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  font-size: 12px;
+}
+
+.pr-merge-box .modal-actions {
+  margin-top: 0;
+}
+
+.pr-conversation {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pr-description,
+.pr-comment-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pr-description {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pr-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pr-comment.system {
+  opacity: 0.6;
+}
+
+.pr-comment-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.pr-comment-path {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.pr-reply {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.pr-reply textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.side-item.pr-item.selected {
+  background: var(--bg-select);
+}
+
 .settings-inline {
   display: flex;
   align-items: center;

@@ -8,7 +8,8 @@ import { create } from "zustand";
 import { PullRequest } from "../api";
 import { approvePullRequest } from "../actions";
 import { relativeTime } from "../format";
-import { loadInbox, prKey, prLabel, usePrs, wantsReview } from "../prs";
+import { loadInbox, openPullRequest, prKey, prLabel, usePrs, wantsReview } from "../prs";
+import { useStore } from "../store";
 import { IconFetch, IconPullRequest } from "./Icons";
 import { useSettingsDialog } from "./SettingsDialog";
 
@@ -56,11 +57,28 @@ export function PullRequestsButton() {
   );
 }
 
+/** The same request as listed for the open repository, if it is there:
+ * that one knows its remote, so it can be reviewed in the app. */
+function local(pr: PullRequest): PullRequest | undefined {
+  const repo = useStore.getState().repo?.path;
+  return repo ? usePrs.getState().byRepo[repo]?.items.find((x) => x.project === pr.project && x.number === pr.number) : undefined;
+}
+
+function review(pr: PullRequest) {
+  const mine = local(pr);
+  if (!mine) {
+    void openUrl(pr.url);
+    return;
+  }
+  usePrDialog.setState({ open: false });
+  openPullRequest(mine);
+}
+
 function Row({ pr }: { pr: PullRequest }) {
   const path = pr.project.slice(pr.project.indexOf("/") + 1);
   const created = Date.parse(pr.created) / 1000;
   return (
-    <div className="pr-row" onClick={() => void openUrl(pr.url)} title={`Open ${pr.url}`}>
+    <div className="pr-row" onClick={() => review(pr)} title={local(pr) ? "Review in gitbrix" : `Open ${pr.url}`}>
       <div className="pr-row-main">
         <span className="pr-number">{prLabel(pr)}</span>
         <span className="pr-title">{pr.title}</span>

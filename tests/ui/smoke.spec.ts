@@ -720,3 +720,37 @@ test("create pull request: from a branch's menu, pushed first, with reviewers", 
   await expect(page.getByText("Opened !14")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("review a request in the app: files, diff, comments, merge", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript((first) => {
+    window.__gitbrixPrs = { items: [first], problems: [], covered: true, projects: ["gitlab.com/team/demo-app"] };
+  }, mr(5, { title: "Dark theme" }));
+  await page.goto("/?open");
+  await page.locator(".pr-item", { hasText: "Dark theme" }).click();
+  const panel = page.getByTestId("pull-request");
+  await expect(panel.locator(".commit-summary")).toHaveText("Dark theme");
+  await expect.poll(() => lastCall(page, "pull_request_range")).toMatchObject({ remote: "origin", number: 5, target: "main" });
+  // The source branch's commit (origin/feature/ui) is selected in the graph too.
+  await expect(page.locator(".graph-row.selected")).toContainText("UI: layout pass");
+
+  await panel.locator(".file-row", { hasText: "ui.rs" }).click();
+  await expect(page.getByTestId("diff")).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/pr-review-files.png" });
+
+  await panel.getByRole("button", { name: /Conversation/ }).click();
+  await expect(panel.locator(".pr-description")).toHaveText("Makes the UI darker.");
+  await expect(panel.locator(".pr-comment", { hasText: "Too dark?" })).toContainText("src/ui.rs:3");
+  await panel.getByPlaceholder("Write a comment").fill("Looks fine to me");
+  await panel.getByRole("button", { name: "Comment", exact: true }).click();
+  await expect.poll(() => lastCall(page, "comment_pull_request")).toMatchObject({ number: 5, body: "Looks fine to me" });
+  await page.screenshot({ path: "test-results/shots/pr-review-conversation.png" });
+
+  await panel.getByRole("button", { name: "Merge…" }).click();
+  await panel.getByRole("button", { name: "Squash" }).click();
+  await panel.getByRole("button", { name: "Merge", exact: true }).click();
+  await expect.poll(() => lastCall(page, "merge_pull_request")).toMatchObject({ number: 5, method: "squash", deleteBranch: true });
+  await expect(page.getByText("Merged !5 into main")).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

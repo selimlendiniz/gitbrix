@@ -1,9 +1,9 @@
 import { ReactNode, useMemo, useState } from "react";
 
 import { PullRequest, RefInfo, RemoteInfo } from "../api";
-import { addRemote, addWorktree, checkoutPullRequest, checkoutRef, prHead, prMenu, submoduleMenu, updateSubmodules, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
+import { addRemote, addWorktree, checkoutPullRequest, checkoutRef, prMenu, submoduleMenu, updateSubmodules, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
 import { beginDrag, dropTarget } from "../dnd";
-import { createPullRequest, loadPrs, prLabel, usePrs, wantsReview } from "../prs";
+import { createPullRequest, loadPrs, openPullRequest, prLabel, usePrs, usePrView, wantsReview } from "../prs";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
 import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconPullRequest, IconStash, IconTag } from "./Icons";
@@ -281,7 +281,6 @@ function RemoteGroup({ remote, list, filtering }: { remote: RemoteInfo; list: Re
 function PullRequestSection() {
   const repoPath = useStore((s) => s.repo?.path);
   const data = usePrs((s) => (repoPath ? s.byRepo[repoPath] : undefined));
-  const select = useStore((s) => s.select);
   const showMenu = useStore((s) => s.showMenu);
   // Nothing to say for repositories no account covers.
   if (!repoPath || !data || (!data.covered && !data.problems.length && !data.error)) return null;
@@ -306,10 +305,7 @@ function PullRequestSection() {
         <PullRequestItem
           key={`${pr.project}#${pr.number}`}
           pr={pr}
-          onSelect={() => {
-            const head = prHead(pr);
-            if (head) select(head.target, true);
-          }}
+          onSelect={() => openPullRequest(pr)}
           onMenu={(x, y) => showMenu(x, y, prMenu(pr))}
         />
       ))}
@@ -324,11 +320,12 @@ function PullRequestSection() {
 }
 
 function PullRequestItem({ pr, onSelect, onMenu }: { pr: PullRequest; onSelect: () => void; onMenu: (x: number, y: number) => void }) {
+  const open = usePrView((s) => s.pr?.project === pr.project && s.pr?.number === pr.number);
   return (
     <div
-      className="side-item pr-item"
+      className={`side-item pr-item${open ? " selected" : ""}`}
       style={{ paddingLeft: 24 }}
-      title={`${pr.title}\n${pr.author} · ${pr.sourceBranch} → ${pr.targetBranch}${pr.sameRepo ? "" : " (fork)"}\nDouble-click to check out, right-click for more`}
+      title={`${pr.title}\n${pr.author} · ${pr.sourceBranch} → ${pr.targetBranch}${pr.sameRepo ? "" : " (fork)"}\nClick to review, double-click to check out, right-click for more`}
       onClick={onSelect}
       onDoubleClick={() => checkoutPullRequest(pr)}
       onContextMenu={(e) => {

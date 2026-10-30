@@ -7,7 +7,7 @@ import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, CommitRow, errorText, PullMode, PullRequest, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
-import { createPullRequest, loadInbox, loadPrs, prLabel, usePrs } from "./prs";
+import { createPullRequest, loadInbox, loadPrs, openPullRequest, prLabel, usePrs } from "./prs";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
 
@@ -911,14 +911,9 @@ export async function approvePullRequest(pr: PullRequest) {
   await Promise.all([repo ? loadPrs(repo) : null, usePrs.getState().inbox ? loadInbox() : null]);
 }
 
-/** The commit the request's branch points at, if it was fetched. */
-export function prHead(pr: PullRequest): RefInfo | undefined {
-  if (!pr.sameRepo) return undefined;
-  return s().graph?.refs.find((r) => r.kind === "remote" && r.name === `${pr.remote}/${pr.sourceBranch}`);
-}
-
 export function prMenu(pr: PullRequest): MenuItem[] {
   return [
+    ...(pr.remote ? [{ label: "Review in gitbrix", onSelect: () => openPullRequest(pr) }] : []),
     { label: "Open in browser", onSelect: () => void openUrl(pr.url) },
     { label: `Check out ${pr.sameRepo ? pr.sourceBranch : prLabel(pr)}`, onSelect: () => checkoutPullRequest(pr) },
     {

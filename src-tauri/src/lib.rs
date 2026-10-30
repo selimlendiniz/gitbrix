@@ -115,6 +115,10 @@ pub fn run() {
             commands::terminal_close,
             commands::pull_request_form,
             commands::create_pull_request,
+            commands::pull_request_range,
+            commands::pull_request_conversation,
+            commands::comment_pull_request,
+            commands::merge_pull_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

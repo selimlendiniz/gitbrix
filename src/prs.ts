@@ -227,3 +227,24 @@ export function createPullRequest(branch?: string) {
   }
   useCreatePr.setState({ branch: name });
 }
+
+/** The request shown in the details panel, reviewed in the app. */
+export const usePrView = create<{ pr: PullRequest | null }>(() => ({ pr: null }));
+
+// Picking a commit, comparing or switching repositories leaves the request.
+useStore.subscribe((st, prev) => {
+  if (st.selectedId !== prev.selectedId || st.compareId !== prev.compareId || st.repo?.path !== prev.repo?.path) {
+    if (usePrView.getState().pr) usePrView.setState({ pr: null });
+  }
+});
+
+/** Show a request of the open repository in the details panel, with its
+ * branch selected in the graph when it is there. */
+export function openPullRequest(pr: PullRequest) {
+  const st = useStore.getState();
+  const head = pr.sameRepo
+    ? st.graph?.refs.find((r) => r.kind === "remote" && r.name === `${pr.remote}/${pr.sourceBranch}`)
+    : undefined;
+  if (head) st.select(head.target, true);
+  usePrView.setState({ pr });
+}

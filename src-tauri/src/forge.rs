@@ -190,6 +190,14 @@ fn request(method: &str, url: &str, token: &str, body: Option<&Value>) -> Result
             .header("Accept", "application/json")
             .call(),
         _ => {
+            if method == "DELETE" {
+                agent
+                    .delete(url)
+                    .header("Authorization", &auth)
+                    .header("User-Agent", "gitbrix")
+                    .header("Accept", "application/json")
+                    .call()
+            } else {
             let req = if method == "PUT" { agent.put(url) } else { agent.post(url) };
             let req = req
                 .header("Authorization", &auth)
@@ -198,6 +206,7 @@ fn request(method: &str, url: &str, token: &str, body: Option<&Value>) -> Result
             match body {
                 Some(b) => req.send_json(b),
                 None => req.send_empty(),
+            }
             }
         }
     };
@@ -907,6 +916,86 @@ mod tests {
     }
 
     #[test]
+    fn github_conversation_merges_comments_reviews_and_lines() {
+        let (addr, _) = serve(vec![
+            ("GET /repos/team/app/pulls/4/comments", json!([
+                { "user": { "login": "ada" }, "body": "Off by one?", "created_at": "2026-10-02T00:00:00Z", "path": "src/a.rs", "line": 12 }
+            ])),
+            ("GET /repos/team/app/pulls/4/reviews", json!([
+                { "user": { "login": "ada" }, "body": "", "state": "COMMENTED", "submitted_at": "2026-10-02T00:00:01Z" },
+                { "user": { "login": "grace" }, "body": "Ship it", "state": "APPROVED", "submitted_at": "2026-10-03T00:00:00Z" }
+            ])),
+            ("GET /repos/team/app/pulls/4", json!({ "body": "Fixes #1", "state": "open", "merged": false, "mergeable": false, "mergeable_state": "dirty" })),
+            ("GET /repos/team/app/issues/4/comments", json!([
+                { "user": { "login": "me" }, "body": "First", "created_at": "2026-10-01T00:00:00Z" }
+            ])),
+        ]);
+        let c = conversation_in(&project("github", &addr, "me"), "tok", 4).unwrap();
+        assert_eq!(c.description, "Fixes #1");
+        assert!(c.open);
+        assert_eq!((c.mergeable, c.merge_status.as_str()), (Some(false), "has conflicts"));
+        let seen: Vec<(&str, Option<&str>, Option<u64>, Option<&str>)> = c
+            .comments
+            .iter()
+            .map(|x| (x.body.as_str(), x.path.as_deref(), x.line, x.verdict.as_deref()))
+            .collect();
+        assert_eq!(
+            seen,
+            [("First", None, None, None), ("Off by one?", Some("src/a.rs"), Some(12), None), ("Ship it", None, None, Some("APPROVED"))]
+        );
+    }
+
+    #[test]
+    fn gitlab_conversation_reads_notes_and_merge_status() {
+        let (addr, _) = serve(vec![
+            ("GET /api/v4/projects/team%2Fapp/merge_requests/9/notes", json!([
+                { "author": { "username": "bot" }, "body": "added 1 commit", "created_at": "2026-10-01T00:00:00Z", "system": true },
+                { "author": { "username": "ada" }, "body": "Rename this", "created_at": "2026-10-02T00:00:00Z", "system": false,
+                  "position": { "new_path": "lib.rs", "new_line": 3 } }
+            ])),
+            ("GET /api/v4/projects/team%2Fapp/merge_requests/9", json!({ "description": "Body", "state": "opened", "detailed_merge_status": "not_approved" })),
+        ]);
+        let c = conversation_in(&project("gitlab", &format!("{addr}/api/v4"), "me"), "tok", 9).unwrap();
+        assert_eq!((c.mergeable, c.merge_status.as_str()), (Some(false), "not approved"));
+        assert!(c.comments[0].system && !c.comments[1].system);
+        assert_eq!((c.comments[1].path.as_deref(), c.comments[1].line), (Some("lib.rs"), Some(3)));
+    }
+
+    #[test]
+    fn merging_deletes_only_the_projects_own_branch() {
+        let (addr, log, bodies) = serve_bodies(vec![
+            ("PUT /repos/team/app/pulls/4/merge", json!({ "merged": true })),
+            ("DELETE /repos/team/app/git/refs/heads/feature", json!({})),
+            ("GET /repos/team/app/pulls/4", json!({ "head": { "ref": "feature", "repo": { "full_name": "team/app" } } })),
+            ("POST /repos/team/app/issues/4/comments", json!({})),
+        ]);
+        let p = project("github", &addr, "me");
+        merge_in(&p, "tok", 4, "squash", true).unwrap();
+        comment_in(&p, "tok", 4, "Thanks").unwrap();
+        assert!(comment_in(&p, "tok", 4, "  ").is_err());
+        assert!(merge_in(&p, "tok", 4, "octopus", false).is_err());
+        let log = log.lock().unwrap();
+        assert!(log.iter().any(|l| l.starts_with("DELETE /repos/team/app/git/refs/heads/feature")), "{log:?}");
+        let bodies = bodies.lock().unwrap();
+        let sent = |r: &str| bodies.iter().find(|(x, _)| x == r).map(|(_, v)| v.clone()).unwrap();
+        assert_eq!(sent("PUT /repos/team/app/pulls/4/merge")["merge_method"], "squash");
+        assert_eq!(sent("POST /repos/team/app/issues/4/comments")["body"], "Thanks");
+
+        let (addr, log, _) = serve_bodies(vec![
+            ("PUT /repos/team/app/pulls/5/merge", json!({ "merged": true })),
+            ("GET /repos/team/app/pulls/5", json!({ "head": { "ref": "feature", "repo": { "full_name": "someone/fork" } } })),
+        ]);
+        merge_in(&project("github", &addr, "me"), "tok", 5, "merge", true).unwrap();
+        assert!(!log.lock().unwrap().iter().any(|l| l.starts_with("DELETE")), "a fork's branch isn't ours to delete");
+
+        let (addr, _, bodies) = serve_bodies(vec![("PUT /api/v4/projects/team%2Fapp/merge_requests/9/merge", json!({}))]);
+        let gl = project("gitlab", &format!("{addr}/api/v4"), "me");
+        merge_in(&gl, "tok", 9, "squash", true).unwrap();
+        assert_eq!(bodies.lock().unwrap()[0].1, json!({ "squash": true, "should_remove_source_branch": true }));
+        assert!(merge_in(&gl, "tok", 9, "rebase", false).is_err());
+    }
+
+    #[test]
     fn error_details_come_from_every_shape() {
         assert_eq!(error_detail(&json!({ "message": ["Another open merge request already exists"] })), "Another open merge request already exists");
         assert_eq!(error_detail(&json!({ "message": { "title": ["can't be blank"] } })), "title can't be blank");
@@ -1277,4 +1366,198 @@ fn create_in(p: &Project, token: &str, new: &NewRequest) -> Result<Created> {
             Ok(Created { number, url: text(&mr["web_url"]), warning: None })
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Reviewing a request
+
+/// A comment on a request: on the whole of it, or on a line of a file.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Comment {
+    pub author: String,
+    pub body: String,
+    /// ISO 8601.
+    pub created: String,
+    pub path: Option<String>,
+    pub line: Option<u64>,
+    /// A review's verdict on GitHub (`APPROVED`, `CHANGES_REQUESTED`).
+    pub verdict: Option<String>,
+    /// Made by the service ("added 2 commits"), not a person.
+    pub system: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Conversation {
+    pub description: String,
+    pub comments: Vec<Comment>,
+    /// Still open (not merged or closed meanwhile).
+    pub open: bool,
+    /// The service's word on merging: `None` while it is still working it out.
+    pub mergeable: Option<bool>,
+    /// Why it can't be merged, in the service's words.
+    pub merge_status: String,
+}
+
+fn github_comment(c: &Value, path: bool) -> Comment {
+    Comment {
+        author: c["user"]["login"].as_str().unwrap_or("ghost").to_owned(),
+        body: text(&c["body"]),
+        created: c["created_at"].as_str().or_else(|| c["submitted_at"].as_str()).unwrap_or("").to_owned(),
+        path: path.then(|| text(&c["path"])).filter(|p| !p.is_empty()),
+        line: if path { c["line"].as_u64().or_else(|| c["original_line"].as_u64()) } else { None },
+        verdict: None,
+        system: false,
+    }
+}
+
+fn conversation_in(p: &Project, token: &str, number: u64) -> Result<Conversation> {
+    let mut comments = Vec::new();
+    let out = match p.provider.as_str() {
+        "github" => {
+            let base = format!("{}/repos/{}", p.api, p.path);
+            let pr = get(&format!("{base}/pulls/{number}"), token)?;
+            let list = |url: String| get(&url, token).map(|v| v.as_array().cloned().unwrap_or_default());
+            for c in list(format!("{base}/issues/{number}/comments?per_page=100"))? {
+                comments.push(github_comment(&c, false));
+            }
+            for c in list(format!("{base}/pulls/{number}/comments?per_page=100"))? {
+                comments.push(github_comment(&c, true));
+            }
+            for r in list(format!("{base}/pulls/{number}/reviews?per_page=100"))? {
+                let state = text(&r["state"]);
+                // Inline-only reviews leave an empty "COMMENTED" entry behind.
+                if state == "COMMENTED" && text(&r["body"]).trim().is_empty() {
+                    continue;
+                }
+                comments.push(Comment { verdict: Some(state), ..github_comment(&r, false) });
+            }
+            let state = text(&pr["mergeable_state"]);
+            Conversation {
+                description: text(&pr["body"]),
+                comments: Vec::new(),
+                open: pr["state"].as_str() == Some("open") && !pr["merged"].as_bool().unwrap_or(false),
+                mergeable: pr["mergeable"].as_bool(),
+                merge_status: match state.as_str() {
+                    "dirty" => "has conflicts".into(),
+                    "blocked" => "blocked by required reviews or checks".into(),
+                    "behind" => "behind the target branch".into(),
+                    "unstable" => "checks are failing".into(),
+                    "draft" => "draft".into(),
+                    _ => state,
+                },
+            }
+        }
+        _ => {
+            let base = format!("{}/projects/{}/merge_requests/{number}", p.api, encode(&p.path));
+            let mr = get(&base, token)?;
+            let notes = get(&format!("{base}/notes?sort=asc&order_by=created_at&per_page=100"), token)?;
+            for n in notes.as_array().into_iter().flatten() {
+                let position = &n["position"];
+                comments.push(Comment {
+                    author: text(&n["author"]["username"]),
+                    body: text(&n["body"]),
+                    created: text(&n["created_at"]),
+                    path: position["new_path"].as_str().or_else(|| position["old_path"].as_str()).map(str::to_owned),
+                    line: position["new_line"].as_u64().or_else(|| position["old_line"].as_u64()),
+                    verdict: None,
+                    system: n["system"].as_bool().unwrap_or(false),
+                });
+            }
+            let status = mr["detailed_merge_status"].as_str().or_else(|| mr["merge_status"].as_str()).unwrap_or("").to_owned();
+            Conversation {
+                description: text(&mr["description"]),
+                comments: Vec::new(),
+                open: mr["state"].as_str() == Some("opened"),
+                mergeable: match status.as_str() {
+                    "mergeable" | "can_be_merged" => Some(true),
+                    "checking" | "unchecked" | "preparing" | "approvals_syncing" | "" => None,
+                    _ => Some(false),
+                },
+                merge_status: status.replace('_', " "),
+            }
+        }
+    };
+    comments.sort_by(|a, b| a.created.cmp(&b.created));
+    Ok(Conversation { comments, ..out })
+}
+
+fn comment_in(p: &Project, token: &str, number: u64, body: &str) -> Result<()> {
+    if body.trim().is_empty() {
+        return Err(Error::msg("Write something first"));
+    }
+    let url = match p.provider.as_str() {
+        "github" => format!("{}/repos/{}/issues/{number}/comments", p.api, p.path),
+        _ => format!("{}/projects/{}/merge_requests/{number}/notes", p.api, encode(&p.path)),
+    };
+    request("POST", &url, token, Some(&json!({ "body": body })))?;
+    Ok(())
+}
+
+/// How to merge: `merge` (a merge commit), `squash`, or `rebase` (GitHub).
+fn merge_in(p: &Project, token: &str, number: u64, method: &str, delete_branch: bool) -> Result<()> {
+    match p.provider.as_str() {
+        "github" => {
+            if !matches!(method, "merge" | "squash" | "rebase") {
+                return Err(Error::msg(format!("Unknown merge method {method}")));
+            }
+            let base = format!("{}/repos/{}", p.api, p.path);
+            let pr = get(&format!("{base}/pulls/{number}"), token)?;
+            request("PUT", &format!("{base}/pulls/{number}/merge"), token, Some(&json!({ "merge_method": method })))?;
+            // Only the project's own branch, never a fork's.
+            let same_repo = pr["head"]["repo"]["full_name"].as_str() == Some(p.path.as_str());
+            if delete_branch && same_repo {
+                let branch = text(&pr["head"]["ref"]);
+                request("DELETE", &format!("{base}/git/refs/heads/{branch}"), token, None)
+                    .map_err(|e| Error::msg(format!("Merged, but the branch wasn't deleted: {e}")))?;
+            }
+            Ok(())
+        }
+        _ => {
+            if !matches!(method, "merge" | "squash") {
+                return Err(Error::msg(format!("GitLab can't merge with {method}")));
+            }
+            let url = format!("{}/projects/{}/merge_requests/{number}/merge", p.api, encode(&p.path));
+            let body = json!({ "squash": method == "squash", "should_remove_source_branch": delete_branch });
+            request("PUT", &url, token, Some(&body))?;
+            Ok(())
+        }
+    }
+}
+
+pub fn conversation(repo: &Path, remote: &str, number: u64) -> Result<Conversation> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    conversation_in(&p, &token, number)
+}
+
+pub fn comment(repo: &Path, remote: &str, number: u64, body: &str) -> Result<()> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    comment_in(&p, &token, number, body)
+}
+
+pub fn merge(repo: &Path, remote: &str, number: u64, method: &str, delete_branch: bool) -> Result<()> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    merge_in(&p, &token, number, method, delete_branch)
+}
+
+/// A request's conversation and range against a real service, with this
+/// machine's accounts: `GITBRIX_LIVE_URL=… GITBRIX_LIVE_NUMBER=1 cargo test
+/// live_review -- --ignored --nocapture`. Only reads.
+#[cfg(test)]
+#[test]
+#[ignore]
+fn live_review() {
+    let url = std::env::var("GITBRIX_LIVE_URL").expect("GITBRIX_LIVE_URL");
+    let number: u64 = std::env::var("GITBRIX_LIVE_NUMBER").expect("GITBRIX_LIVE_NUMBER").parse().unwrap();
+    let home = std::env::var("HOME").unwrap();
+    accounts::init(Path::new(&home).join(".config/dev.gitbrix.app"));
+    let dir = tempfile::TempDir::new().unwrap();
+    let r = git2::Repository::init(dir.path()).unwrap();
+    r.remote("origin", &url).unwrap();
+    let c = conversation(dir.path(), "origin", number).unwrap();
+    println!("{c:#?}");
+    let provider = provider_of_remote(dir.path(), "origin").unwrap();
+    let range = crate::git::net::pull_request_range(dir.path(), "origin", &provider, number, "main", &mut |_| {}).unwrap();
+    println!("{range:?}");
 }

@@ -19,6 +19,7 @@ import { RepoDialogs } from "./components/RepoDialogs";
 import { DragGhost } from "./components/DragGhost";
 import { PullRequestsDialog } from "./components/PullRequestsDialog";
 import { CreatePullRequestDialog } from "./components/CreatePullRequest";
+import { PullRequestPanel } from "./components/PullRequestPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ShortcutsDialog, useShortcuts } from "./components/ShortcutsDialog";
 import { Sidebar } from "./components/Sidebar";
@@ -34,7 +35,7 @@ import { effectiveTheme, updateSettings, useSettings } from "./settings";
 import { useStore } from "./store";
 import { undoLast } from "./undo";
 import { backgroundFetch } from "./actions";
-import { loadInbox, loadPrs } from "./prs";
+import { loadInbox, loadPrs, usePrView } from "./prs";
 import { loadIdentity, loadProfiles } from "./profiles";
 
 function isTyping(e: KeyboardEvent): boolean {
@@ -192,6 +193,7 @@ export default function App() {
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);
   const diffSource = useStore((s) => s.diffSource);
+  const prView = usePrView((s) => s.pr);
   useGlobalKeys();
 
   return (
@@ -230,7 +232,9 @@ export default function App() {
               <TerminalPanel />
             </section>
             <aside className="details">
-              {compareId ? (
+              {prView ? (
+                <PullRequestPanel />
+              ) : compareId ? (
                 <ComparePanel />
               ) : selectedId === WIP_ID ? (
                 <WipPanel />

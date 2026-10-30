@@ -570,3 +570,26 @@ pub fn pull_request_form(repo: String, remote: String) -> Result<forge::RequestF
 pub fn create_pull_request(repo: String, remote: String, request: forge::NewRequest) -> Result<forge::Created> {
     forge::create(&workdir(&repo)?, &remote, &request)
 }
+
+/// Fetch a request and its target branch; the commits to compare.
+#[tauri::command(async)]
+pub fn pull_request_range(app: tauri::AppHandle, repo: String, remote: String, number: u64, target: String) -> Result<net::RequestRange> {
+    let dir = workdir(&repo)?;
+    let provider = forge::provider_of_remote(&dir, &remote)?;
+    net::pull_request_range(&dir, &remote, &provider, number, &target, &mut progress(&app))
+}
+
+#[tauri::command(async)]
+pub fn pull_request_conversation(repo: String, remote: String, number: u64) -> Result<forge::Conversation> {
+    forge::conversation(&workdir(&repo)?, &remote, number)
+}
+
+#[tauri::command(async)]
+pub fn comment_pull_request(repo: String, remote: String, number: u64, body: String) -> Result<()> {
+    forge::comment(&workdir(&repo)?, &remote, number, &body)
+}
+
+#[tauri::command(async)]
+pub fn merge_pull_request(repo: String, remote: String, number: u64, method: String, delete_branch: bool) -> Result<()> {
+    forge::merge(&workdir(&repo)?, &remote, number, &method, delete_branch)
+}

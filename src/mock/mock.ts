@@ -100,6 +100,18 @@ const READS: Record<string, (a: Args) => unknown> = {
       { id: 8, username: "grace", name: "Grace Hopper" },
     ],
   }),
+  // A request's range: the fixture's last two commits, so the compare mock has files.
+  pull_request_range: () => ({ base: fixture.graph.commits[fixture.graph.commits.length - 2].id, head: fixture.graph.commits.find((c) => c.summary === "UI: dark theme")?.id }),
+  pull_request_conversation: () => ({
+    description: "Makes the UI darker.",
+    comments: [
+      { author: "bot", body: "added 1 commit", created: "2026-10-01T00:00:00Z", path: null, line: null, verdict: null, system: true },
+      { author: "ada", body: "Too dark?", created: "2026-10-02T00:00:00Z", path: "src/ui.rs", line: 3, verdict: null, system: false },
+    ],
+    open: true,
+    mergeable: true,
+    mergeStatus: "mergeable",
+  }),
   create_pull_request: () => ({ number: 14, url: "https://gitlab.com/team/demo-app/-/merge_requests/14", warning: null }),
   save_profiles: (a) => {
     const next = a.profiles as typeof profiles;
