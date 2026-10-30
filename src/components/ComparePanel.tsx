@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api, errorText, FileChange } from "../api";
 import { shortId } from "../format";
-import { savePatch } from "../actions";
+import { cherryPickMany, revertMany, savePatch, squashCommits } from "../actions";
 import { useStore } from "../store";
 import { FileList } from "./FileList";
 
@@ -72,6 +72,17 @@ export function ComparePanel() {
           </button>
           <button className="small-btn" onClick={() => setCompare(null)}>
             Stop comparing
+          </button>
+        </div>
+        <div className="stash-actions">
+          <button className="small-btn" onClick={() => void cherryPickMany([newer, older])}>
+            Cherry-pick both…
+          </button>
+          <button className="small-btn" onClick={() => void revertMany([newer, older])}>
+            Revert both…
+          </button>
+          <button className="small-btn" title="Consecutive commits of the checked-out branch" onClick={() => void squashCommits([newer, older])}>
+            Squash into one…
           </button>
         </div>
       </div>

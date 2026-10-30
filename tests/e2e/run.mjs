@@ -8,7 +8,7 @@
 // land in test-results/shots/e2e-*.png.
 
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -504,6 +504,68 @@ try {
     });
     await shot("terminal");
     await click('button[title^="Terminal"]');
+  });
+
+  await step("auto-stash: changes in the way are stashed around a checkout", async () => {
+    git("add", "-A");
+    git("commit", "-q", "-m", "Before auto-stash");
+    writeFileSync(join(repo, "lines.txt"), "one\ntwo\nthree\nfour\nfive\n");
+    git("add", "lines.txt");
+    git("commit", "-q", "-m", "Add lines");
+    git("switch", "-q", "-c", "stashy");
+    writeFileSync(join(repo, "lines.txt"), "ONE\ntwo\nthree\nfour\nfive\n");
+    git("commit", "-q", "-am", "Change line one");
+    git("switch", "-q", "-");
+    const back = git("symbolic-ref", "--short", "HEAD");
+    // A local change to the same file, another line: in the way of the checkout.
+    writeFileSync(join(repo, "lines.txt"), "one\ntwo\nthree\nfour\nFIVE\n");
+    await js("window.__gitbrixStore.getState().run('Checking out stashy', (r) => window.__TAURI_INTERNALS__.invoke('checkout_branch', { repo: r, name: 'stashy' }))");
+    await waitFor("auto-stash question", () => js("return [...document.querySelectorAll('[role=dialog] button')].some(b => b.textContent === 'Stash and carry on')"));
+    await js(`[...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent === 'Stash and carry on').click()`);
+    await waitFor("on stashy", () => git("symbolic-ref", "--short", "HEAD") === "stashy");
+    await waitFor("changes back", () => readFileSync(join(repo, "lines.txt"), "utf8") === "ONE\ntwo\nthree\nfour\nFIVE\n");
+    if (git("stash", "list").includes("autostash")) throw new Error("the autostash was left behind");
+    git("checkout", "-q", "--", "lines.txt");
+    git("switch", "-q", back);
+  });
+
+  await step("squash: two consecutive commits picked in the graph become one", async () => {
+    for (const n of [1, 2]) {
+      writeFileSync(join(repo, `sq${n}.txt`), `${n}\n`);
+      git("add", `sq${n}.txt`);
+      git("commit", "-q", "-m", `Squash part ${n}`);
+    }
+    const before = git("rev-parse", "HEAD~2");
+    await waitFor("commits in graph", () => js("return [...document.querySelectorAll('.graph-row')].some(r => r.textContent.includes('Squash part 2'))"));
+    const row = (t) => `[...document.querySelectorAll('.graph-row')].find(r => r.textContent.includes('${t}'))`;
+    await js(`${row("Squash part 2")}.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}))`);
+    await js(`${row("Squash part 1")}.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, ctrlKey: true}))`);
+    await waitFor("compare panel", () => js("return !!document.querySelector('[data-testid=compare]')"));
+    await js(`[...document.querySelectorAll('[data-testid=compare] button')].find(b => b.textContent.startsWith('Squash')).click()`);
+    await waitFor("squash question", () => js("return [...document.querySelectorAll('[role=dialog] button')].some(b => b.textContent === 'Squash 2')"));
+    await js(`[...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent === 'Squash 2').click()`);
+    await waitFor("squashed", () => git("rev-parse", "HEAD~1") === before);
+    const msg = git("log", "-1", "--format=%B");
+    if (!msg.includes("Squash part 1") || !msg.includes("Squash part 2")) throw new Error(`message: ${msg}`);
+    if (git("show", "--name-only", "--format=", "HEAD").split("\n").sort().join(",") !== "sq1.txt,sq2.txt") throw new Error("files");
+  });
+
+  await step("bisect: a command finds the commit that broke things", async () => {
+    const good = git("rev-parse", "HEAD");
+    for (let i = 1; i <= 6; i++) {
+      writeFileSync(join(repo, "health.txt"), `${i >= 4 ? "broken" : "fine"} ${i}\n`);
+      git("add", "health.txt");
+      git("commit", "-q", "-m", `Health ${i}`);
+    }
+    const culprit = git("rev-parse", "HEAD~2");
+    const back = git("symbolic-ref", "--short", "HEAD");
+    await js("return window.__TAURI_INTERNALS__.invoke('bisect_start', { repo: arguments[0], bad: 'HEAD', good: arguments[1] })", repo, good);
+    await waitFor("bisect banner", () => js("window.__gitbrixStore.getState().refresh(); return !!document.querySelector('.op-banner.bisect')"));
+    await shot("bisect");
+    const st = await js("return window.__TAURI_INTERNALS__.invoke('bisect_run', { repo: arguments[0], command: 'grep -q fine health.txt' })", repo);
+    if (st.found !== culprit) throw new Error(`found ${st.found}, expected ${culprit}`);
+    await js("return window.__TAURI_INTERNALS__.invoke('bisect_reset', { repo: arguments[0] })", repo);
+    if (git("symbolic-ref", "--short", "HEAD") !== back) throw new Error("not back on the branch");
   });
 
   await wd("DELETE", `/session/${session}`);

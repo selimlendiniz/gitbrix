@@ -32,30 +32,27 @@ fn contains(r: &Repository, base: Oid, tip: Oid) -> bool {
 /// / `master`, and each remote's default (`origin/HEAD`, else main/master).
 fn bases(r: &Repository) -> Vec<(String, Oid)> {
     let mut out = Vec::new();
-    if let Ok(head) = r.head() {
-        if let (true, Some(id), Ok(name)) = (head.is_branch(), head.target(), head.shorthand()) {
-            out.push((name.to_owned(), id));
-        }
+    if let Ok(head) = r.head()
+        && let (true, Some(id), Ok(name)) = (head.is_branch(), head.target(), head.shorthand())
+    {
+        out.push((name.to_owned(), id));
     }
     for name in ["main", "master", "develop"] {
-        if let Ok(b) = r.find_branch(name, BranchType::Local) {
-            if let Some(id) = b.get().target() {
-                if !out.iter().any(|(n, _)| n == name) {
-                    out.push((name.to_owned(), id));
-                }
-            }
+        if let Some(id) = r.find_branch(name, BranchType::Local).ok().and_then(|b| b.get().target())
+            && !out.iter().any(|(n, _)| n == name)
+        {
+            out.push((name.to_owned(), id));
         }
     }
     out
 }
 
 fn remote_default(r: &Repository, remote: &str) -> Option<(String, Oid)> {
-    if let Ok(head) = r.find_reference(&format!("refs/remotes/{remote}/HEAD")) {
-        if let Ok(resolved) = head.resolve() {
-            if let (Some(name), Some(id)) = (resolved.shorthand().ok(), resolved.target()) {
-                return Some((name.to_owned(), id));
-            }
-        }
+    if let Ok(head) = r.find_reference(&format!("refs/remotes/{remote}/HEAD"))
+        && let Ok(resolved) = head.resolve()
+        && let (Some(name), Some(id)) = (resolved.shorthand().ok(), resolved.target())
+    {
+        return Some((name.to_owned(), id));
     }
     ["main", "master"].iter().find_map(|b| {
         let name = format!("{remote}/{b}");

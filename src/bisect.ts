@@ -34,9 +34,10 @@ useStore.subscribe((st, prev) => {
   }
 });
 
-// Commits made, checkouts done outside the app: the session may have changed.
-window.addEventListener("gitbrix:refreshed", () => {
-  if (useBisect.getState().status || s().repo?.state === "bisect") void loadBisect();
+// Commits made, checkouts done outside the app: after each reload of the
+// graph the session may have changed.
+useStore.subscribe((st, prev) => {
+  if (st.graph !== prev.graph && (useBisect.getState().status || st.repo?.state === "bisect")) void loadBisect();
 });
 
 function report(st: BisectStatus | null) {
