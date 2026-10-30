@@ -2332,9 +2332,10 @@ textarea {
   outline: none;
 }
 
+/* Placed over the rows it draws (top set inline), so it scrolls with them. */
 .graph-canvas-holder {
-  position: sticky;
-  top: 0;
+  position: absolute;
+  left: 0;
   height: 0;
   z-index: 2;
   pointer-events: none;

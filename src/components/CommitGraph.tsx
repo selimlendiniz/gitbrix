@@ -176,17 +176,23 @@ export function CommitGraph() {
     return () => ro.disconnect();
   }, []);
 
-  const first = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
-  const last = Math.min(commits.length - 1, Math.ceil((scrollTop + viewH) / ROW_H) + OVERSCAN);
+  // Rows (and the drawing) a screen beyond what's shown on each side: the
+  // view scrolls before the scroll event reaches us, and what it uncovers
+  // should already be there.
+  const pad = Math.max(OVERSCAN, Math.ceil(viewH / ROW_H));
+  const first = Math.max(0, Math.floor(scrollTop / ROW_H) - pad);
+  const last = Math.min(commits.length - 1, Math.ceil((scrollTop + viewH) / ROW_H) + pad);
+  // The drawing is a band over rows first..last that scrolls with them.
+  const bandH = Math.max(0, last - first + 1) * ROW_H;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(gw * dpr);
-    canvas.height = Math.round(viewH * dpr);
+    canvas.height = Math.round(bandH * dpr);
     canvas.style.width = `${gw}px`;
-    canvas.style.height = `${viewH}px`;
+    canvas.style.height = `${bandH}px`;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -194,9 +200,9 @@ export function CommitGraph() {
       commits,
       first,
       last,
-      scrollTop,
+      scrollTop: first * ROW_H,
       width: gw,
-      height: viewH,
+      height: bandH,
       selectedId,
       headId: repo?.headOid ?? null,
       background: cssVar("--bg-graph", "#16181e"),
@@ -204,7 +210,7 @@ export function CommitGraph() {
       ring: cssVar("--node-ring", "#ffffff"),
       avatar: gravatar ? avatarImage : undefined,
     });
-  }, [commits, first, last, scrollTop, viewH, gw, selectedId, repo?.headOid, theme, gravatar, pics, decoded]);
+  }, [commits, first, last, bandH, gw, selectedId, repo?.headOid, theme, gravatar, pics, decoded]);
 
   // Reaching the end of a truncated history loads the next page.
   const truncated = graph?.truncated ?? false;
@@ -358,7 +364,7 @@ export function CommitGraph() {
         }}
         onKeyDown={onKeyDown}
       >
-        <div className="graph-canvas-holder">
+        <div className="graph-canvas-holder" style={{ top: first * ROW_H }}>
           <canvas ref={canvasRef} style={{ left: refsW }} />
         </div>
         <div className="graph-rows" style={{ height: commits.length * ROW_H }}>

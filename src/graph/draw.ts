@@ -23,6 +23,7 @@ export interface DrawOptions {
   commits: CommitRow[];
   first: number;
   last: number;
+  /** Where the canvas's top is in the list (row i is at i * ROW_H). */
   scrollTop: number;
   width: number;
   height: number;
