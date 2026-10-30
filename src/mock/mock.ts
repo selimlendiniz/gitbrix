@@ -20,6 +20,8 @@ declare global {
     __gitbrixHead?: string;
     /** What `overlaps` answers; tests set it. */
     __gitbrixOverlaps?: unknown;
+    /** What `read_text_file` answers; tests set it. */
+    __gitbrixFile?: string;
     /** What `issues` answers; tests set it. */
     __gitbrixIssues?: unknown;
     /** What `pull_request_inbox` answers; tests set it. */
@@ -94,6 +96,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   pull_requests: (a) =>
     window.__gitbrixPrsByRepo?.[a.repo as string] ?? window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
   merge_pull_request: (a) => (a.whenChecksPass ? "scheduled" : "merged"),
+  read_text_file: (a) => window.__gitbrixFile ?? fail(`No file ${a.path}`),
   overlaps: () => window.__gitbrixOverlaps ?? [],
   issues: () => window.__gitbrixIssues ?? { items: [], problems: [], covered: false, projects: [] },
   pull_request_inbox: () => window.__gitbrixInbox ?? { items: [], problems: [], accounts: [] },

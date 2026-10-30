@@ -107,6 +107,13 @@ export async function loadWorkspacePrs() {
   await Promise.all([worker(), worker(), worker()]);
 }
 
+/** Replace the list (from a settings file), keeping one selected. */
+export function setWorkspaces(list: Workspace[]) {
+  const { active } = useWorkspaces.getState();
+  useWorkspaces.setState({ list, active: list.some((w) => w.id === active) ? active : (list[0]?.id ?? null) });
+  save();
+}
+
 function save() {
   const { list, active } = useWorkspaces.getState();
   try {

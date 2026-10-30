@@ -670,6 +670,17 @@ pub fn save_text_file(path: String, text: String) -> Result<()> {
     Ok(std::fs::write(path, text)?)
 }
 
+/// Read a small text file the user picked in an open dialog.
+#[tauri::command(async)]
+pub fn read_text_file(path: String) -> Result<String> {
+    let meta = std::fs::metadata(&path).map_err(|e| Error::msg(format!("Can't read {path}: {e}")))?;
+    if meta.len() > 4 * 1024 * 1024 {
+        return Err(Error::msg(format!("{path} is too big for a settings file")));
+    }
+    let bytes = std::fs::read(&path).map_err(|e| Error::msg(format!("Can't read {path}: {e}")))?;
+    String::from_utf8(bytes).map_err(|_| Error::msg(format!("{path} isn't text")))
+}
+
 /// Apply a patch file: to the work tree, or as commits (`git am`).
 #[tauri::command(async)]
 pub fn apply_patch_file(repo: String, path: String, commit: bool) -> Result<usize> {

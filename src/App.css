@@ -4263,3 +4263,34 @@ body.dragging * {
 .clash-mark.conflict {
   color: var(--danger);
 }
+
+/* Importing a settings file */
+.import-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.import-part {
+  align-items: flex-start;
+}
+
+.import-part > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.import-detail {
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.account-row.pending {
+  grid-template-columns: auto 1fr auto auto auto;
+}
+
+.account-row.pending .account-who {
+  opacity: 0.75;
+}

@@ -140,6 +140,7 @@ pub fn run() {
             commands::lfs_track,
             commands::format_patch,
             commands::save_text_file,
+            commands::read_text_file,
             commands::apply_patch_file,
             commands::read_patch_file,
             commands::cherry_pick_many,

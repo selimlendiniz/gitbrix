@@ -5,6 +5,7 @@ import { DEFAULTS, Settings, updateSettings, useSettings } from "../settings";
 import { testNotification } from "../prs";
 import { AccountsSection } from "./Accounts";
 import { ProfilesSection } from "./Profiles";
+import { TransferButtons } from "./Transfer";
 
 export const useSettingsDialog = create<{ open: boolean }>(() => ({ open: false }));
 
@@ -141,6 +142,8 @@ export function SettingsDialog() {
             />
             <span className="dim settings-note">Sends a hash of each author's e-mail address to gravatar.com</span>
           </span>
+          <span>Settings file</span>
+          <TransferButtons />
           <span>Panels</span>
           <span>
             <button

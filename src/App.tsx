@@ -49,6 +49,7 @@ import { backgroundFetch, lfsPullIfNeeded, newWindow } from "./actions";
 import { loadInbox, loadPrs, usePrView } from "./prs";
 import { loadIssues } from "./issues";
 import { IssueDialog } from "./components/Issues";
+import { ImportDialog } from "./components/Transfer";
 import { loadIdentity, loadProfiles } from "./profiles";
 import { loadCi } from "./ci";
 
@@ -338,6 +339,7 @@ export default function App() {
       <SettingsDialog />
       <AboutDialog />
       <IssueDialog />
+      <ImportDialog />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
       <CleanupDialog />

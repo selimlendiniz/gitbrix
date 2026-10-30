@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Account, api, errorText, Provider } from "../api";
 import { loadInbox, loadPrs } from "../prs";
 import { useStore } from "../store";
+import { accountAdded, accountKey, setPendingAccounts, usePendingAccounts } from "../transfer";
 
 const DEFAULT_URL: Record<Provider, string> = {
   github: "https://github.com",
@@ -26,6 +27,7 @@ export function AccountsSection() {
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pending = usePendingAccounts((s) => s.list);
 
   const load = () =>
     api
@@ -55,7 +57,8 @@ export function AccountsSection() {
     setBusy(true);
     setError(null);
     try {
-      await api.addAccount(provider, url.trim(), token.trim());
+      const added = await api.addAccount(provider, url.trim(), token.trim());
+      accountAdded(added);
       setToken("");
       setAdding(false);
       await reload();
@@ -79,7 +82,7 @@ export function AccountsSection() {
   return (
     <div className="accounts" data-testid="accounts">
       <div className="accounts-title">Accounts</div>
-      {accounts?.length === 0 && !adding && (
+      {accounts?.length === 0 && !pending.length && !adding && (
         <div className="dim accounts-empty">No accounts. Add one to push and pull over https with an access token.</div>
       )}
       {accounts?.map((a) => (
@@ -92,6 +95,35 @@ export function AccountsSection() {
           <span className="dim account-url">{a.url.replace(/^https:\/\//, "")}</span>
           <button type="button" className="small-btn" onClick={() => void remove(a)}>
             Remove
+          </button>
+        </div>
+      ))}
+      {pending.map((p) => (
+        <div key={accountKey(p)} className="account-row pending">
+          <span className={`provider-badge ${p.provider}`}>{p.provider === "github" ? "GitHub" : "GitLab"}</span>
+          <span className="account-who">
+            <strong>{p.username}</strong>
+            <span className="dim"> · needs a token (from a settings file)</span>
+          </span>
+          <span className="dim account-url">{p.url.replace(/^https:\/\//, "")}</span>
+          <button
+            type="button"
+            className="small-btn"
+            onClick={() => {
+              setProvider(p.provider);
+              setUrl(p.url);
+              setAdding(true);
+            }}
+          >
+            Add token…
+          </button>
+          <button
+            type="button"
+            className="small-btn"
+            title="Forget it"
+            onClick={() => setPendingAccounts(pending.filter((x) => accountKey(x) !== accountKey(p)))}
+          >
+            Dismiss
           </button>
         </div>
       ))}

@@ -635,6 +635,7 @@ export const api = {
   /** Commits as patch text (format-patch); with `from`, the range up to ids[0]. */
   formatPatch: (repo: string, ids: string[], from: string | null = null) => invoke<string>("format_patch", { repo, ids, from }),
   saveTextFile: (path: string, text: string) => invoke<void>("save_text_file", { path, text }),
+  readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
   /** Returns how many commits were made (0 when applied to the work tree). */
   applyPatchFile: (repo: string, path: string, commit: boolean) => invoke<number>("apply_patch_file", { repo, path, commit }),
   /** The subject of each patch in the file. */
