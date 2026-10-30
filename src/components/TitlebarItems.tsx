@@ -14,6 +14,8 @@ import { relativeTime } from "../format";
 import { loadInbox, prKey, usePrs, wantsReview } from "../prs";
 import { useProfiles, switchProfile } from "../profiles";
 import { loadRecent } from "../recent";
+import { useSettings } from "../settings";
+import { checkForUpdates, installUpdate, updateStatus, useUpdates } from "../updates";
 import { MenuItem, useStore } from "../store";
 import { reviewPullRequest } from "../workspaces";
 import { Avatar } from "./Avatar";
@@ -363,6 +365,39 @@ export function AccountButton() {
   );
 }
 
+function UpdateBox() {
+  const { info, checking, installing, error } = useUpdates();
+  const address = useSettings((s) => s.updateUrl.trim());
+  const status = updateStatus(info);
+  return (
+    <div className="update-box">
+      {status && <div className={info?.version ? "update-new" : "dim"}>{status}</div>}
+      {info?.version && info.notes && <pre className="update-notes">{info.notes}</pre>}
+      {error && <div className="modal-error">{error}</div>}
+      {!address ? (
+        <button
+          type="button"
+          className="link-btn"
+          onClick={() => {
+            useAbout.setState({ open: false });
+            useSettingsDialog.setState({ open: true });
+          }}
+        >
+          Set a release address in Settings to get updates
+        </button>
+      ) : info?.version && info.canInstall ? (
+        <button type="button" className="small-btn primary" disabled={installing} onClick={() => void installUpdate()}>
+          {installing ? "Installing…" : `Install ${info.version} and restart`}
+        </button>
+      ) : (
+        <button type="button" className="small-btn" disabled={checking} onClick={() => void checkForUpdates()}>
+          {checking ? "Checking…" : "Check for updates"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function AboutDialog() {
   const open = useAbout((s) => s.open);
   const [version, setVersion] = useState<string | null>(null);
@@ -384,6 +419,7 @@ export function AboutDialog() {
         <h2>gitbrix</h2>
         {version && <div className="dim">Version {version}</div>}
         <p className="dim">A graph-first Git client</p>
+        <UpdateBox />
         <div className="modal-actions">
           <button type="button" className="small-btn primary" onClick={close} autoFocus>
             Close

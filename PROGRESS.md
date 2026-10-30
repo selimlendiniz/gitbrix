@@ -17,6 +17,31 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-30 — issues, clashing branches, merge options, windows, settings file, updates, Flatpak
+
+- Issues (`src-tauri/src/forge/issues.rs`, `src/issues.ts`, `components/Issues.tsx`):
+  GitHub GraphQL / GitLab REST; sidebar section, issue window, "Start work"
+  branch from the remote's main commit (no tracking of main), `Closes #N` hint.
+  `forge::each_project` now lists anything per covered remote.
+- Clashing branches (`git/overlap.rs`): `merge_trees` per remote branch,
+  cached per (HEAD, tip); toolbar warning + file marks.
+- Merge: "when checks pass" (GitHub enablePullRequestAutoMerge, GitLab
+  merge_when_pipeline_succeeds/auto_merge); after merging, fetch, switch to
+  the target, ff, delete the local branch only if it has nothing unpushed.
+- Windows: per-window watcher and terminals (dropped on close), terminal
+  output `emit_to` its window, `quit_app`, window titles, only the main
+  window persists tabs and notifies; settings/workspaces sync via `storage`.
+- Settings file (`src/transfer.ts`): export/import with validation, merge
+  by id, accounts pending a token.
+- Updates (`src-tauri/src/updates.rs`, `scripts/release.sh`): tauri-plugin-updater
+  with the address from Settings; key in `~/.tauri/gitbrix.key` (not in the repo).
+  Tried for real: a 0.1.0 AppImage updated itself to 0.1.1 from a local
+  server; a wrong signature was refused; plain http to another host refused.
+- Flatpak (`flatpak/`, `scripts/flatpak.sh`, `src-tauri/src/host.rs`): GNOME 49
+  runtime, host programs via flatpak-spawn. Tried for real under WebDriver:
+  graph, terminal on the host, update kind "flatpak".
+- Tests: Rust 133, unit 63, Playwright 82, e2e 26 steps.
+
 ### 2026-10-30 — title bar items, Gravatar
 
 - Title bar, left to right: app menu (the gitbrix mark: open, clone, new,

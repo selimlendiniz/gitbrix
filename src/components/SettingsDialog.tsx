@@ -6,6 +6,7 @@ import { testNotification } from "../prs";
 import { AccountsSection } from "./Accounts";
 import { ProfilesSection } from "./Profiles";
 import { TransferButtons } from "./Transfer";
+import { checkForUpdates, updateStatus, useUpdates } from "../updates";
 
 export const useSettingsDialog = create<{ open: boolean }>(() => ({ open: false }));
 
@@ -27,6 +28,12 @@ function Choice<T extends string>({
       ))}
     </span>
   );
+}
+
+function UpdateLine() {
+  const { info, checking, error } = useUpdates();
+  const text = checking ? "Checking…" : error ?? updateStatus(info);
+  return text ? <span className={`settings-note ${error ? "error-text" : "dim"}`}>{text}</span> : null;
 }
 
 export function SettingsDialog() {
@@ -141,6 +148,24 @@ export function SettingsDialog() {
               ]}
             />
             <span className="dim settings-note">Sends a hash of each author's e-mail address to gravatar.com</span>
+          </span>
+          <span>Updates</span>
+          <span className="settings-inline">
+            <input
+              className="update-url"
+              aria-label="Release address"
+              placeholder="https://…/latest.json"
+              value={settings.updateUrl}
+              onChange={(e) => set({ updateUrl: e.target.value })}
+            />
+            <label className="checkbox">
+              <input type="checkbox" checked={settings.updateCheck} onChange={(e) => set({ updateCheck: e.target.checked })} />
+              At start
+            </label>
+            <button type="button" className="small-btn" disabled={!settings.updateUrl.trim()} onClick={() => void checkForUpdates()}>
+              Check now
+            </button>
+            <UpdateLine />
           </span>
           <span>Settings file</span>
           <TransferButtons />

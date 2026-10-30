@@ -22,6 +22,10 @@ export interface Settings {
   prNotify: boolean;
   /** Author pictures from Gravatar (sends a hash of each address). */
   gravatar: boolean;
+  /** Where releases are announced (`latest.json`); empty = no updates. */
+  updateUrl: string;
+  /** Look for a newer version when the app starts. */
+  updateCheck: boolean;
   sidebarWidth: number;
   detailsWidth: number;
   terminalHeight: number;
@@ -42,6 +46,8 @@ export const DEFAULTS: Settings = {
   prPoll: 3,
   prNotify: true,
   gravatar: true,
+  updateUrl: "",
+  updateCheck: true,
   sidebarWidth: 240,
   detailsWidth: 380,
   terminalHeight: 240,

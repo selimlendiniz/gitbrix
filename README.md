@@ -105,6 +105,36 @@ open tab; Settings → Pull requests / Notifications). GitLab tokens need
 `read_api` (or `api` to approve); GitHub fine-grained tokens need "Pull
 requests" access.
 
+**Issues.** The sidebar lists the open issues of the repository's remotes
+(yours first; "mine" shows only those assigned to you). "Start work"
+creates `<number>-<title>` from the remote's main branch, and commits on
+such a branch are offered `Closes #N`.
+
+**Clashing branches.** For the 60 newest remote branches, an in-memory
+merge with HEAD finds the files that would conflict, and uncommitted
+edits of files a branch changed too are listed. The toolbar warns, the
+changed files get a mark.
+
+**Windows.** Ctrl+Shift+N or a tab's "Move to new window" opens another
+window. Only the first window remembers its tabs across restarts.
+
+**Settings file.** Settings → Settings file exports preferences,
+workspaces, profiles and which accounts exist as JSON (never tokens);
+importing it adds the accounts as reminders to add a token.
+
+**Updates.** Settings → Updates takes the address of a `latest.json`
+written by `scripts/release.sh <base-url>`, which builds the AppImage,
+RPM and DEB signed with `~/.tauri/gitbrix.key`. The app checks it at
+start (if allowed), verifies the signature, installs (RPM/DEB ask for the
+system password through polkit) and restarts. Keep a backup of the key:
+without it, installed copies can't verify a new release.
+
+**Flatpak.** `scripts/flatpak.sh` packages the release binary on the GNOME
+49 runtime (`flatpak/dev.gitbrix.app.yml`), installs it for the user and
+writes `release/gitbrix.flatpak`. Inside the sandbox the terminal, hooks,
+gpg and ssh run on the host through `flatpak-spawn --host`; Flatpak
+copies update through `flatpak update`, not the app.
+
 ## Development
 
 Tools are pinned in `mise.toml` (Rust, Node, pnpm, tauri-driver).

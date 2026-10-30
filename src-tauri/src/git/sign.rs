@@ -5,7 +5,7 @@
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use git2::{Commit, Config, Object, ObjectType, Oid, Repository, Signature, Tree};
 
@@ -89,7 +89,7 @@ fn sign(cfg: &Config, data: &[u8], signer: &Signature) -> Result<String> {
 }
 
 fn sign_gpg(program: &str, data: &[u8], key: &str) -> Result<String> {
-    let mut child = Command::new(program)
+    let mut child = crate::host::command(program, &[])
         .args(["--status-fd=2", "-bsau", key])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -118,7 +118,8 @@ struct Scratch(PathBuf);
 impl Scratch {
     fn new() -> Result<Self> {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("gitbrix-sign-{}-{nanos}", std::process::id()));
+        // ssh-keygen may run on the host (Flatpak): a folder both sides see.
+        let path = crate::host::shared_temp_dir().join(format!("gitbrix-sign-{}-{nanos}", std::process::id()));
         let mut builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
         {
@@ -153,7 +154,7 @@ fn sign_ssh(cfg: &Config, data: &[u8], key: Option<&str>) -> Result<String> {
         None => super::repo::expand_home(Path::new(key)),
     };
     let input = scratch.file("data", data)?;
-    let out = Command::new(&program)
+    let out = crate::host::command(&program, &[])
         .args(["-Y", "sign", "-n", "git", "-f"])
         .arg(&key_path)
         .arg(&input)

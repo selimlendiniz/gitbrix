@@ -52,6 +52,18 @@ pub fn unwatch_repo(window: tauri::Window, state: tauri::State<WatchState>) {
     watch::unwatch(&state, window.label());
 }
 
+/// Whether a newer version is on offer at the release address.
+#[tauri::command]
+pub async fn update_check(app: tauri::AppHandle, address: String) -> Result<crate::updates::UpdateInfo> {
+    crate::updates::check(&app, &address).await
+}
+
+/// Install the newer version and restart.
+#[tauri::command]
+pub async fn update_install(app: tauri::AppHandle, address: String) -> Result<()> {
+    crate::updates::install(&app, &address).await
+}
+
 /// Close every window: the app ends.
 #[tauri::command]
 pub fn quit_app(app: tauri::AppHandle) {

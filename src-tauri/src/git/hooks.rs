@@ -4,7 +4,8 @@
 
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::ffi::OsStr;
+use std::process::Stdio;
 
 use git2::Repository;
 
@@ -48,11 +49,10 @@ pub fn exists(r: &Repository, name: &str) -> bool {
 /// the hook's output.
 pub fn run(r: &Repository, name: &str, args: &[&str], stdin: Option<&str>) -> Result<()> {
     let Some(hook) = find(r, name) else { return Ok(()) };
-    let mut cmd = Command::new(&hook);
+    let index = r.path().join("index");
+    let mut cmd = crate::host::command(&hook, &[("GIT_INDEX_FILE", index.as_os_str()), ("GIT_EDITOR", OsStr::new(":"))]);
     cmd.args(args)
         .current_dir(r.workdir().unwrap_or_else(|| r.path()))
-        .env("GIT_INDEX_FILE", r.path().join("index"))
-        .env("GIT_EDITOR", ":")
         .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

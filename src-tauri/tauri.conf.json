@@ -38,11 +38,18 @@
     "category": "DeveloperTool",
     "shortDescription": "A graph-first Git client",
     "longDescription": "gitbrix is a desktop Git client with a commit graph, staging down to single lines, conflict resolution, interactive rebase and undo.",
-    "publisher": "Selim Arda Çevik",
+    "publisher": "Selim Arda \u00c7evik",
     "linux": {
       "rpm": {
         "release": "1"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUwQkIxODFCODYyN0U3MEYKUldRUDV5ZUdHeGk3VUpSVGtKZ1hiRUhpa3J5aXV6a1JWY0l4aHpnNDc5MVMzQ1FaV2FsL3h2VlkK",
+      "endpoints": [],
+      "dangerousInsecureTransportProtocol": true
     }
   }
 }

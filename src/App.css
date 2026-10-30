@@ -4294,3 +4294,41 @@ body.dragging * {
 .account-row.pending .account-who {
   opacity: 0.75;
 }
+
+/* Updates */
+.update-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  max-width: 100%;
+}
+
+.update-new {
+  color: var(--add);
+  font-weight: 600;
+}
+
+.update-notes {
+  max-height: 160px;
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  text-align: left;
+  font-size: 12px;
+  margin: 0;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.update-url {
+  width: 260px;
+  min-width: 0;
+}
+
+.error-text {
+  color: var(--danger);
+}

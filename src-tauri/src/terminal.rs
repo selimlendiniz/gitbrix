@@ -55,10 +55,22 @@ fn pty_error(e: impl std::fmt::Display) -> Error {
 
 pub fn open(app: AppHandle, state: &Terminals, window: &str, cwd: &str, cols: u16, rows: u16) -> Result<u32> {
     let pair = native_pty_system().openpty(size(cols, rows)).map_err(pty_error)?;
-    let mut cmd = CommandBuilder::new(shell());
+    let term = [("TERM", std::ffi::OsStr::new("xterm-256color")), ("COLORTERM", std::ffi::OsStr::new("truecolor"))];
+    // In Flatpak, the user's own shell on the host.
+    let prefix = crate::host::prefix(&term);
+    let mut cmd = match prefix.split_first() {
+        Some((spawn, rest)) => {
+            let mut c = CommandBuilder::new(spawn);
+            c.args(rest);
+            c.args(["sh", "-c", "exec \"${SHELL:-/bin/bash}\""]);
+            c
+        }
+        None => CommandBuilder::new(shell()),
+    };
     cmd.cwd(cwd);
-    cmd.env("TERM", "xterm-256color");
-    cmd.env("COLORTERM", "truecolor");
+    for (k, v) in term {
+        cmd.env(k, v);
+    }
     let child = pair.slave.spawn_command(cmd).map_err(pty_error)?;
     // The shell holds its own copy of the slave side.
     drop(pair.slave);

@@ -4,8 +4,10 @@ mod commands;
 mod error;
 mod forge;
 mod git;
+mod host;
 mod profiles;
 mod terminal;
+mod updates;
 mod watch;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -14,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(watch::WatchState::default())
         .manage(terminal::Terminals::default())
         .setup(|app| {
@@ -41,6 +44,8 @@ pub fn run() {
             commands::watch_repo,
             commands::unwatch_repo,
             commands::quit_app,
+            commands::update_check,
+            commands::update_install,
             commands::repo_info,
             commands::get_graph,
             commands::get_status,

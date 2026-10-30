@@ -454,6 +454,16 @@ export interface Overlap {
   time: number;
 }
 
+export interface UpdateInfo {
+  current: string;
+  /** A newer version on offer. */
+  version: string | null;
+  notes: string | null;
+  date: string | null;
+  kind: "appimage" | "rpm" | "deb" | "flatpak" | "dev";
+  canInstall: boolean;
+}
+
 export interface IssueLabel {
   name: string;
   /** `#rrggbb`, or empty. */
@@ -492,6 +502,9 @@ export const api = {
   openRepo: (path: string) => invoke<RepoInfo>("open_repo", { path }),
   watchRepo: (repo: string) => invoke<void>("watch_repo", { repo }),
   unwatchRepo: () => invoke<void>("unwatch_repo"),
+  updateCheck: (address: string) => invoke<UpdateInfo>("update_check", { address }),
+  /** Downloads, verifies, installs and restarts the app. */
+  updateInstall: (address: string) => invoke<void>("update_install", { address }),
   /** Close every window. */
   quitApp: () => invoke<void>("quit_app"),
   repoInfo: (repo: string) => invoke<RepoInfo>("repo_info", { repo }),

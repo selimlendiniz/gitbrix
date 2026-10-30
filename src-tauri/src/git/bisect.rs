@@ -5,7 +5,6 @@
 
 use std::collections::HashSet;
 use std::path::Path;
-use std::process::Command;
 
 use git2::{Oid, Repository};
 use serde::Serialize;
@@ -249,7 +248,7 @@ pub fn run(repo: &Path, command: &str, progress: &mut dyn FnMut(&str)) -> Result
         }
         let current = st.current.clone().unwrap_or_default();
         progress(&format!("Step {step}: testing {}", &current[..current.len().min(7)]));
-        let out = Command::new("sh")
+        let out = crate::host::command("sh", &[])
             .arg("-c")
             .arg(command)
             .current_dir(&workdir)

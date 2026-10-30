@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.gitbrix.app</id>
+  <name>gitbrix</name>
+  <summary>A graph-first Git client</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <description>
+    <p>
+      Commit graph, staging by hunk and line, branches and stashes by drag and drop,
+      interactive rebase, a three-way merge editor, GitHub and GitLab pull requests
+      and issues, workspaces, profiles and an embedded terminal.
+    </p>
+  </description>
+  <launchable type="desktop-id">dev.gitbrix.app.desktop</launchable>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2026-10-30" />
+  </releases>
+</component>

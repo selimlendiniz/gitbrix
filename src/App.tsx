@@ -50,6 +50,8 @@ import { loadInbox, loadPrs, usePrView } from "./prs";
 import { loadIssues } from "./issues";
 import { IssueDialog } from "./components/Issues";
 import { ImportDialog } from "./components/Transfer";
+import { checkForUpdates } from "./updates";
+import { isMainWindow } from "./windows";
 import { loadIdentity, loadProfiles } from "./profiles";
 import { loadCi } from "./ci";
 
@@ -238,6 +240,18 @@ function useTheme() {
   }, [theme]);
 }
 
+let updateChecked = false;
+
+/** A newer version, looked for once at start (main window, if allowed). */
+function useUpdateCheck() {
+  useEffect(() => {
+    const { updateUrl, updateCheck } = useSettings.getState();
+    if (updateChecked || !isMainWindow || !updateCheck || !updateUrl.trim()) return;
+    updateChecked = true;
+    void checkForUpdates(true);
+  }, []);
+}
+
 /** The window's name in the task switcher: the repository it shows. */
 function useWindowTitle() {
   const name = useStore((s) => s.repo?.name);
@@ -264,6 +278,7 @@ export default function App() {
   useLfs();
   useFolderDrop();
   useWindowTitle();
+  useUpdateCheck();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);
   const multi = useStore((s) => s.multi.length);

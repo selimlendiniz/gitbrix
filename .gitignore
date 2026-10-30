@@ -9,3 +9,6 @@ target/
 !.vscode/extensions.json
 test-results/
 playwright-report/
+
+# Built releases (scripts/release.sh)
+/release/

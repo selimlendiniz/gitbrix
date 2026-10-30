@@ -1,0 +1,55 @@
+# Flatpak of gitbrix, from the release binary built on this machine:
+#
+#   scripts/flatpak.sh            # builds, installs for this user, writes release/gitbrix.flatpak
+#
+# WebKitGTK 4.1 comes from the GNOME runtime. The user's shell, gpg, ssh
+# and git hooks run on the host through flatpak-spawn (src-tauri/src/host.rs).
+id: dev.gitbrix.app
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+command: gitbrix
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Pull, push, pull requests, Gravatar, updates.
+  - --share=network
+  # Repositories can be anywhere.
+  - --filesystem=host
+  # git over ssh with the user's agent.
+  - --socket=ssh-auth
+  # Tokens in the system keyring.
+  - --talk-name=org.freedesktop.secrets
+  # Pull request notifications.
+  - --talk-name=org.freedesktop.Notifications
+  # Shell, gpg, ssh and hooks on the host (flatpak-spawn --host).
+  - --talk-name=org.freedesktop.Flatpak
+modules:
+  - name: gitbrix
+    buildsystem: simple
+    sources:
+      - type: file
+        path: ../src-tauri/target/release/gitbrix
+      - type: file
+        path: dev.gitbrix.app.desktop
+      - type: file
+        path: dev.gitbrix.app.metainfo.xml
+      - type: file
+        path: ../src-tauri/icons/32x32.png
+        dest-filename: icon-32.png
+      - type: file
+        path: ../src-tauri/icons/128x128.png
+        dest-filename: icon-128.png
+      - type: file
+        path: ../src-tauri/icons/128x128@2x.png
+        dest-filename: icon-256.png
+      - type: file
+        path: ../src-tauri/icons/icon.png
+        dest-filename: icon-512.png
+    build-commands:
+      - install -Dm755 gitbrix /app/bin/gitbrix
+      - install -Dm644 dev.gitbrix.app.desktop /app/share/applications/dev.gitbrix.app.desktop
+      - install -Dm644 dev.gitbrix.app.metainfo.xml /app/share/metainfo/dev.gitbrix.app.metainfo.xml
+      - for s in 32 128 256 512; do install -Dm644 icon-$s.png /app/share/icons/hicolor/${s}x${s}/apps/dev.gitbrix.app.png; done

@@ -79,21 +79,20 @@ pub fn command(host: String, port: Option<String>, remote: &str) -> Command {
     ssh_args.push(remote.to_owned());
 
     let configured = std::env::var("GIT_SSH_COMMAND").ok().or_else(|| SSH_COMMAND.with(|c| c.borrow().clone()));
+    // No terminal is attached: prompts go to the desktop's askpass
+    // helper (KDE: ksshaskpass) when one is configured.
+    let envs: &[(&str, &std::ffi::OsStr)] =
+        if std::env::var_os("SSH_ASKPASS").is_some() { &[("SSH_ASKPASS_REQUIRE", std::ffi::OsStr::new("force"))] } else { &[] };
     let mut cmd = match configured {
         // Like git: the command is shell text, the arguments follow.
         Some(c) => {
-            let mut cmd = Command::new("sh");
+            let mut cmd = crate::host::command("sh", envs);
             cmd.arg("-c").arg(format!("{c} \"$@\"")).arg(c);
             cmd
         }
-        None => Command::new(std::env::var_os("GIT_SSH").unwrap_or_else(|| "ssh".into())),
+        None => crate::host::command(std::env::var_os("GIT_SSH").unwrap_or_else(|| "ssh".into()), envs),
     };
     cmd.args(&ssh_args);
-    // No terminal is attached: prompts go to the desktop's askpass
-    // helper (KDE: ksshaskpass) when one is configured.
-    if std::env::var_os("SSH_ASKPASS").is_some() {
-        cmd.env("SSH_ASKPASS_REQUIRE", "force");
-    }
     cmd
 }
 

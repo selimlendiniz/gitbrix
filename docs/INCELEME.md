@@ -150,6 +150,33 @@ Kurulabilir paket (release derlemesi):
     adreslerinde GitHub profil resmi. Disk önbelleği: bir hafta. Ayarlar →
     Author pictures → Initials only ile kapanır.
 
+40. **Issue'lar**: kenar çubuğunda "Issues" (sana atananlar üstte, "mine"
+    yalnızca seninkiler). Tıklayınca ayrıntı, "Start work on a branch…"
+    `12-baslik` adlı branch'i remote'un main'inden açar. O branch'teyken
+    commit kutusunda "+ Closes #12" çıkar.
+41. **Çakışma uyarısı**: araç çubuğunda, branch adının yanında "Conflicts
+    with N branches" (kırmızı) ya da "N branches changed your files"
+    (sarı). Tıklayınca hangi branch'te hangi dosya; değişen dosyaların
+    yanında ⚠ işareti.
+42. **Merge eklentileri**: PR'ın CI'ı çalışırken "Merge when checks pass"
+    (servis, CI geçince kendisi merge eder). PR'ın branch'indeysen
+    "Then switch to main, pull, and delete the local …": push edilmemiş
+    commit varsa yerel branch silinmez.
+43. **Çoklu pencere**: Ctrl+Shift+N, logo menüsü → New window, ya da sekmeye
+    sağ tık → Move to new window. Ctrl+Q bütün pencereleri kapatır. Yalnızca
+    ilk pencere sekmelerini hatırlar ve PR bildirimi gönderir.
+44. **Ayar dosyası**: Ayarlar → Settings file → Export/Import. Token
+    yazılmaz; içe aktarılan hesaplar Accounts'ta "needs a token" olarak
+    bekler.
+45. **Güncelleme**: Ayarlar → Updates'e bir `latest.json` adresi yazılır;
+    About'tan kontrol/kurulum. Sürüm çıkarmak: `scripts/release.sh
+    <adres> "notlar"` → `release/<sürüm>/` klasörünü o adrese yükle.
+    İmza anahtarı `~/.tauri/gitbrix.key` (repoda değil): **yedeğini al**,
+    kaybolursa kurulu kopyalar yeni sürümü doğrulayamaz.
+46. **Flatpak**: `scripts/flatpak.sh` → kullanıcıya kurar (`flatpak run
+    dev.gitbrix.app`) ve `release/gitbrix.flatpak` yazar. Terminal, hook,
+    gpg, ssh sandbox dışında, senin sisteminde çalışır.
+
 ## Bilerek yapmadıklarım
 
 - PR satır yorumları yalnızca unified diff görünümünde; split görünümde
@@ -169,6 +196,11 @@ Kurulabilir paket (release derlemesi):
 - Push/pull'u gerçek bir uzak sunucuya (GitHub) karşı denemedim; testler
   yerel bare repolarla. Kendi anahtarınla bir kez denemen iyi olur.
 - Commit imzası yalnızca "signed" rozeti olarak gösteriliyor, doğrulanmıyor.
+- Güncelleme adresi boş geliyor: yayın yeri (GitHub/GitLab release, kendi
+  sunucun) senin kararın. Hiçbir şey yüklemedim.
+- Flatpak'te ssh ile push/pull ve gpg imzası denenmedi (flatpak-spawn ile
+  ana sistemde çalışacak şekilde yazıldı); terminal denendi.
+- Issue açma/kapama, yorum yok; yalnızca liste, ayrıntı ve branch başlatma.
 
 ## Bilmen gerekenler
 
