@@ -105,10 +105,39 @@ Kurulabilir paket (release derlemesi):
     menüsü → "Apply patch as commits…" (git am) ya da "…to working tree"
     (git apply).
 
+27. **Çoklu seçim**: grafikte Ctrl+tık (ekle/çıkar), Shift+tık (aralık).
+    İki commit → karşılaştırma + "Cherry-pick both / Revert both / Squash
+    into one"; üç ve üstü → sağda "N commits selected" paneli (cherry-pick,
+    revert, squash, patch). Sağ tık da aynı menüyü açar.
+28. **Branch temizliği**: sol panelde Local başlığındaki çöp kutusu (ya da
+    repo menüsü → Clean up branches…). Merge edilmişler işaretli gelir;
+    remote'u silinmiş ("gone") ve remote'taki merge edilmiş branch'ler
+    ancak işaretlersen silinir. Yerel silmeler Ctrl+Z ile geri gelir.
+29. **Otomatik stash**: değişikliklerin bir checkout / pull / merge'ün
+    önünü keserse "Stash and carry on" sorulur; stash'lenir, işlem yapılır,
+    değişiklikler geri konur. Ayarlar → Auto-stash → Always ile sormaz.
+30. **Bisect**: bir commit'e sağ tık → "Bisect: mark bad", daha eski bir
+    commit'e → "this one is good (start)". Üstteki şeritte Good / Bad /
+    Skip ya da "Run a command…" (örn. `cargo test`); bulunca ilk kötü
+    commit grafikte "first bad" etiketiyle seçilir.
+31. **PR'da satıra yorum**: PR panelinde bir dosyayı aç, satırın solundaki
+    + ile yorum yaz (Ctrl+Enter gönderir). Var olan satır yorumları da
+    satırın altında görünür (unified görünümde).
+32. **Release**: tag'e sağ tık → "Create release…"; notlar önceki tag'den
+    bu yana commit'lerle dolar, tag önce push edilir.
+33. **Dosya ağacı**: commit panelinde "Browse files" (ya da commit'e sağ
+    tık → Browse files at this commit): o commit'teki tüm dosyalar,
+    renklendirilmiş içerik, History / Blame bağlantıları.
+34. **İstatistikler**: repo menüsü → Statistics: toplamlar, haftalık
+    commit grafiği, gün × saat ısı haritası, katkıcılar, en çok değişen
+    dosyalar (tıklayınca geçmişi açılır).
+
 ## Bilerek yapmadıklarım
 
-- PR/MR'da satıra yorum *yazma* yok (satır yorumları okunuyor, tıklayınca
-  ilgili dosyanın diff'i açılıyor); genel yorum yazılabiliyor.
+- PR satır yorumları yalnızca unified diff görünümünde; split görünümde
+  gösterilmiyor ve yazılamıyor.
+- Release ve satır yorumu gerçek bir servise karşı denenmedi (yazma
+  işlemi); testler sahte sunucuyla.
 - LFS: git-lfs'in "locking" özelliği ve hunk/satır bazında stage yok;
   büyük dosyalar yüklenirken bellek yerine akışla gönderiliyor ama
   indirme/yükleme sırasında iptal düğmesi yok.

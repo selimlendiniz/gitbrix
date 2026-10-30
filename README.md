@@ -16,6 +16,8 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
   (Ctrl/Shift+click); file history that follows renames; blame
 - Stashes drawn in the graph; hide or solo branches; reflog view to
   recover lost commits
+- Browse the files of any commit; repository statistics (activity,
+  weekday/hour, contributors, most changed files)
 
 **Changes**
 - Stage, unstage and discard whole files, single hunks or selected lines
@@ -29,7 +31,12 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
 - Patches: save commits (or a compared range) as `format-patch` files or
   copy them; apply a patch file as commits with their authors (`git am`)
   or to the working tree (`git apply`)
-- Stash save / apply / pop / drop, and inspect a stash's changes
+- Stash save / apply / pop / drop, and inspect a stash's changes;
+  auto-stash when local changes block a checkout, pull or merge
+- Select several commits (Ctrl/Shift+click): cherry-pick, revert or
+  squash them together, or save them as a patch
+- Bisect: mark good and bad commits and step through, or let a command
+  decide; the first bad commit is marked in the graph
 
 **Branches and remotes**
 - Check out, create, rename, delete branches and tags
@@ -44,6 +51,9 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
 - Fetch, pull (fast-forward / merge / rebase), push (force-with-lease),
   with live progress; add, edit and remove remotes; push tags
 - Clone and create repositories; worktrees; submodules
+- Clean up branches: merged ones, ones whose upstream is gone, merged
+  remote branches
+- GitHub / GitLab releases from tags, with notes since the previous tag
 
 **Comfort**
 - Undo (Ctrl+Z) for commits, checkouts, merges, rebases, resets, branch
@@ -76,8 +86,8 @@ read as a fallback.
 
 **Pull / merge requests.** With an account, the sidebar lists the open pull
 requests (GitHub) or merge requests (GitLab) of the repository's remotes:
-review it in the app (its files and diffs, the conversation; comment,
-approve, merge), check it out or open it in the browser. Create one from
+review it in the app (its files and diffs, the conversation; comment on
+the request or on a line of its diff, approve, merge), check it out or open it in the browser. Create one from
 a branch's menu, with reviewers and as a draft; the branch is pushed
 first if needed. CI status (GitHub checks, GitLab pipelines) shows on
 commits in the graph and on requests. The Pull Requests

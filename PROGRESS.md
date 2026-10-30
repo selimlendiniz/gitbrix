@@ -17,6 +17,44 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-30 — several commits, branch cleanup, auto-stash, bisect, line comments, releases, file tree, statistics
+
+- Selection: Ctrl+click toggles, Shift+click selects a range (`store.multi`,
+  `extendSelection`). Two commits still compare (now with cherry-pick both,
+  revert both, squash); three or more open `MultiPanel`. Cherry-picking
+  several runs through the rebase engine onto HEAD (`rebase::pick_onto_head`),
+  so a conflict stops it and Continue/Skip/Abort pick it up; reverts go
+  newest first; squash is an interactive rebase from the oldest commit's
+  parent and refuses commits that aren't consecutive on the branch.
+- Branch cleanup (`git/cleanup.rs`): local branches merged into the
+  checked-out branch or main/master/develop, local branches whose upstream
+  is gone, remote branches merged into the remote's default branch. Merged
+  locals are ticked; gone ones are force-deleted only when ticked; remote
+  deletions ask again. Local deletions go on the undo stack.
+- Auto-stash in `store.run`: an operation stopped by "local changes would
+  be overwritten" asks (or, with Settings → Auto-stash → Always, doesn't)
+  to stash including untracked files, run again, and pop; a pop that
+  conflicts leaves the stash and says so.
+- Bisect (`git/bisect.rs`): state in git's own files (BISECT_START,
+  BISECT_LOG, refs/bisect/*), so `git bisect log` agrees. The next commit
+  splits the remaining candidates most evenly (exact up to 400, then the
+  topological middle); skip; `bisect run` semantics for a command (0 good,
+  125 skip, 1–127 bad). Banner with Good/Bad/Skip/Run/Stop, graph marks.
+- Line comments on a request's diff: GitHub review comments (commit_id,
+  line, side), GitLab discussions with a position from the MR's diff_refs.
+  The request's range and conversation moved to `usePrView` so the diff
+  view can show and post them.
+- Releases: from a tag's menu; the tag is pushed first; notes are the
+  commits since the closest older tag (by graph, not by time).
+- File tree at any commit (`tree_at`, `file_at`), highlighted, with images.
+- Statistics (`git/stats.rs`): totals, 52 weekly counts, weekday×hour in
+  the author's time zone, contributors by email, files changed most in the
+  last 1000 commits. Single-hue charts with hover titles.
+- Fix on the way: a `window` listener at module level broke the unit tests
+  that import actions (no window there); it is a store subscription now.
+- Tests: Rust 122 (+8), unit 54, Playwright 59 (+7), e2e 24 (+3: auto-stash
+  around a real checkout, squash from the compare panel, bisect run).
+
 ### 2026-10-30 — workspaces, profiles, terminal, PR create/review, CI, merge editor, LFS, patches
 
 Selim asked for these in order; each is one commit with tests.
