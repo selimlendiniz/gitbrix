@@ -4834,3 +4834,31 @@ body.dragging * {
 .label-picker .issue-label.on {
   color: var(--text);
 }
+
+.issue-scroll {
+  max-height: 52vh;
+  overflow-y: auto;
+  margin: 8px 0;
+  padding-right: 4px;
+}
+
+.issue-scroll .issue-body {
+  max-height: none;
+  overflow: visible;
+}
+
+.issue-conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.issue-conversation textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.issue-comment-actions {
+  display: flex;
+  justify-content: flex-end;
+}

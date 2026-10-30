@@ -532,6 +532,28 @@ pub fn issues(repo: String) -> Result<forge::issues::Issues> {
     forge::issues::list(&workdir(&repo)?)
 }
 
+/// An issue's comments, oldest first.
+#[tauri::command(async)]
+pub fn issue_comments(repo: String, remote: String, number: u64) -> Result<Vec<forge::Comment>> {
+    forge::issues::comments(&workdir(&repo)?, &remote, number)
+}
+
+#[tauri::command(async)]
+pub fn comment_issue(repo: String, remote: String, number: u64, body: String) -> Result<()> {
+    forge::issues::comment(&workdir(&repo)?, &remote, number, &body)
+}
+
+/// Close an issue, or reopen it.
+#[tauri::command(async)]
+pub fn set_issue_open(repo: String, remote: String, number: u64, open: bool) -> Result<()> {
+    forge::issues::set_open(&workdir(&repo)?, &remote, number, open)
+}
+
+#[tauri::command(async)]
+pub fn create_issue(repo: String, remote: String, issue: forge::issues::NewIssue) -> Result<forge::Created> {
+    forge::issues::create(&workdir(&repo)?, &remote, &issue)
+}
+
 /// Requests involving the user across every account.
 #[tauri::command(async)]
 pub fn pull_request_inbox() -> Result<forge::Inbox> {

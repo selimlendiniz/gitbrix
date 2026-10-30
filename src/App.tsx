@@ -48,7 +48,7 @@ import { undoLast } from "./undo";
 import { backgroundFetch, lfsPullIfNeeded, newWindow } from "./actions";
 import { loadInbox, loadPrs, usePrView } from "./prs";
 import { loadIssues } from "./issues";
-import { IssueDialog } from "./components/Issues";
+import { IssueDialog, NewIssueDialog } from "./components/Issues";
 import { ImportDialog } from "./components/Transfer";
 import { CiDialog } from "./components/CiDialog";
 import { FileFinder, useFileFinder } from "./components/FileFinder";
@@ -360,6 +360,7 @@ export default function App() {
       <SettingsDialog />
       <AboutDialog />
       <IssueDialog />
+      <NewIssueDialog />
       <ImportDialog />
       <CiDialog />
       <StashPickDialog />

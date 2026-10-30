@@ -7,7 +7,9 @@ use std::path::Path;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use super::{Project, each_project, encode, get, gitlab_me, request, text};
+use super::{
+    Comment, Created, GITHUB_FULL, Project, each_project, encode, get, gid_number, github_comment, gitlab_me, project_of_remote, request, request_as, text,
+};
 use crate::error::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -228,6 +230,149 @@ fn list_project(p: &Project, remote: &str, token: &str) -> Result<Vec<Issue>> {
     }
 }
 
+/// A new issue.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewIssue {
+    pub title: String,
+    pub body: String,
+    pub labels: Vec<String>,
+    pub assign_me: bool,
+}
+
+const GITLAB_ISSUE_NOTES_HTML: &str = "query($path: ID!, $iid: String!) {
+  project(fullPath: $path) { issue(iid: $iid) { notes(first: 100) { nodes { id bodyHtml } } } }
+}";
+
+fn comments_in(p: &Project, token: &str, number: u64) -> Result<Vec<Comment>> {
+    let mut out: Vec<Comment> = match p.provider.as_str() {
+        "github" => {
+            let url = format!("{}/repos/{}/issues/{number}/comments?per_page=100", p.api, p.path);
+            request_as("GET", &url, token, None, GITHUB_FULL)?
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|c| github_comment(c, false))
+                .collect()
+        }
+        _ => {
+            let url = format!("{}/projects/{}/issues/{number}/notes?sort=asc&order_by=created_at&per_page=100", p.api, encode(&p.path));
+            let notes = get(&url, token)?;
+            // GitLab's rendering, when it says.
+            let vars = json!({ "query": GITLAB_ISSUE_NOTES_HTML, "variables": { "path": p.path, "iid": number.to_string() } });
+            let html: HashMap<u64, String> = request("POST", &p.graphql, token, Some(&vars))
+                .map(|d| {
+                    d["data"]["project"]["issue"]["notes"]["nodes"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|n| Some((gid_number(n["id"].as_str()?)?, n["bodyHtml"].as_str()?.to_owned())))
+                        .collect()
+                })
+                .unwrap_or_default();
+            notes
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|n| Comment {
+                    id: n["id"].as_u64().map(|i| i.to_string()).unwrap_or_default(),
+                    thread: None,
+                    resolvable: false,
+                    resolved: false,
+                    author: text(&n["author"]["username"]),
+                    body: text(&n["body"]),
+                    html: n["id"].as_u64().and_then(|id| html.get(&id).cloned()),
+                    created: text(&n["created_at"]),
+                    path: None,
+                    line: None,
+                    start_line: None,
+                    verdict: None,
+                    system: n["system"].as_bool().unwrap_or(false),
+                })
+                .collect()
+        }
+    };
+    out.sort_by(|a, b| a.created.cmp(&b.created));
+    Ok(out)
+}
+
+fn comment_in(p: &Project, token: &str, number: u64, body: &str) -> Result<()> {
+    if body.trim().is_empty() {
+        return Err(Error::msg("Write something first"));
+    }
+    let url = match p.provider.as_str() {
+        "github" => format!("{}/repos/{}/issues/{number}/comments", p.api, p.path),
+        _ => format!("{}/projects/{}/issues/{number}/notes", p.api, encode(&p.path)),
+    };
+    request("POST", &url, token, Some(&json!({ "body": body })))?;
+    Ok(())
+}
+
+fn set_open_in(p: &Project, token: &str, number: u64, open: bool) -> Result<()> {
+    match p.provider.as_str() {
+        "github" => {
+            let body = json!({ "state": if open { "open" } else { "closed" } });
+            request("PATCH", &format!("{}/repos/{}/issues/{number}", p.api, p.path), token, Some(&body))?;
+        }
+        _ => {
+            let body = json!({ "state_event": if open { "reopen" } else { "close" } });
+            request("PUT", &format!("{}/projects/{}/issues/{number}", p.api, encode(&p.path)), token, Some(&body))?;
+        }
+    }
+    Ok(())
+}
+
+fn create_in(p: &Project, token: &str, new: &NewIssue) -> Result<Created> {
+    let title = new.title.trim();
+    if title.is_empty() {
+        return Err(Error::msg("Give the issue a title"));
+    }
+    match p.provider.as_str() {
+        "github" => {
+            let mut body = json!({ "title": title, "body": new.body, "labels": new.labels });
+            if new.assign_me {
+                body["assignees"] = json!([p.username]);
+            }
+            let issue = request("POST", &format!("{}/repos/{}/issues", p.api, p.path), token, Some(&body))?;
+            let number = issue["number"].as_u64().ok_or_else(|| Error::msg(format!("Unexpected answer from {}", p.host)))?;
+            Ok(Created { number, url: text(&issue["html_url"]), warning: None })
+        }
+        _ => {
+            let mut body = json!({ "title": title, "description": new.body, "labels": new.labels.join(",") });
+            let mut warning = None;
+            if new.assign_me {
+                match get(&format!("{}/user", p.api), token).ok().and_then(|u| u["id"].as_u64()) {
+                    Some(id) => body["assignee_ids"] = json!([id]),
+                    None => warning = Some("Not assigned: the token can't say whose it is".to_owned()),
+                }
+            }
+            let issue = request("POST", &format!("{}/projects/{}/issues", p.api, encode(&p.path)), token, Some(&body))?;
+            let number = issue["iid"].as_u64().ok_or_else(|| Error::msg(format!("Unexpected answer from {}", p.host)))?;
+            Ok(Created { number, url: text(&issue["web_url"]), warning })
+        }
+    }
+}
+
+pub fn comments(repo: &Path, remote: &str, number: u64) -> Result<Vec<Comment>> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    comments_in(&p, &token, number)
+}
+
+pub fn comment(repo: &Path, remote: &str, number: u64, body: &str) -> Result<()> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    comment_in(&p, &token, number, body)
+}
+
+pub fn set_open(repo: &Path, remote: &str, number: u64, open: bool) -> Result<()> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    set_open_in(&p, &token, number, open)
+}
+
+pub fn create(repo: &Path, remote: &str, new: &NewIssue) -> Result<Created> {
+    let (p, token) = project_of_remote(repo, remote)?;
+    create_in(&p, &token, new)
+}
+
 /// Open issues of every remote an account covers, most recently updated first.
 pub fn list(repo: &Path) -> Result<Issues> {
     let l = each_project(repo, "issues", list_project)?;
@@ -318,6 +463,53 @@ mod tests {
         let (addr, _) = serve(vec![("GET /api/v4/projects/team%2Fapp/issues", json!([{ "iid": 5, "description": "x" }]))]);
         let issues = gitlab_issues(&project("gitlab", &format!("{addr}/api/v4"), "me"), "origin", "tok").unwrap();
         assert_eq!(issues[0].body_html, None);
+    }
+
+    #[test]
+    fn issue_conversation_comment_close_create() {
+        use super::super::tests::serve_bodies;
+        let (addr, log, bodies) = serve_bodies(vec![
+            ("GET /repos/team/app/issues/12/comments", json!([
+                { "id": 5, "user": { "login": "ada" }, "body": "Same here", "body_html": "<p>Same here</p>", "created_at": "2026-10-02T00:00:00Z" }
+            ])),
+            ("POST /repos/team/app/issues/12/comments", json!({})),
+            ("PATCH /repos/team/app/issues/12", json!({})),
+            ("POST /repos/team/app/issues", json!({ "number": 13, "html_url": "https://github.com/team/app/issues/13" })),
+        ]);
+        let gh = project("github", &addr, "me");
+        let c = comments_in(&gh, "tok", 12).unwrap();
+        assert_eq!((c[0].author.as_str(), c[0].html.as_deref()), ("ada", Some("<p>Same here</p>")));
+        comment_in(&gh, "tok", 12, "Thanks").unwrap();
+        assert!(comment_in(&gh, "tok", 12, " ").is_err());
+        set_open_in(&gh, "tok", 12, false).unwrap();
+        let made = create_in(&gh, "tok", &NewIssue { title: " Crash ".into(), body: "Trace".into(), labels: vec!["bug".into()], assign_me: true }).unwrap();
+        assert_eq!(made.number, 13);
+        assert!(create_in(&gh, "tok", &NewIssue { title: " ".into(), body: String::new(), labels: vec![], assign_me: false }).is_err());
+        let sent = bodies.lock().unwrap().clone();
+        let body = |r: &str| sent.iter().find(|(x, _)| x == r).map(|(_, v)| v.clone()).unwrap();
+        assert_eq!(body("POST /repos/team/app/issues/12/comments"), json!({ "body": "Thanks" }));
+        assert_eq!(body("PATCH /repos/team/app/issues/12"), json!({ "state": "closed" }));
+        assert_eq!(body("POST /repos/team/app/issues"), json!({ "title": "Crash", "body": "Trace", "labels": ["bug"], "assignees": ["me"] }));
+        assert!(log.lock().unwrap().iter().all(|l| l.ends_with("[Bearer tok]")));
+
+        let (addr, _, bodies) = serve_bodies(vec![
+            ("GET /api/v4/projects/team%2Fapp/issues/4/notes", json!([
+                { "id": 31, "author": { "username": "grace" }, "body": "On it", "created_at": "2026-10-03T00:00:00Z", "system": false }
+            ])),
+            ("POST /api/graphql", json!({ "data": { "project": { "issue": { "notes": { "nodes": [{ "id": "gid://gitlab/Note/31", "bodyHtml": "<p>On it</p>" }] } } } } })),
+            ("PUT /api/v4/projects/team%2Fapp/issues/4", json!({})),
+            ("GET /api/v4/user", json!({ "id": 99 })),
+            ("POST /api/v4/projects/team%2Fapp/issues", json!({ "iid": 5, "web_url": "https://git.test/team/app/-/issues/5" })),
+        ]);
+        let gl = Project { graphql: format!("{addr}/api/graphql"), ..project("gitlab", &format!("{addr}/api/v4"), "me") };
+        let c = comments_in(&gl, "tok", 4).unwrap();
+        assert_eq!((c[0].id.as_str(), c[0].html.as_deref()), ("31", Some("<p>On it</p>")));
+        set_open_in(&gl, "tok", 4, true).unwrap();
+        create_in(&gl, "tok", &NewIssue { title: "Slow".into(), body: "x".into(), labels: vec!["perf".into(), "ui".into()], assign_me: true }).unwrap();
+        let sent = bodies.lock().unwrap().clone();
+        let body = |r: &str| sent.iter().find(|(x, _)| x == r).map(|(_, v)| v.clone()).unwrap();
+        assert_eq!(body("PUT /api/v4/projects/team%2Fapp/issues/4"), json!({ "state_event": "reopen" }));
+        assert_eq!(body("POST /api/v4/projects/team%2Fapp/issues"), json!({ "title": "Slow", "description": "x", "labels": "perf,ui", "assignee_ids": [99] }));
     }
 
     #[test]

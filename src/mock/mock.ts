@@ -120,6 +120,10 @@ const READS: Record<string, (a: Args) => unknown> = {
     reviewers: ["grace"],
     labels: ["ui"],
   }),
+  issue_comments: () => [
+    { id: "41", thread: null, resolvable: false, resolved: false, author: "grace", body: "Happens on **Firefox** too", created: "2026-10-21T10:00:00Z", path: null, line: null, verdict: null, system: false },
+  ],
+  create_issue: () => ({ number: 13, url: "https://gitlab.com/team/demo-app/-/issues/13", warning: null }),
   project_labels: () => [
     { name: "bug", color: "#d73a4a" },
     { name: "ui", color: "#1d76db" },

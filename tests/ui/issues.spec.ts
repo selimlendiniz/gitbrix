@@ -112,3 +112,34 @@ test("issues: nothing shown where no account covers the remotes", async ({ page 
   await expect(page.locator(".side-title-text", { hasText: "Pull Requests" })).toHaveCount(0);
   await expect(page.locator(".side-title-text", { hasText: "Issues" })).toHaveCount(0);
 });
+
+test("issues: comments, a new comment, closing; a new issue", async ({ page }) => {
+  await page.addInitScript((issues) => {
+    window.__gitbrixIssues = issues;
+  }, ISSUES);
+  await page.goto("/?open");
+  await page.locator(".issue-item", { hasText: "#12" }).click();
+  const dialog = page.getByRole("dialog", { name: "Issue #12" });
+  await expect(dialog.locator(".issue-conversation .pr-comment")).toContainText("Happens on Firefox too");
+  await dialog.getByPlaceholder(/Write a comment/).fill("Fixed on my branch");
+  await dialog.getByRole("button", { name: "Comment", exact: true }).click();
+  await expect.poll(() => lastCall(page, "comment_issue")).toMatchObject({ remote: "origin", number: 12, body: "Fixed on my branch" });
+  await dialog.getByRole("button", { name: "Close issue" }).click();
+  await page.getByRole("dialog", { name: "Close #12?" }).getByRole("button", { name: "Close issue" }).click();
+  await expect.poll(() => lastCall(page, "set_issue_open")).toMatchObject({ number: 12, open: false });
+  await expect(dialog).toHaveCount(0);
+
+  const section = page.locator(".side-section", { has: page.locator(".side-title-text", { hasText: "Issues" }) });
+  await section.getByRole("button", { name: "New issue" }).click();
+  const form = page.getByRole("dialog", { name: "New issue" });
+  await form.locator("input").first().fill("Crash on empty repository");
+  await form.locator("textarea").fill("Steps: open an empty folder");
+  await form.getByRole("button", { name: "bug" }).click();
+  await page.screenshot({ path: "test-results/shots/new-issue.png" });
+  await form.getByRole("button", { name: "Open issue" }).click();
+  await expect.poll(() => lastCall(page, "create_issue")).toMatchObject({
+    remote: "origin",
+    issue: { title: "Crash on empty repository", body: "Steps: open an empty folder", labels: ["bug"], assignMe: true },
+  });
+  await expect(page.getByText("Opened #13")).toBeVisible();
+});

@@ -676,6 +676,11 @@ export const api = {
 
   pullRequests: (repo: string) => invoke<PullRequests>("pull_requests", { repo }),
   overlaps: (repo: string) => invoke<Overlap[]>("overlaps", { repo }),
+  issueComments: (repo: string, remote: string, number: number) => invoke<PrComment[]>("issue_comments", { repo, remote, number }),
+  commentIssue: (repo: string, remote: string, number: number, body: string) => invoke<void>("comment_issue", { repo, remote, number, body }),
+  setIssueOpen: (repo: string, remote: string, number: number, open: boolean) => invoke<void>("set_issue_open", { repo, remote, number, open }),
+  createIssue: (repo: string, remote: string, issue: { title: string; body: string; labels: string[]; assignMe: boolean }) =>
+    invoke<CreatedRequest>("create_issue", { repo, remote, issue }),
   issues: (repo: string) => invoke<Issues>("issues", { repo }),
   pullRequestInbox: () => invoke<PullRequestInbox>("pull_request_inbox"),
   /** A request's conversation by account and project (account-wide list). */
