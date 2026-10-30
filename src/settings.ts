@@ -11,6 +11,9 @@ export interface Settings {
   fileView: "list" | "tree";
   /** Hide whitespace-only changes in commit and comparison diffs. */
   ignoreWhitespace: boolean;
+  /** When local changes block a checkout, pull or merge: ask to stash
+   *  them around it, or always do. */
+  autoStash: "ask" | "always";
   /** Minutes between background fetches; 0 = off. */
   autoFetch: number;
   /** Minutes between pull/merge request checks; 0 = only on open. */
@@ -33,6 +36,7 @@ export const DEFAULTS: Settings = {
   // Off by default: with a passphrase-protected ssh key not in an agent,
   // a background fetch would pop up a password prompt every time.
   autoFetch: 0,
+  autoStash: "ask",
   prPoll: 3,
   prNotify: true,
   sidebarWidth: 240,

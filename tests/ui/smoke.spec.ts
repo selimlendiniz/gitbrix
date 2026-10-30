@@ -996,3 +996,33 @@ test("clean up branches: merged ones ticked, gone and remote ones on request", a
   expect(await calls(page)).not.toContain("delete_remote_branch");
   expect(errors).toEqual([]);
 });
+
+test("auto-stash: changes in the way are stashed, the checkout runs, they come back", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await page.evaluate(() => {
+    window.__gitbrixFailOnce = { checkout_branch: "Your local changes to notes.txt would be overwritten. Commit or stash them first." };
+  });
+  await page.locator(".pill", { hasText: /^fix\/typo/ }).dblclick();
+  const confirm = page.getByRole("dialog").filter({ hasText: "Local changes in the way" });
+  await expect(confirm).toContainText("notes.txt would be overwritten");
+  await confirm.getByRole("button", { name: "Stash and carry on" }).click();
+  await expect(page.getByText("(local changes stashed and put back)")).toBeVisible();
+  const cmds = (await calls(page)).filter((c) => ["stash_save", "checkout_branch", "stash_apply"].includes(c));
+  expect(cmds).toEqual(["checkout_branch", "stash_save", "checkout_branch", "stash_apply"]);
+  expect(await lastCall(page, "stash_save")).toMatchObject({ includeUntracked: true });
+  expect(await lastCall(page, "stash_apply")).toMatchObject({ pop: true });
+
+  // "Always" skips the question.
+  await page.evaluate(() => {
+    localStorage.setItem("gitbrix.settings", JSON.stringify({ autoStash: "always" }));
+  });
+  await page.reload();
+  await page.evaluate(() => {
+    window.__gitbrixFailOnce = { checkout_branch: "Your local changes would be overwritten. Commit or stash them first. (x)" };
+  });
+  await page.locator(".pill", { hasText: /^fix\/typo/ }).dblclick();
+  await expect(page.getByText("(local changes stashed and put back)")).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

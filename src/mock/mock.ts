@@ -18,6 +18,8 @@ declare global {
     __gitbrixPrsByRepo?: Record<string, unknown>;
     /** What `pull_request_inbox` answers; tests set it. */
     __gitbrixInbox?: unknown;
+    /** Commands that fail once with the given message; tests set it. */
+    __gitbrixFailOnce?: Record<string, string>;
     /** What `ci_statuses` answers; tests set it. */
     __gitbrixCi?: Record<string, unknown>;
     /** Repositories `find_repos` finds; tests set it. */
@@ -156,6 +158,11 @@ export async function installMocks() {
   mockIPC((cmd, payload) => {
     const args = (payload ?? {}) as Args;
     window.__gitbrixCalls.push({ cmd, args });
+    const fail = window.__gitbrixFailOnce?.[cmd];
+    if (fail) {
+      delete window.__gitbrixFailOnce![cmd];
+      throw fail;
+    }
     const read = READS[cmd];
     if (read) return read(args);
     // Mutations: pretend they worked.

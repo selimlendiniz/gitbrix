@@ -84,6 +84,15 @@ export function SettingsDialog() {
               { value: "tree", label: "Tree" },
             ]}
           />
+          <span>Auto-stash</span>
+          <Choice
+            value={settings.autoStash}
+            onChange={(autoStash) => set({ autoStash })}
+            options={[
+              { value: "ask", label: "Ask when changes are in the way" },
+              { value: "always", label: "Always" },
+            ]}
+          />
           <span>Auto-fetch</span>
           <Choice
             value={String(settings.autoFetch)}

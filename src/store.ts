@@ -186,6 +186,61 @@ function sameSource(a: DiffSource | null, b: DiffSource | null): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/** The operation stopped because local changes would be overwritten (not
+ *  a stash being applied over them). */
+export function blockedByLocalChanges(text: string): boolean {
+  return /local changes.*would be overwritten/i.test(text) && !/by the stash/i.test(text);
+}
+
+/** Stash the local changes, run `fn` again, and put the changes back
+ *  (asking first unless Settings → Auto-stash says always). */
+async function retryWithStash(
+  repo: string,
+  label: string,
+  fn: (repo: string) => Promise<unknown>,
+  success: string | undefined,
+  blocked: string,
+): Promise<boolean> {
+  const st = useStore.getState();
+  if (useSettings.getState().autoStash !== "always") {
+    const ok = await st.confirm({
+      title: "Local changes in the way",
+      message: `${blocked}\n\nStash them, carry on (${label.toLowerCase()}), then put them back?`,
+      confirmLabel: "Stash and carry on",
+    });
+    if (!ok) return false;
+  }
+  let stashId: string | null = null;
+  try {
+    await api.stashSave(repo, `gitbrix: autostash (${label.toLowerCase()})`, true);
+    stashId = (await api.stashes(repo))[0]?.id ?? null;
+  } catch (e) {
+    st.toast("error", `Couldn't stash the local changes: ${errorText(e)}`);
+    return false;
+  }
+  let failure: string | null = null;
+  try {
+    await fn(repo);
+  } catch (e) {
+    failure = errorText(e);
+  }
+  try {
+    await api.stashApply(repo, 0, true, stashId);
+  } catch {
+    st.toast(
+      "error",
+      `${failure ? `${failure}\n` : ""}Your local changes didn't go back cleanly; they are kept in the stash list (“autostash”).`,
+    );
+    return !failure;
+  }
+  if (failure) {
+    st.toast("error", failure);
+    return false;
+  }
+  if (success) st.toast("info", `${success} (local changes stashed and put back)`);
+  return true;
+}
+
 export const useStore = create<State>((set, get) => ({
   repo: null,
   graph: null,
@@ -482,8 +537,9 @@ export const useStore = create<State>((set, get) => ({
       await fn(repo.path);
       if (success) get().toast("info", success);
     } catch (e) {
-      ok = false;
-      get().toast("error", errorText(e));
+      const text = errorText(e);
+      ok = blockedByLocalChanges(text) ? await retryWithStash(repo.path, label, fn, success, text) : false;
+      if (!blockedByLocalChanges(text)) get().toast("error", text);
     } finally {
       set({ busy: null, progress: null });
       await get().refresh(scope);
