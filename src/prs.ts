@@ -7,7 +7,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
-import { api, Conversation, errorText, PullRequest, PullRequestInbox, PullRequests, RequestRange } from "./api";
+import { api, Conversation, errorText, PullRequest, PullRequestInbox, PullRequests, RefInfo, RequestRange } from "./api";
 import { begin, end } from "./activity";
 import { useSettings } from "./settings";
 import { useStore } from "./store";
@@ -298,4 +298,19 @@ export async function tidyAfterMerge(pr: PullRequest) {
       ? `${onIt ? `On ${target}, up to date; ` : ""}deleted the local ${pr.sourceBranch}`
       : `${onIt ? `On ${target}, up to date; ` : ""}kept ${pr.sourceBranch}: it has commits that aren't on ${pr.remote}`,
   );
+}
+
+/**
+ * The open request a branch is the source of: its remote branch, a local
+ * branch of that name or tracking it, or a fork's request checked out as
+ * `pr/N` / `mr/N`.
+ */
+export function requestForBranch(prs: PullRequest[], local: RefInfo | null, remotes: RefInfo[]): PullRequest | undefined {
+  return prs.find((pr) => {
+    const remote = `${pr.remote}/${pr.sourceBranch}`;
+    if (!pr.sameRepo) return local?.name === `${pr.provider === "github" ? "pr" : "mr"}/${pr.number}`;
+    if (remotes.some((r) => r.name === remote)) return true;
+    if (!local) return false;
+    return local.upstream ? local.upstream === remote : local.name === pr.sourceBranch;
+  });
 }

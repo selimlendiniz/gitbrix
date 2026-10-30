@@ -105,6 +105,9 @@ open tab; Settings → Pull requests / Notifications). GitLab tokens need
 `read_api` (or `api` to approve); GitHub fine-grained tokens need "Pull
 requests" access.
 
+Branches with an open request carry its number in the graph and the
+sidebar (colored by what it waits for); a click opens it.
+
 **Issues.** The sidebar lists the open issues of the repository's remotes
 (yours first; "mine" shows only those assigned to you). "Start work"
 creates `<number>-<title>` from the remote's main branch, and commits on

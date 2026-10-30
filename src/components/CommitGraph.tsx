@@ -15,6 +15,8 @@ import { useCi } from "../ci";
 import { useBisect } from "../bisect";
 import { CiMark } from "./CiMark";
 import { Avatar } from "./Avatar";
+import { PrMark, useBranchRequest, useRepoRequests } from "./PrMark";
+import { prLabel, requestForBranch } from "../prs";
 import { avatarImage, useAvatars } from "../avatars";
 
 const REFS_W = 190;
@@ -478,7 +480,10 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills
 // Show the first pill, collapse the rest into "+N".
 function Pills({ pills, color }: { pills: RefPill[]; color: string }) {
   const showMenu = useStore((s) => s.showMenu);
+  const prs = useRepoRequests();
   const [firstPill, ...rest] = pills;
+  const prOf = (p: RefPill) => requestForBranch(prs, p.local, p.remotes);
+  const hiddenPr = rest.map(prOf).find(Boolean);
   return (
     <>
       <Pill pill={firstPill} color={color} />
@@ -492,13 +497,17 @@ function Pills({ pills, color }: { pills: RefPill[]; color: string }) {
             showMenu(
               r.left,
               r.bottom + 2,
-              rest.map((p) => ({ label: `Check out ${p.label}`, onSelect: () => checkoutRef(primaryRef(p)) })),
+              rest.map((p) => {
+                const pr = prOf(p);
+                return { label: `Check out ${p.label}`, hint: pr ? prLabel(pr) : undefined, onSelect: () => checkoutRef(primaryRef(p)) };
+              }),
             );
           }}
         >
           +{rest.length}
         </button>
       )}
+      {hiddenPr && !prOf(firstPill) && <PrMark pr={hiddenPr} />}
     </>
   );
 }
@@ -509,6 +518,7 @@ const useHover = create<{ tip: string | null }>(() => ({ tip: null }));
 function Pill({ pill, color }: { pill: RefPill; color: string }) {
   const showMenu = useStore((s) => s.showMenu);
   const ref = primaryRef(pill);
+  const pr = useBranchRequest(pill.local, pill.remotes);
   return (
     <span
       className={`pill${pill.isHead ? " head" : ""}${pill.kind === "tag" ? " tag" : ""}`}
@@ -536,6 +546,7 @@ function Pill({ pill, color }: { pill: RefPill; color: string }) {
           {pill.remotes.length > 0 && <IconCloud size={12} />}
         </>
       )}
+      {pr && <PrMark pr={pr} />}
     </span>
   );
 }

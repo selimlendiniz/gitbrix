@@ -4333,3 +4333,49 @@ body.dragging * {
 .error-text {
   color: var(--danger);
 }
+
+/* A branch's open pull request */
+.pr-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  height: 15px;
+  padding: 0 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pr-mark:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.pill .pr-mark svg {
+  color: inherit;
+}
+
+.pr-mark.review {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.pr-mark.approved {
+  color: var(--add);
+  border-color: var(--add);
+}
+
+.pr-mark.failed {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.pr-mark.draft {
+  border-style: dashed;
+}

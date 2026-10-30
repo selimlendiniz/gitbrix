@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { PullRequest, PullRequestInbox, PullRequests } from "../../src/api";
-import { inboxSources, Memory, newForReview, prLabel, repoSources, wantsReview } from "../../src/prs";
+import { PullRequest, PullRequestInbox, PullRequests, RefInfo } from "../../src/api";
+import { inboxSources, Memory, newForReview, prLabel, repoSources, requestForBranch, wantsReview } from "../../src/prs";
 
 const pr = (number: number, over: Partial<PullRequest> = {}): PullRequest => ({
   provider: "gitlab",
@@ -86,5 +86,28 @@ describe("pull request labels", () => {
     expect(prLabel(pr(7))).toBe("!7");
     expect(prLabel(pr(7, { provider: "github" }))).toBe("#7");
     expect(wantsReview(pr(7, { approvedByMe: true }))).toBe(false);
+  });
+});
+
+describe("the request of a branch", () => {
+  const pr = (over: Partial<PullRequest> = {}) =>
+    ({ provider: "gitlab", remote: "origin", number: 4, sourceBranch: "feature/ui", sameRepo: true, ...over }) as PullRequest;
+  const ref = (name: string, kind: "local" | "remote", upstream: string | null = null) =>
+    ({ name, kind, upstream, fullName: name, target: "x", isHead: false, ahead: 0, behind: 0 }) as RefInfo;
+
+  it("matches the remote branch, a local one tracking it, or one of the same name", () => {
+    expect(requestForBranch([pr()], null, [ref("origin/feature/ui", "remote")])?.number).toBe(4);
+    expect(requestForBranch([pr()], ref("ui-work", "local", "origin/feature/ui"), [])?.number).toBe(4);
+    expect(requestForBranch([pr()], ref("feature/ui", "local"), [])?.number).toBe(4);
+    // Same name, tracking something else: another branch.
+    expect(requestForBranch([pr()], ref("feature/ui", "local", "upstream/feature/ui"), [])).toBeUndefined();
+    expect(requestForBranch([pr()], null, [ref("upstream/feature/ui", "remote")])).toBeUndefined();
+  });
+
+  it("matches a fork's request by its checked-out branch", () => {
+    const fork = pr({ sameRepo: false, number: 7 });
+    expect(requestForBranch([fork], ref("mr/7", "local"), [])?.number).toBe(7);
+    expect(requestForBranch([fork], ref("feature/ui", "local"), [])).toBeUndefined();
+    expect(requestForBranch([pr({ provider: "github", sameRepo: false, number: 7 })], ref("pr/7", "local"), [])?.number).toBe(7);
   });
 });

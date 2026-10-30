@@ -177,6 +177,11 @@ Kurulabilir paket (release derlemesi):
     dev.gitbrix.app`) ve `release/gitbrix.flatpak` yazar. Terminal, hook,
     gpg, ssh sandbox dışında, senin sisteminde çalışır.
 
+47. **PR'ı olan branch'ler**: graftaki etikette ve kenar çubuğunda branch
+    adının yanında PR numarası (`!5`). Sarı: senin incelemen/onayın
+    bekleniyor; yeşil: onaylandı; kırmızı: CI başarısız; kesikli: draft.
+    Tıklayınca PR uygulamada açılır.
+
 ## Bilerek yapmadıklarım
 
 - PR satır yorumları yalnızca unified diff görünümünde; split görünümde

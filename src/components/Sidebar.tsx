@@ -9,6 +9,7 @@ import { buildTree, RefTree } from "./RefTree";
 import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconPullRequest, IconStash, IconTag, IconTrash } from "./Icons";
 import { CiMark } from "./CiMark";
 import { IssueList } from "./Issues";
+import { PrMark, useBranchRequest } from "./PrMark";
 import { useCleanup } from "./CleanupDialog";
 
 function Section({
@@ -49,6 +50,7 @@ function RefItem({ r, label, indent = 0 }: { r: RefInfo; label: string; indent?:
   const filter = useStore((s) => s.graphFilter);
   const hidden = filter.solo.length ? !filter.solo.includes(r.fullName) : filter.hidden.includes(r.fullName);
   const solo = filter.solo.includes(r.fullName);
+  const pr = useBranchRequest(r.kind === "local" ? r : null, r.kind === "remote" ? [r] : []);
   return (
     <div
       className={`side-item${r.isHead ? " head" : ""}${hidden ? " hidden-ref" : ""}`}
@@ -65,6 +67,7 @@ function RefItem({ r, label, indent = 0 }: { r: RefInfo; label: string; indent?:
     >
       {r.isHead && <span className="side-head-dot" />}
       <span className="side-item-label">{label}</span>
+      {pr && <PrMark pr={pr} />}
       {(r.ahead > 0 || r.behind > 0) && (
         <span className="ahead-behind">
           {r.behind > 0 && <span title={`${r.behind} behind ${r.upstream}`}>↓{r.behind}</span>}
