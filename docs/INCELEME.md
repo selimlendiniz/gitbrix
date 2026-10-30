@@ -191,6 +191,34 @@ Kurulabilir paket (release derlemesi):
     ulaşamaz). Servis HTML vermezse metin uygulamada çevriliyor. Bağlantılar
     tarayıcıda açılır; resimler bağlantı olarak çıkar.
 
+49. **Tartışma zincirleri**: Conversation'da ve diff'te satır yorumları
+    zincir hâlinde (cevaplar içeride). "Reply…" ile cevap, "Resolve
+    thread / Reopen thread"; çözülmüş zincirler tek satıra katlanır.
+50. **İnceleme gönderme**: diff'te satıra yorum yazıp "Add to review"
+    (taslak, sarı kesikli çerçeve; uygulama kapansa da kalır). Conversation
+    altındaki "Your review": özet + Comment / Approve / Request changes
+    (GitHub) → "Send review" hepsini birden gönderir. GitLab'da taslak
+    notlar + toplu yayın (+ onay).
+51. **Öneri**: satır yorumunda "Suggest change" satırın metniyle bir
+    öneri bloğu ekler. Öneri içeren yorumda "Apply suggestion": PR'ın
+    branch'i checkout'luyken dosyaya uygular (dosyada commit'lenmemiş
+    değişiklik varsa reddeder); sonra commit'lersin.
+52. **CI ayrıntısı**: grafikte ya da PR'da CI işaretine tıkla: aşamalara
+    göre job'lar, başarısız olanın logu (renkli), "Retry", tarayıcıda aç.
+    Çalışırken 5 sn'de bir yenilenir.
+53. **Yorum bildirimleri**: senin PR'larına başkası yorum yazınca ya da
+    seni `@` ile anınca masaüstü bildirimi. Ayarlar → Comments ile kapanır.
+54. **Kısmi stash**: değişen dosyaya sağ tık → "Stash this file…", ya da
+    "Stash" menüsü → "Stash some files…". (libgit2'nin kendi yöntemi
+    diğer dosyaların değişikliklerini siliyordu; stash elle, git'in
+    biçiminde kuruluyor; `git stash pop` da açar.)
+55. **Dosya bulucu**: Ctrl+P: dosya adıyla bul; Enter gösterir,
+    Ctrl+Enter geçmiş, Shift+Enter blame. Dosya tarayıcısında `.md`
+    dosyaları sayfa olarak (Preview/Source), dosya seçilmemişken README.
+56. **Klavye**: grafikte j/k, J/K (sayfa), g/G (baş/son), `/` arama, n/N
+    eşleşmeler, Enter ilk dosyanın diff'i, b yeni branch, Esc çoklu seçimi
+    bırakır. Tam liste: `?`.
+
 ## Bilerek yapmadıklarım
 
 - PR satır yorumları yalnızca unified diff görünümünde; split görünümde
@@ -215,6 +243,14 @@ Kurulabilir paket (release derlemesi):
 - Flatpak'te ssh ile push/pull ve gpg imzası denenmedi (flatpak-spawn ile
   ana sistemde çalışacak şekilde yazıldı); terminal denendi.
 - Issue açma/kapama, yorum yok; yalnızca liste, ayrıntı ve branch başlatma.
+- Zincire cevap, çözme, inceleme gönderme, öneri ve CI "Retry" gerçek
+  servise karşı denenmedi (yazma işlemleri); sahte sunucuyla test edildi.
+  Okuma tarafı (zincirler, HTML) GitLab test projende canlı denendi.
+- GitLab'da "Request changes" yok (API'si yok); GitLab incelemesi yorum
+  ya da onay.
+- Öneriler tek satır ya da GitLab'ın `-N+M` aralığı ve GitHub'ın çok satırlı
+  yorumu kadar; GitLab'ın kendi "Apply" uç noktası değil, dosyaya yerelde
+  uygulanıyor.
 
 ## Bilmen gerekenler
 

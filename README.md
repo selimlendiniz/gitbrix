@@ -108,6 +108,13 @@ requests" access.
 Branches with an open request carry its number in the graph and the
 sidebar (colored by what it waits for); a click opens it.
 
+**Reviews.** Comments come in their threads (reply, resolve). Line
+comments can wait in a pending review and go out together with a
+verdict; "Suggest change" writes a suggestion, and a comment's
+suggestion can be applied to the work tree. A CI mark opens the jobs and
+their logs (retry from there). Comments on your requests and mentions
+raise a notification.
+
 **Issues.** The sidebar lists the open issues of the repository's remotes
 (yours first; "mine" shows only those assigned to you). "Start work"
 creates `<number>-<title>` from the remote's main branch, and commits on
@@ -120,6 +127,10 @@ changed files get a mark.
 
 **Windows.** Ctrl+Shift+N or a tab's "Move to new window" opens another
 window. Only the first window remembers its tabs across restarts.
+
+**Finding things.** Ctrl+P finds a file by name (view, history, blame);
+the graph moves with j/k, g/G, / and n/N (`?` lists every key). Some
+files can be stashed on their own.
 
 **Settings file.** Settings → Settings file exports preferences,
 workspaces, profiles and which accounts exist as JSON (never tokens);

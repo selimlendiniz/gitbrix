@@ -17,6 +17,26 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-31 — threads, reviews, suggestions, CI logs, comment notifications, partial stash, file finder, graph keys
+
+- Threads: GitLab discussions / GitHub reviewThreads; reply, resolve
+  (`forge.rs` reply_in/resolve_in, `src/review.ts`, `components/Threads.tsx`).
+- Pending review (localStorage) → GitHub reviews API / GitLab draft_notes +
+  bulk_publish (+ approve).
+- Suggestions: written from a diff line; applied locally (`ops::apply_suggestion`).
+- CI: `forge/ci.rs` (jobs, logs, retry; GitHub log redirect fetched
+  without the token), `src/ansi.ts`, `components/CiDialog.tsx`.
+- Comment/mention notifications: inbox carries comment counts and
+  mentions (GitHub search, GitLab todos); grown conversations are read via
+  `pull_request_conversation_for`. Fixed `newForReview` dropping memory fields.
+- Partial stash built by hand (`ops::stash_paths`): libgit2 1.9.7's
+  path-limited stash discards other files' changes.
+- Ctrl+P file finder (`history::list_files`), README/Markdown in the file
+  browser, graph keyboard navigation; search box autofocus fix.
+- Markdown: service-rendered HTML (GitLab GraphQL bodyHtml, GitHub
+  body_html), sanitized; local fallback keeps safe inline HTML.
+- Graph canvas scrolls with the rows (no lag while scrolling).
+
 ### 2026-10-30 — issues, clashing branches, merge options, windows, settings file, updates, Flatpak
 
 - Issues (`src-tauri/src/forge/issues.rs`, `src/issues.ts`, `components/Issues.tsx`):
