@@ -6,8 +6,9 @@ import { beginDrag, dropTarget } from "../dnd";
 import { createPullRequest, loadPrs, openPullRequest, prLabel, usePrs, usePrView, wantsReview } from "../prs";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
-import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconPullRequest, IconStash, IconTag } from "./Icons";
+import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconPullRequest, IconStash, IconTag, IconTrash } from "./Icons";
 import { CiMark } from "./CiMark";
+import { useCleanup } from "./CleanupDialog";
 
 function Section({
   title,
@@ -128,9 +129,14 @@ export function Sidebar() {
           icon={<IconLaptop size={13} />}
           count={locals.length}
           action={
-            <button className="icon-btn" title="New branch at HEAD" onClick={() => createBranch(null)}>
-              <IconPlus size={12} />
-            </button>
+            <>
+              <button className="icon-btn" title="Clean up branches…" onClick={() => useCleanup.setState({ open: true })}>
+                <IconTrash size={12} />
+              </button>
+              <button className="icon-btn" title="New branch at HEAD" onClick={() => createBranch(null)}>
+                <IconPlus size={12} />
+              </button>
+            </>
           }
         >
           <RefTree

@@ -25,6 +25,7 @@ import { useSettings } from "../settings";
 import { nextUndo, undoLast, useUndo } from "../undo";
 import { PullRequestsButton } from "./PullRequestsDialog";
 import { ProfileButton } from "./Profiles";
+import { useCleanup } from "./CleanupDialog";
 import { useSettingsDialog } from "./SettingsDialog";
 import { toggleTerminal, useTerminal } from "../terminal";
 
@@ -109,6 +110,7 @@ export function Toolbar() {
               { label: "New repository…", onSelect: () => useRepoDialog.setState({ kind: "init" }) },
               { separator: true, label: "" },
               { label: "Reflog (recover lost commits)…", onSelect: () => useStore.getState().openDiff({ kind: "reflog" }) },
+              { label: "Clean up branches…", onSelect: () => useCleanup.setState({ open: true }) },
               { label: "Apply patch as commits…", hint: "git am", onSelect: () => void applyPatchFile(true) },
               { label: "Apply patch to working tree…", hint: "git apply", onSelect: () => void applyPatchFile(false) },
               { separator: true, label: "" },

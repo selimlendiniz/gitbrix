@@ -13,7 +13,7 @@ use crate::accounts;
 use crate::forge;
 use crate::profiles;
 use crate::terminal::{self, Terminals};
-use crate::git::{diff, history, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace, worktree};
+use crate::git::{cleanup, diff, history, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -660,4 +660,10 @@ pub fn cherry_pick_many(repo: String, ids: Vec<String>) -> Result<()> {
 #[tauri::command(async)]
 pub fn revert_many(repo: String, ids: Vec<String>) -> Result<usize> {
     ops::revert_many(&workdir(&repo)?, &ids)
+}
+
+/// Branches that can be deleted: merged, or whose upstream is gone.
+#[tauri::command(async)]
+pub fn stale_branches(repo: String) -> Result<Vec<cleanup::Stale>> {
+    cleanup::stale(&open(&repo)?)
 }

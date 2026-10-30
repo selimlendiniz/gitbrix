@@ -973,3 +973,26 @@ test("several commits: Ctrl/Shift+click selects them; cherry-pick, revert, squas
   expect(await lastCall(page, "interactive_rebase")).toBeUndefined();
   expect(errors).toEqual([]);
 });
+
+test("clean up branches: merged ones ticked, gone and remote ones on request", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await page.getByTitle("Clean up branches…").click();
+  const dialog = page.getByRole("dialog", { name: "Clean up branches" });
+  await expect(dialog.getByLabel("fix/typo")).toBeChecked();
+  await expect(dialog.getByLabel("experiment/fast-path")).not.toBeChecked();
+  await expect(dialog.getByLabel("origin/feature/ui")).not.toBeChecked();
+  await expect(dialog).toContainText("origin/experiment/fast-path was deleted");
+  await dialog.getByLabel("experiment/fast-path").check();
+  await expect(dialog.locator(".cleanup-warn")).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/cleanup.png" });
+  await dialog.getByRole("button", { name: "Delete 2 branches" }).click();
+  await expect(page.getByText("Deleted 2 branches")).toBeVisible();
+  const deletes = await page.evaluate(() => window.__gitbrixCalls.filter((c) => c.cmd === "delete_branch").map((c) => c.args));
+  expect(deletes).toEqual([
+    { repo: "/home/demo/codes/demo-app", name: "fix/typo", force: false },
+    { repo: "/home/demo/codes/demo-app", name: "experiment/fast-path", force: true },
+  ]);
+  expect(await calls(page)).not.toContain("delete_remote_branch");
+  expect(errors).toEqual([]);
+});

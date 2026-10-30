@@ -1931,3 +1931,37 @@ fn several_commits_cherry_pick_in_order_and_revert_newest_first() {
     assert_eq!(t.git(&["log", "-2", "--format=%s"]), "after clash\nclash");
     assert_eq!(t.git(&["symbolic-ref", "--short", "HEAD"]), "main");
 }
+
+#[test]
+fn stale_branches_are_merged_or_gone() {
+    use super::cleanup;
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "base");
+    t.add_origin();
+    t.git(&["push", "-q", "-u", "origin", "main"]);
+    t.git(&["switch", "-q", "-c", "done"]);
+    t.commit("b.txt", "b\n", "done work");
+    t.git(&["switch", "-q", "main"]);
+    t.git(&["merge", "-q", "--no-ff", "done", "-m", "merge done"]);
+    t.git(&["push", "-q", "origin", "main"]);
+    t.git(&["switch", "-q", "-c", "wip"]);
+    t.commit("c.txt", "c\n", "unfinished");
+    t.git(&["push", "-q", "-u", "origin", "wip"]);
+    // Deleted on the server, then pruned by a fetch: "gone".
+    t.git(&["push", "-q", "origin", "--delete", "wip"]);
+    t.git(&["switch", "-q", "main"]);
+    t.git(&["branch", "fresh"]);
+    t.git(&["switch", "-q", "-c", "ahead"]);
+    t.commit("d.txt", "d\n", "not merged");
+    t.git(&["switch", "-q", "main"]);
+    t.git(&["push", "-q", "origin", "done"]);
+    t.git(&["remote", "set-head", "origin", "main"]);
+
+    let got = cleanup::stale(&t.open()).unwrap();
+    let seen: Vec<(&str, bool, &str, &str)> = got.iter().map(|s| (s.name.as_str(), s.remote, s.reason, s.into.as_str())).collect();
+    assert_eq!(
+        seen,
+        [("done", false, "merged", "main"), ("fresh", false, "merged", "main"), ("wip", false, "gone", "origin/wip"), ("origin/done", true, "merged", "origin/main")]
+    );
+    assert!(!got[2].merged, "a gone branch may hold unmerged work");
+}

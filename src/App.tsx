@@ -9,6 +9,7 @@ import { CommitGraph } from "./components/CommitGraph";
 import { CommitPanel } from "./components/CommitPanel";
 import { ComparePanel } from "./components/ComparePanel";
 import { MultiPanel } from "./components/MultiPanel";
+import { CleanupDialog } from "./components/CleanupDialog";
 import { ConflictView } from "./components/ConflictView";
 import { DiffView } from "./components/DiffView";
 import { BlameView, HistoryView } from "./components/FileViews";
@@ -297,6 +298,7 @@ export default function App() {
       <SettingsDialog />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
+      <CleanupDialog />
       <DragGhost />
       <ShortcutsDialog />
       <RepoDialogs />

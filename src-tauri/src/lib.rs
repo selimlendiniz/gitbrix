@@ -129,6 +129,7 @@ pub fn run() {
             commands::read_patch_file,
             commands::cherry_pick_many,
             commands::revert_many,
+            commands::stale_branches,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

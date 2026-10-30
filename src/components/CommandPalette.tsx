@@ -24,6 +24,7 @@ import { updateSettings } from "../settings";
 import { useRepoDialog } from "./RepoDialogs";
 import { usePrDialog } from "./PullRequestsDialog";
 import { createPullRequest } from "../prs";
+import { useCleanup } from "./CleanupDialog";
 import { useSettingsDialog } from "./SettingsDialog";
 import { useShortcuts } from "./ShortcutsDialog";
 import { openRepoDialog } from "./Welcome";
@@ -89,6 +90,7 @@ function useCommands(): Command[] {
       add("Action", "Show working tree changes", () => st.select(WIP_ID, true));
       add("Action", "Reflog — recover lost commits", () => void st.openDiff({ kind: "reflog" }));
       if (repo.headBranch && !repo.detached) add("Action", `Create pull request for ${repo.headBranch}…`, () => createPullRequest());
+      add("Action", "Clean up branches…", () => useCleanup.setState({ open: true }), "merged, gone");
       add("Action", "Apply patch as commits…", () => void applyPatchFile(true), "git am");
       add("Action", "Apply patch to working tree…", () => void applyPatchFile(false), "git apply");
       add("Action", "Show or hide the terminal", toggleTerminal, "Ctrl+`");

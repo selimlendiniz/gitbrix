@@ -96,6 +96,11 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  stale_branches: () => [
+    { name: "fix/typo", remote: false, reason: "merged", into: "main", merged: true, time: 1767225600 },
+    { name: "experiment/fast-path", remote: false, reason: "gone", into: "origin/experiment/fast-path", merged: false, time: 1767225600 },
+    { name: "origin/feature/ui", remote: true, reason: "merged", into: "origin/main", merged: true, time: 1767225600 },
+  ],
   format_patch: (a) => `From ${(a.ids as string[])[0]} Mon Sep 17 00:00:00 2001\nSubject: [PATCH] mock\n\n---\n`,
   read_patch_file: () => ["Add two", "Add b"],
   "plugin:dialog|save": () => "/home/demo/0001-Tidy-up-main.patch",

@@ -68,6 +68,16 @@ export interface Ci {
   url: string;
 }
 
+/** A branch that can go: merged, or its upstream was deleted ("gone"). */
+export interface StaleBranch {
+  name: string;
+  remote: boolean;
+  reason: "merged" | "gone";
+  into: string;
+  merged: boolean;
+  time: number;
+}
+
 /** A request's own commits: from where it leaves its target to its head. */
 export interface RequestRange {
   base: string;
@@ -535,6 +545,8 @@ export const api = {
   cherryPickMany: (repo: string, ids: string[]) => invoke<void>("cherry_pick_many", { repo, ids }),
   /** Revert in this order (newest first). */
   revertMany: (repo: string, ids: string[]) => invoke<number>("revert_many", { repo, ids }),
+
+  staleBranches: (repo: string) => invoke<StaleBranch[]>("stale_branches", { repo }),
 
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
   /** Repositories in a folder, up to three levels down. */
