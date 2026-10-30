@@ -91,6 +91,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   },
   pull_requests: (a) =>
     window.__gitbrixPrsByRepo?.[a.repo as string] ?? window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
+  merge_pull_request: (a) => (a.whenChecksPass ? "scheduled" : "merged"),
   overlaps: () => window.__gitbrixOverlaps ?? [],
   issues: () => window.__gitbrixIssues ?? { items: [], problems: [], covered: false, projects: [] },
   pull_request_inbox: () => window.__gitbrixInbox ?? { items: [], problems: [], accounts: [] },

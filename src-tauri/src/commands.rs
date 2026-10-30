@@ -604,8 +604,15 @@ pub fn comment_pull_request(repo: String, remote: String, number: u64, body: Str
 }
 
 #[tauri::command(async)]
-pub fn merge_pull_request(repo: String, remote: String, number: u64, method: String, delete_branch: bool) -> Result<()> {
-    forge::merge(&workdir(&repo)?, &remote, number, &method, delete_branch)
+pub fn merge_pull_request(
+    repo: String,
+    remote: String,
+    number: u64,
+    method: String,
+    delete_branch: bool,
+    when_checks_pass: bool,
+) -> Result<String> {
+    forge::merge(&workdir(&repo)?, &remote, number, &method, delete_branch, when_checks_pass)
 }
 
 /// CI status of commits (only those that have one).

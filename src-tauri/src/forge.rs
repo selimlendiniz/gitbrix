@@ -1020,10 +1020,10 @@ mod tests {
             ("POST /repos/team/app/issues/4/comments", json!({})),
         ]);
         let p = project("github", &addr, "me");
-        merge_in(&p, "tok", 4, "squash", true).unwrap();
+        assert_eq!(merge_in(&p, "tok", 4, "squash", true, false).unwrap(), "merged");
         comment_in(&p, "tok", 4, "Thanks").unwrap();
         assert!(comment_in(&p, "tok", 4, "  ").is_err());
-        assert!(merge_in(&p, "tok", 4, "octopus", false).is_err());
+        assert!(merge_in(&p, "tok", 4, "octopus", false, false).is_err());
         let log = log.lock().unwrap();
         assert!(log.iter().any(|l| l.starts_with("DELETE /repos/team/app/git/refs/heads/feature")), "{log:?}");
         let bodies = bodies.lock().unwrap();
@@ -1035,14 +1035,45 @@ mod tests {
             ("PUT /repos/team/app/pulls/5/merge", json!({ "merged": true })),
             ("GET /repos/team/app/pulls/5", json!({ "head": { "ref": "feature", "repo": { "full_name": "someone/fork" } } })),
         ]);
-        merge_in(&project("github", &addr, "me"), "tok", 5, "merge", true).unwrap();
+        merge_in(&project("github", &addr, "me"), "tok", 5, "merge", true, false).unwrap();
         assert!(!log.lock().unwrap().iter().any(|l| l.starts_with("DELETE")), "a fork's branch isn't ours to delete");
 
         let (addr, _, bodies) = serve_bodies(vec![("PUT /api/v4/projects/team%2Fapp/merge_requests/9/merge", json!({}))]);
         let gl = project("gitlab", &format!("{addr}/api/v4"), "me");
-        merge_in(&gl, "tok", 9, "squash", true).unwrap();
+        merge_in(&gl, "tok", 9, "squash", true, false).unwrap();
         assert_eq!(bodies.lock().unwrap()[0].1, json!({ "squash": true, "should_remove_source_branch": true }));
-        assert!(merge_in(&gl, "tok", 9, "rebase", false).is_err());
+        assert!(merge_in(&gl, "tok", 9, "rebase", false, false).is_err());
+    }
+
+    #[test]
+    fn merging_when_checks_pass() {
+        let (addr, log, bodies) = serve_bodies(vec![
+            ("GET /repos/team/app/pulls/4", json!({ "node_id": "PR_kw4", "head": { "ref": "feature", "repo": { "full_name": "team/app" } } })),
+            ("POST /graphql", json!({ "data": { "enablePullRequestAutoMerge": { "clientMutationId": null } } })),
+        ]);
+        let p = project("github", &addr, "me");
+        assert_eq!(merge_in(&p, "tok", 4, "squash", true, true).unwrap(), "scheduled");
+        let sent = bodies.lock().unwrap().iter().find(|(r, _)| r == "POST /graphql").unwrap().1.clone();
+        assert_eq!(sent["variables"], json!({ "id": "PR_kw4", "method": "SQUASH" }));
+        // Not merged now, nothing deleted.
+        assert!(!log.lock().unwrap().iter().any(|l| l.starts_with("PUT") || l.starts_with("DELETE")));
+
+        let (addr, _) = serve(vec![
+            ("GET /repos/team/app/pulls/4", json!({ "node_id": "PR_kw4" })),
+            ("POST /graphql", json!({ "errors": [{ "message": "Pull request Auto merge is not allowed for this repository" }] })),
+        ]);
+        let err = merge_in(&project("github", &addr, "me"), "tok", 4, "merge", false, true).unwrap_err();
+        assert!(err.to_string().contains("Auto merge is not allowed"), "{err}");
+
+        // GitLab: scheduled while the pipeline runs, merged if it's done.
+        let (addr, _, bodies) = serve_bodies(vec![("PUT /api/v4/projects/team%2Fapp/merge_requests/9/merge", json!({ "state": "opened" }))]);
+        let gl = project("gitlab", &format!("{addr}/api/v4"), "me");
+        assert_eq!(merge_in(&gl, "tok", 9, "merge", false, true).unwrap(), "scheduled");
+        let sent = bodies.lock().unwrap()[0].1.clone();
+        assert_eq!((sent["merge_when_pipeline_succeeds"].as_bool(), sent["auto_merge"].as_bool()), (Some(true), Some(true)));
+        let (addr, _) = serve(vec![("PUT /api/v4/projects/team%2Fapp/merge_requests/9/merge", json!({ "state": "merged" }))]);
+        let gl = project("gitlab", &format!("{addr}/api/v4"), "me");
+        assert_eq!(merge_in(&gl, "tok", 9, "merge", false, true).unwrap(), "merged");
     }
 
     #[test]
@@ -1680,14 +1711,32 @@ pub fn line_comment(repo: &Path, remote: &str, number: u64, at: &LineRef, body: 
 }
 
 /// How to merge: `merge` (a merge commit), `squash`, or `rebase` (GitHub).
-fn merge_in(p: &Project, token: &str, number: u64, method: &str, delete_branch: bool) -> Result<()> {
+/// With `when_checks_pass`, the service merges once CI succeeds (GitHub's
+/// auto-merge, GitLab's "merge when pipeline succeeds"); the answer says
+/// whether it merged now (`merged`) or later (`scheduled`).
+fn merge_in(p: &Project, token: &str, number: u64, method: &str, delete_branch: bool, when_checks_pass: bool) -> Result<String> {
     match p.provider.as_str() {
         "github" => {
-            if !matches!(method, "merge" | "squash" | "rebase") {
-                return Err(Error::msg(format!("Unknown merge method {method}")));
-            }
+            let graphql_method = match method {
+                "merge" => "MERGE",
+                "squash" => "SQUASH",
+                "rebase" => "REBASE",
+                _ => return Err(Error::msg(format!("Unknown merge method {method}"))),
+            };
             let base = format!("{}/repos/{}", p.api, p.path);
             let pr = get(&format!("{base}/pulls/{number}"), token)?;
+            if when_checks_pass {
+                // Whether the branch goes afterwards is the repository's setting.
+                let query = "mutation($id: ID!, $method: PullRequestMergeMethod!) {
+  enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: $method}) { clientMutationId }
+}";
+                let body = json!({ "query": query, "variables": { "id": text(&pr["node_id"]), "method": graphql_method } });
+                let data = request("POST", &p.graphql, token, Some(&body))?;
+                if let Some(err) = data["errors"].as_array().and_then(|e| e.first()) {
+                    return Err(Error::msg(format!("{}: {}", p.host, text(&err["message"]))));
+                }
+                return Ok("scheduled".into());
+            }
             request("PUT", &format!("{base}/pulls/{number}/merge"), token, Some(&json!({ "merge_method": method })))?;
             // Only the project's own branch, never a fork's.
             let same_repo = pr["head"]["repo"]["full_name"].as_str() == Some(p.path.as_str());
@@ -1696,16 +1745,21 @@ fn merge_in(p: &Project, token: &str, number: u64, method: &str, delete_branch: 
                 request("DELETE", &format!("{base}/git/refs/heads/{branch}"), token, None)
                     .map_err(|e| Error::msg(format!("Merged, but the branch wasn't deleted: {e}")))?;
             }
-            Ok(())
+            Ok("merged".into())
         }
         _ => {
             if !matches!(method, "merge" | "squash") {
                 return Err(Error::msg(format!("GitLab can't merge with {method}")));
             }
             let url = format!("{}/projects/{}/merge_requests/{number}/merge", p.api, encode(&p.path));
-            let body = json!({ "squash": method == "squash", "should_remove_source_branch": delete_branch });
-            request("PUT", &url, token, Some(&body))?;
-            Ok(())
+            let mut body = json!({ "squash": method == "squash", "should_remove_source_branch": delete_branch });
+            if when_checks_pass {
+                // `auto_merge` from GitLab 17.11; older ones know the first.
+                body["merge_when_pipeline_succeeds"] = json!(true);
+                body["auto_merge"] = json!(true);
+            }
+            let mr = request("PUT", &url, token, Some(&body))?;
+            Ok(if when_checks_pass && mr["state"].as_str() != Some("merged") { "scheduled" } else { "merged" }.into())
         }
     }
 }
@@ -1720,9 +1774,9 @@ pub fn comment(repo: &Path, remote: &str, number: u64, body: &str) -> Result<()>
     comment_in(&p, &token, number, body)
 }
 
-pub fn merge(repo: &Path, remote: &str, number: u64, method: &str, delete_branch: bool) -> Result<()> {
+pub fn merge(repo: &Path, remote: &str, number: u64, method: &str, delete_branch: bool, when_checks_pass: bool) -> Result<String> {
     let (p, token) = project_of_remote(repo, remote)?;
-    merge_in(&p, &token, number, method, delete_branch)
+    merge_in(&p, &token, number, method, delete_branch, when_checks_pass)
 }
 
 /// A request's conversation and range against a real service, with this

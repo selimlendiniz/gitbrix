@@ -618,8 +618,9 @@ export const api = {
     at: { path: string; oldPath: string | null; newLine: number | null; oldLine: number | null },
     body: string,
   ) => invoke<void>("comment_pull_request_line", { repo, remote, number, at, body }),
-  mergePullRequest: (repo: string, remote: string, number: number, method: MergeMethod, deleteBranch: boolean) =>
-    invoke<void>("merge_pull_request", { repo, remote, number, method, deleteBranch }),
+  /** `merged` now, or `scheduled` to merge once checks pass. */
+  mergePullRequest: (repo: string, remote: string, number: number, method: MergeMethod, deleteBranch: boolean, whenChecksPass = false) =>
+    invoke<"merged" | "scheduled">("merge_pull_request", { repo, remote, number, method, deleteBranch, whenChecksPass }),
 
   /** CI status of commits; those without CI are left out. */
   ciStatuses: (repo: string, shas: string[]) => invoke<Record<string, Ci>>("ci_statuses", { repo, shas }),

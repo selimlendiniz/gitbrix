@@ -261,3 +261,37 @@ export function openPullRequest(pr: PullRequest) {
   if (head) st.select(head.target, true);
   usePrView.setState({ pr, range: null, conv: null });
 }
+
+/**
+ * After a request was merged on the service: fetch, leave its branch for
+ * the target (pulled up to date), and delete the local copy of its branch
+ * when nothing on it is missing from the remote one.
+ */
+export async function tidyAfterMerge(pr: PullRequest) {
+  const st = useStore.getState();
+  const repo = st.repo;
+  const refs = st.graph?.refs ?? [];
+  const local = refs.find((r) => r.kind === "local" && r.name === pr.sourceBranch);
+  if (!repo || !local) return;
+  const remote = refs.find((r) => r.kind === "remote" && r.name === `${pr.remote}/${pr.sourceBranch}`);
+  // Decided before fetching, which prunes the remote branch.
+  const pushed = remote?.target === local.target || (local.upstream === `${pr.remote}/${pr.sourceBranch}` && local.ahead === 0);
+  const onIt = repo.headBranch === pr.sourceBranch;
+  const target = pr.targetBranch;
+  const hasTarget = refs.some((r) => r.kind === "local" && r.name === target);
+  await st.run(
+    `Tidying up after ${prLabel(pr)}`,
+    async (r) => {
+      await api.fetch(r);
+      if (onIt) {
+        if (hasTarget) await api.checkoutBranch(r, target);
+        else await api.checkoutRemote(r, `${pr.remote}/${target}`, target);
+        await api.pull(r, "ff-only");
+      }
+      if (pushed) await api.deleteBranch(r, pr.sourceBranch, true);
+    },
+    pushed
+      ? `${onIt ? `On ${target}, up to date; ` : ""}deleted the local ${pr.sourceBranch}`
+      : `${onIt ? `On ${target}, up to date; ` : ""}kept ${pr.sourceBranch}: it has commits that aren't on ${pr.remote}`,
+  );
+}

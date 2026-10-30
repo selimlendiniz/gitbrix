@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { api, Conversation, errorText, FileChange, MergeMethod, PrComment, PullRequest, RequestRange } from "../api";
 import { approvePullRequest, checkoutPullRequest } from "../actions";
 import { relativeTime } from "../format";
-import { loadInbox, loadPrs, prLabel, usePrView, wantsReview } from "../prs";
+import { loadInbox, loadPrs, prLabel, tidyAfterMerge, usePrView, wantsReview } from "../prs";
 import { useStore } from "../store";
 import { CiMark } from "./CiMark";
 import { FileList } from "./FileList";
@@ -51,6 +51,11 @@ function MergeBox({ pr, onDone }: { pr: PullRequest; onDone: () => void }) {
         ];
   const [method, setMethod] = useState<MergeMethod>("merge");
   const [deleteBranch, setDeleteBranch] = useState(pr.sameRepo);
+  const checksRunning = pr.ci === "running" || pr.ci === "pending";
+  const [whenChecksPass, setWhenChecksPass] = useState(checksRunning);
+  const headBranch = useStore((s) => s.repo?.headBranch);
+  const localCopy = useStore((s) => pr.sameRepo && !!s.graph?.refs.some((r) => r.kind === "local" && r.name === pr.sourceBranch));
+  const [tidy, setTidy] = useState(headBranch === pr.sourceBranch);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,9 +65,18 @@ function MergeBox({ pr, onDone }: { pr: PullRequest; onDone: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await api.mergePullRequest(repo, pr.remote, pr.number, method, deleteBranch && pr.sameRepo);
-      useStore.getState().toast("info", `Merged ${prLabel(pr)} into ${pr.targetBranch}`);
+      const auto = checksRunning && whenChecksPass;
+      const done = await api.mergePullRequest(repo, pr.remote, pr.number, method, deleteBranch && pr.sameRepo, auto);
+      useStore
+        .getState()
+        .toast(
+          "info",
+          done === "scheduled"
+            ? `${prLabel(pr)} will be merged into ${pr.targetBranch} when its checks pass`
+            : `Merged ${prLabel(pr)} into ${pr.targetBranch}`,
+        );
       usePrView.setState({ pr: null });
+      if (done === "merged" && tidy && localCopy) await tidyAfterMerge(pr);
       void loadPrs(repo);
       void loadInbox();
     } catch (e) {
@@ -86,7 +100,19 @@ function MergeBox({ pr, onDone }: { pr: PullRequest; onDone: () => void }) {
       {pr.sameRepo && (
         <label className="checkbox">
           <input type="checkbox" checked={deleteBranch} onChange={(e) => setDeleteBranch(e.target.checked)} />
-          Delete {pr.sourceBranch} afterwards
+          Delete {pr.sourceBranch} on {pr.remote} afterwards
+        </label>
+      )}
+      {checksRunning && (
+        <label className="checkbox" title={pr.provider === "github" ? "GitHub's auto-merge; the repository must allow it" : "GitLab's merge when pipeline succeeds"}>
+          <input type="checkbox" checked={whenChecksPass} onChange={(e) => setWhenChecksPass(e.target.checked)} />
+          Merge when checks pass (they're {pr.ci} now)
+        </label>
+      )}
+      {localCopy && !(checksRunning && whenChecksPass) && (
+        <label className="checkbox">
+          <input type="checkbox" checked={tidy} onChange={(e) => setTidy(e.target.checked)} />
+          {headBranch === pr.sourceBranch ? `Then switch to ${pr.targetBranch}, pull, and` : "Then"} delete the local {pr.sourceBranch}
         </label>
       )}
       {error && <pre className="modal-error">{error}</pre>}
@@ -95,7 +121,7 @@ function MergeBox({ pr, onDone }: { pr: PullRequest; onDone: () => void }) {
           Cancel
         </button>
         <button type="button" className="small-btn primary" onClick={() => void merge()} disabled={busy}>
-          {busy ? "Merging…" : "Merge"}
+          {busy ? "Merging…" : checksRunning && whenChecksPass ? "Merge when checks pass" : "Merge"}
         </button>
       </div>
     </div>
