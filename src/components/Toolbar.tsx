@@ -24,6 +24,7 @@ import { usePalette } from "./CommandPalette";
 import { useSettings } from "../settings";
 import { nextUndo, undoLast, useUndo } from "../undo";
 import { PullRequestsButton } from "./PullRequestsDialog";
+import { ProfileButton } from "./Profiles";
 import { useSettingsDialog } from "./SettingsDialog";
 import { useWorkspaces } from "../workspaces";
 
@@ -178,6 +179,7 @@ export function Toolbar() {
             {busy}…{progress && <span className="busy-progress">{progress}</span>}
           </span>
         )}
+        <ProfileButton />
         <PullRequestsButton />
         <button className="icon-btn" title="Workspace" onClick={() => useWorkspaces.setState({ open: true })}>
           <IconWorkspace size={15} />

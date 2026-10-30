@@ -186,9 +186,15 @@ pub fn token(account: &Account) -> Option<String> {
     entry(&account.id).ok()?.get_password().ok()
 }
 
-/// Username and token to send for `remote_url`, if an account covers it.
-pub fn credentials_for(remote_url: &str) -> Option<(String, String)> {
-    let account = find_for(remote_url, &list().ok()?)?;
+/// The accounts the repository's profile may use (all without profiles).
+pub fn usable(repo: Option<&std::path::Path>) -> Result<Vec<Account>> {
+    Ok(crate::profiles::allowed(list()?, repo))
+}
+
+/// Username and token to send for `remote_url`, if an account the
+/// repository's profile may use covers it.
+pub fn credentials_for(remote_url: &str, repo: Option<&std::path::Path>) -> Option<(String, String)> {
+    let account = find_for(remote_url, &usable(repo).ok()?)?;
     let token = token(&account)?;
     Some((account.username, token))
 }

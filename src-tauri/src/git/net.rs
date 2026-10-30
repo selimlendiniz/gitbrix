@@ -27,6 +27,14 @@ struct Auth {
     tried: bool,
     /// The URL we had no credentials for.
     missing: Option<String>,
+    /// Working directory, to find the accounts its profile may use.
+    repo: Option<PathBuf>,
+}
+
+impl Auth {
+    fn new(repo: Option<&Path>) -> RefCell<Auth> {
+        RefCell::new(Auth { repo: repo.map(Path::to_path_buf), ..Auth::default() })
+    }
 }
 
 fn open(path: &Path) -> Result<Repository> {
@@ -87,7 +95,7 @@ fn callbacks<'a, 'p>(progress: Shared<'a, 'p>, auth: &'a RefCell<Auth>) -> Remot
                 return Err(git2::Error::from_str("authentication failed"));
             }
             a.tried = true;
-            match accounts::credentials_for(url).or_else(|| stored_credentials(url)) {
+            match accounts::credentials_for(url, a.repo.as_deref()).or_else(|| stored_credentials(url)) {
                 Some((user, token)) => Cred::userpass_plaintext(&user, &token),
                 None => {
                     a.missing = Some(url.to_owned());
@@ -180,7 +188,7 @@ fn fetch_one(r: &Repository, name: &str, progress: Shared) -> Result<()> {
 fn fetch_refspecs(r: &Repository, name: &str, refspecs: &[&str], progress: Shared) -> Result<()> {
     let mut remote = r.find_remote(name).map_err(|_| Error::msg(format!("No remote named '{name}'")))?;
     let url = remote.url().unwrap_or("").to_owned();
-    let auth = RefCell::new(Auth::default());
+    let auth = Auth::new(r.workdir());
     let mut fo = FetchOptions::new();
     fo.remote_callbacks(callbacks(progress, &auth));
     if refspecs.is_empty() {
@@ -332,7 +340,7 @@ fn push_updates(r: &Repository, remote_name: &str, updates: &[Update], progress:
     // Force pushes are "with lease": refuse if the remote moved since we
     // last fetched, so nobody's work is overwritten unseen.
     if updates.iter().any(|u| u.force) {
-        let auth = RefCell::new(Auth::default());
+        let auth = Auth::new(r.workdir());
         let connection = remote
             .connect_auth(Direction::Push, Some(callbacks(&progress, &auth)), None)
             .map_err(|e| net_error(e, &auth, &url))?;
@@ -368,7 +376,7 @@ fn push_updates(r: &Repository, remote_name: &str, updates: &[Update], progress:
     }
     hooks::run(r, "pre-push", &[remote_name, &url], Some(&hook_input))?;
 
-    let auth = RefCell::new(Auth::default());
+    let auth = Auth::new(r.workdir());
     let rejected = RefCell::new(Vec::new());
     let mut cb = callbacks(&progress, &auth);
     cb.push_update_reference(|refname, status| {
@@ -474,7 +482,7 @@ pub fn clone(parent: &Path, url: &str, name: &str, progress: Progress) -> Result
     let created = !dest.exists();
     progress(&format!("Cloning into '{name}'..."));
     let progress = RefCell::new(progress);
-    let auth = RefCell::new(Auth::default());
+    let auth = Auth::new(Some(&dest));
     let result = {
         let mut fo = FetchOptions::new();
         fo.remote_callbacks(callbacks(&progress, &auth));
@@ -498,7 +506,7 @@ pub fn clone(parent: &Path, url: &str, name: &str, progress: Progress) -> Result
 fn update_submodules(r: &Repository, progress: Shared) -> Result<()> {
     for mut sm in r.submodules()? {
         let url = sm.url().ok().flatten().unwrap_or("").to_owned();
-        let auth = RefCell::new(Auth::default());
+        let auth = Auth::new(r.workdir());
         let mut fo = FetchOptions::new();
         fo.remote_callbacks(callbacks(progress, &auth));
         let mut opts = SubmoduleUpdateOptions::new();

@@ -11,6 +11,7 @@ use git2::Oid;
 use crate::error::{Error, Result};
 use crate::accounts;
 use crate::forge;
+use crate::profiles;
 use crate::git::{diff, history, log, net, ops, rebase, refs, repo, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
@@ -519,4 +520,20 @@ pub fn repo_summaries(paths: Vec<String>) -> Vec<workspace::Summary> {
 #[tauri::command(async)]
 pub fn find_repos(dir: String) -> Vec<String> {
     workspace::find(Path::new(&dir), 3)
+}
+
+#[tauri::command]
+pub fn get_profiles() -> profiles::Profiles {
+    profiles::load()
+}
+
+#[tauri::command]
+pub fn save_profiles(profiles: profiles::Profiles) -> Result<profiles::Profiles> {
+    profiles::save(profiles)
+}
+
+/// Who commits in the repository, and where that comes from.
+#[tauri::command(async)]
+pub fn identity(repo: String) -> Result<profiles::Identity> {
+    Ok(profiles::identity(&open(&repo)?))
 }

@@ -21,6 +21,12 @@ declare global {
   }
 }
 
+// Profiles saved in this page session.
+let profiles: { active: string | null; list: { id: string; name: string; userName: string; userEmail: string }[] } = {
+  active: null,
+  list: [],
+};
+
 // Accounts added in this page session (the real ones live in the keyring).
 let accounts: { id: string }[] = [];
 
@@ -83,6 +89,19 @@ const READS: Record<string, (a: Args) => unknown> = {
             },
     ),
   find_repos: () => window.__gitbrixFound ?? [],
+  get_profiles: () => profiles,
+  save_profiles: (a) => {
+    const next = a.profiles as typeof profiles;
+    if (next.list.some((p) => !p.userName || !p.userEmail)) throw "Profile needs a name and an email for commits";
+    profiles = next;
+    return profiles;
+  },
+  identity: () => {
+    const p = profiles.list.find((x) => x.id === profiles.active);
+    return p
+      ? { name: p.userName, email: p.userEmail, source: "profile", profile: p.name }
+      : { name: "Demo User", email: "demo@example.com", source: "git config", profile: null };
+  },
   remove_account: (a) => {
     accounts = accounts.filter((x) => x.id !== a.id);
     return null;

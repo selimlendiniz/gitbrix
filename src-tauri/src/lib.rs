@@ -3,6 +3,7 @@ mod commands;
 mod error;
 mod forge;
 mod git;
+mod profiles;
 mod watch;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -15,7 +16,8 @@ pub fn run() {
         .setup(|app| {
             use tauri::Manager;
             if let Ok(dir) = app.path().app_config_dir() {
-                accounts::init(dir);
+                accounts::init(dir.clone());
+                profiles::init(dir);
             }
             Ok(())
         })
@@ -102,6 +104,9 @@ pub fn run() {
             commands::checkout_pull_request,
             commands::repo_summaries,
             commands::find_repos,
+            commands::get_profiles,
+            commands::save_profiles,
+            commands::identity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

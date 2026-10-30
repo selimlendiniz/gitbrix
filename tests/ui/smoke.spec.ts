@@ -629,3 +629,44 @@ test("workspace: repositories side by side, fetch all, open one", async ({ page 
   await expect.poll(() => lastCall(page, "open_repo")).toMatchObject({ path: "/home/me/code/api" });
   expect(errors).toEqual([]);
 });
+
+test("profiles: add work and personal, switch, see who commits", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await expect(page.locator(".commit-identity")).toContainText("Demo User <demo@example.com>");
+  await expect(page.locator(".profile-button")).toHaveCount(0);
+
+  await page.getByTitle("Settings").click();
+  const profiles = page.getByTestId("profiles");
+  for (const [name, user, email] of [
+    ["Work", "Selim A.", "selim@company.example"],
+    ["Personal", "Selim", "selim@home.example"],
+  ]) {
+    await profiles.getByRole("button", { name: "Add profile…" }).click();
+    await profiles.getByPlaceholder("Work", { exact: true }).fill(name);
+    await profiles.getByPlaceholder("Selim Ardaçevik").fill(user);
+    await profiles.getByPlaceholder("selim@company.com").fill(email);
+    await profiles.getByRole("button", { name: "Save profile" }).click();
+  }
+  // The first profile became the active one.
+  await expect(profiles.getByLabel("Use Work")).toBeChecked();
+  await page.screenshot({ path: "test-results/shots/profiles.png" });
+  await expect.poll(() => lastCall(page, "save_profiles")).toMatchObject({
+    profiles: { list: [{ name: "Work" }, { name: "Personal", userEmail: "selim@home.example" }] },
+  });
+
+  // A profile without an email is refused with the reason.
+  await profiles.getByRole("button", { name: "Add profile…" }).click();
+  await profiles.getByPlaceholder("Work", { exact: true }).fill("Broken");
+  await profiles.getByRole("button", { name: "Save profile" }).click();
+  await expect(profiles.locator(".modal-error")).toContainText("name and an email");
+  await profiles.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+
+  await expect(page.locator(".commit-identity")).toContainText("Selim A. <selim@company.example>");
+  await page.locator(".profile-button").click();
+  await page.getByRole("menuitem", { name: /Personal/ }).click();
+  await expect(page.locator(".profile-button")).toHaveText("Personal");
+  await expect(page.locator(".commit-identity")).toContainText("selim@home.example");
+  expect(errors).toEqual([]);
+});

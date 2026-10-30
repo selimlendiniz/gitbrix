@@ -572,7 +572,7 @@ fn remotes(repo: &Path) -> Result<Vec<(String, String)>> {
 
 /// Open pull/merge requests of every remote an account covers.
 pub fn list(repo: &Path) -> Result<PullRequests> {
-    let all = accounts::list()?;
+    let all = accounts::usable(Some(&repos::workdir(&repos::open(repo)?)))?;
     let mut out = PullRequests::default();
     let mut seen = Vec::new();
     for (remote, url) in remotes(repo)? {
@@ -615,7 +615,7 @@ fn project_of_remote(repo: &Path, remote: &str) -> Result<(Project, String)> {
         .ok()
         .and_then(|rm| rm.url().ok().map(str::to_owned))
         .ok_or_else(|| Error::msg(format!("No remote named '{remote}'")))?;
-    let (project, account) = project_for(&url, &accounts::list()?).ok_or_else(|| {
+    let (project, account) = project_for(&url, &accounts::usable(r.workdir())?).ok_or_else(|| {
         Error::msg(format!(
             "No GitHub or GitLab account covers {remote} ({url})"
         ))
@@ -627,7 +627,7 @@ fn project_of_remote(repo: &Path, remote: &str) -> Result<(Project, String)> {
 
 /// Requests involving the user, across every account.
 pub fn inbox() -> Result<Inbox> {
-    let all = accounts::list()?;
+    let all = accounts::usable(None)?;
     let results: Vec<(Account, Result<Vec<PullRequest>>)> = std::thread::scope(|scope| {
         let handles: Vec<_> = all
             .iter()

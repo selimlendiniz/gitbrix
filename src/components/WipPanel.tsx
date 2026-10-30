@@ -9,6 +9,7 @@ import { FileViewToggle } from "./CommitPanel";
 import { dropTarget } from "../dnd";
 import { FileList, FileRow } from "./FileList";
 import { IconMinus, IconPlus, IconTrash } from "./Icons";
+import { CommitIdentity } from "./Profiles";
 
 // The commit message survives switching to another commit and back.
 const useDraft = create<{ summary: string; body: string; amend: boolean }>(() => ({
@@ -189,6 +190,7 @@ export function WipPanel() {
               ? `Commit changes to ${staged.length} file${staged.length === 1 ? "" : "s"}`
               : "Stage files to commit"}
         </button>
+        <CommitIdentity />
       </div>
     </div>
   );

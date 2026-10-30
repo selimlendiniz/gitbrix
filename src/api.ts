@@ -29,6 +29,30 @@ export interface RepoSummary {
   error: string | null;
 }
 
+export interface Profile {
+  id: string;
+  name: string;
+  userName: string;
+  userEmail: string;
+  /** Repositories under these folders use this profile. */
+  folders: string[];
+  /** Account ids the profile may use; empty = all. */
+  accounts: string[];
+}
+
+export interface Profiles {
+  active: string | null;
+  list: Profile[];
+}
+
+/** Who commits in a repository, and where that comes from. */
+export interface Identity {
+  name: string | null;
+  email: string | null;
+  source: "environment" | "repository" | "profile" | "git config";
+  profile: string | null;
+}
+
 /** Graph line segment: [from lane, to lane, colour index]. */
 export type Seg = [from: number, to: number, color: number];
 
@@ -410,6 +434,10 @@ export const api = {
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
   /** Repositories in a folder, up to three levels down. */
   findRepos: (dir: string) => invoke<string[]>("find_repos", { dir }),
+
+  profiles: () => invoke<Profiles>("get_profiles"),
+  saveProfiles: (profiles: Profiles) => invoke<Profiles>("save_profiles", { profiles }),
+  identity: (repo: string) => invoke<Identity>("identity", { repo }),
 };
 
 export function errorText(e: unknown): string {

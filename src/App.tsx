@@ -32,6 +32,7 @@ import { useStore } from "./store";
 import { undoLast } from "./undo";
 import { backgroundFetch } from "./actions";
 import { loadInbox, loadPrs } from "./prs";
+import { loadIdentity, loadProfiles } from "./profiles";
 
 function isTyping(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
@@ -142,6 +143,17 @@ function usePullRequests() {
   }, [minutes]);
 }
 
+/** Profiles at start; the open repository's commit identity on switching. */
+function useProfiles() {
+  const repoPath = useStore((s) => s.repo?.path ?? null);
+  useEffect(() => {
+    void loadProfiles();
+  }, []);
+  useEffect(() => {
+    void loadIdentity(repoPath);
+  }, [repoPath]);
+}
+
 function useTheme() {
   const theme = useSettings((s) => s.theme);
   // Layout effect: the attribute must be set before children's effects
@@ -165,6 +177,7 @@ export default function App() {
   useTheme();
   useAutoFetch();
   usePullRequests();
+  useProfiles();
   useFolderDrop();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);

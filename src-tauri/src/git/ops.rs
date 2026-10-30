@@ -62,17 +62,25 @@ fn resolve_commit<'r>(r: &'r Repository, rev: &str) -> Result<Commit<'r>> {
         .map_err(|_| Error::msg(format!("Unknown revision {rev}")))
 }
 
+/// The profile's identity, if one applies to this repository; otherwise
+/// what git would use (environment, then config).
 pub(crate) fn author(r: &Repository) -> Result<Signature<'static>> {
-    r.author_from_env().map_err(identity_error)
+    match crate::profiles::signature_override(r) {
+        Some((name, email)) => Ok(Signature::now(&name, &email)?),
+        None => r.author_from_env().map_err(identity_error),
+    }
 }
 
 pub(crate) fn committer(r: &Repository) -> Result<Signature<'static>> {
-    r.committer_from_env().map_err(identity_error)
+    match crate::profiles::signature_override(r) {
+        Some((name, email)) => Ok(Signature::now(&name, &email)?),
+        None => r.committer_from_env().map_err(identity_error),
+    }
 }
 
 fn identity_error(e: git2::Error) -> Error {
     if e.code() == ErrorCode::NotFound {
-        Error::msg("Set your name and email first (user.name and user.email in git config)")
+        Error::msg("Set your name and email first: add a profile in Settings, or user.name and user.email in git config")
     } else {
         e.into()
     }

@@ -1636,3 +1636,34 @@ fn workspace_finds_repositories_in_a_folder() {
         .collect();
     assert_eq!(rel, ["a", "group/b"]);
 }
+
+#[test]
+fn a_profile_for_the_folder_signs_commits_unless_the_repo_says_otherwise() {
+    use crate::profiles::{self, Profile, Profiles};
+    let t = TestRepo::new();
+    t.commit("a.txt", "1\n", "first");
+    // Only the folder rule applies here; other tests' repos aren't under it.
+    profiles::set_cached(Profiles {
+        active: None,
+        list: vec![Profile {
+            id: "work".into(),
+            name: "Work".into(),
+            user_name: "Work Me".into(),
+            user_email: "me@work.example".into(),
+            folders: vec![t.path.to_string_lossy().into_owned()],
+            accounts: vec![],
+        }],
+    });
+    // The repository's own identity wins.
+    let id = profiles::identity(&t.open());
+    assert_eq!((id.source, id.name.as_deref()), ("repository", Some("Test User")));
+
+    t.git(&["config", "--unset", "user.name"]);
+    t.git(&["config", "--unset", "user.email"]);
+    let id = profiles::identity(&t.open());
+    assert_eq!((id.source, id.profile.as_deref(), id.email.as_deref()), ("profile", Some("Work"), Some("me@work.example")));
+    t.write("a.txt", "2\n");
+    ops::stage(&t.path, &["a.txt".into()]).unwrap();
+    ops::commit(&t.path, "as work", false).unwrap();
+    assert_eq!(t.git(&["log", "-1", "--format=%an <%ae> / %cn <%ce>"]), "Work Me <me@work.example> / Work Me <me@work.example>");
+}
