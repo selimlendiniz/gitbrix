@@ -838,6 +838,151 @@ pub fn stash_save(repo: &Path, message: Option<&str>, include_untracked: bool) -
     }
 }
 
+/// The blob and mode of a work tree file, for a tree.
+fn worktree_entry(r: &Repository, root: &Path, path: &str) -> Result<Option<(Oid, u32)>> {
+    let full = root.join(path);
+    let Ok(meta) = std::fs::symlink_metadata(&full) else { return Ok(None) };
+    if meta.file_type().is_symlink() {
+        let target = std::fs::read_link(&full)?;
+        return Ok(Some((r.blob(target.to_string_lossy().as_bytes())?, 0o120000)));
+    }
+    #[cfg(unix)]
+    let exec = {
+        use std::os::unix::fs::PermissionsExt;
+        meta.permissions().mode() & 0o111 != 0
+    };
+    #[cfg(not(unix))]
+    let exec = false;
+    Ok(Some((r.blob_path(&full)?, if exec { 0o100755 } else { 0o100644 })))
+}
+
+fn entry(path: &str, id: Oid, mode: u32) -> IndexEntry {
+    IndexEntry {
+        ctime: IndexTime::new(0, 0),
+        mtime: IndexTime::new(0, 0),
+        dev: 0,
+        ino: 0,
+        mode,
+        uid: 0,
+        gid: 0,
+        file_size: 0,
+        id,
+        flags: 0,
+        flags_extended: 0,
+        path: path.as_bytes().to_vec(),
+    }
+}
+
+/// Stash only `paths` (their staged, unstaged or untracked changes); the
+/// rest of the work stays. Built as git builds a stash (a work tree commit
+/// over HEAD, the index and untracked files), so `git stash pop` takes it
+/// too. (libgit2's own path-limited stash also drops the other files'
+/// changes, so it isn't used.)
+pub fn stash_paths(repo: &Path, paths: &[String], message: Option<&str>) -> Result<()> {
+    if paths.is_empty() {
+        return Err(Error::msg("Pick some files to stash"));
+    }
+    let r = open(repo)?;
+    let head = r.head().ok().and_then(|h| h.peel_to_commit().ok()).ok_or_else(|| Error::msg("Commit something before stashing"))?;
+    let head_tree = head.tree()?;
+    let root = repos::workdir(&r);
+    let who = committer(&r)?;
+    let mut index = r.index()?;
+
+    let mut tracked = Vec::new();
+    let mut untracked = Vec::new();
+    for p in paths {
+        let st = r.status_file(Path::new(p)).map_err(|_| Error::msg(format!("{p} isn't in this repository")))?;
+        if st.is_conflicted() {
+            return Err(Error::msg(format!("{p} has a conflict; resolve it first")));
+        }
+        if st.contains(git2::Status::WT_NEW) && !st.intersects(git2::Status::INDEX_NEW | git2::Status::INDEX_MODIFIED) {
+            untracked.push(p.as_str());
+        } else if !st.is_empty() {
+            tracked.push(p.as_str());
+        }
+    }
+    if tracked.is_empty() && untracked.is_empty() {
+        return Err(Error::msg("No changes to those files"));
+    }
+
+    // The index commit: HEAD with these paths as staged.
+    let mut staged = Index::new()?;
+    staged.read_tree(&head_tree)?;
+    for p in &tracked {
+        match index.get_path(Path::new(p), 0) {
+            Some(e) => staged.add(&e)?,
+            None => {
+                let _ = staged.remove_path(Path::new(p));
+            }
+        }
+    }
+    let staged_tree = r.find_tree(staged.write_tree_to(&r)?)?;
+    // The work tree commit: that, with these paths as on disk.
+    let mut work = Index::new()?;
+    work.read_tree(&staged_tree)?;
+    for p in &tracked {
+        match worktree_entry(&r, &root, p)? {
+            Some((id, mode)) => work.add(&entry(p, id, mode))?,
+            None => {
+                let _ = work.remove_path(Path::new(p));
+            }
+        }
+    }
+    let work_tree = r.find_tree(work.write_tree_to(&r)?)?;
+
+    let branch = r.head().ok().and_then(|h| h.shorthand().ok().map(str::to_owned)).unwrap_or_else(|| "(no branch)".into());
+    let short = &head.id().to_string()[..7];
+    let summary = head.summary().ok().flatten().unwrap_or("").to_owned();
+    let what = message.filter(|m| !m.trim().is_empty()).map(str::to_owned).unwrap_or_else(|| {
+        let names: Vec<&str> = paths.iter().map(|p| p.rsplit('/').next().unwrap_or(p)).take(3).collect();
+        format!("{}{}", names.join(", "), if paths.len() > 3 { format!(" and {} more", paths.len() - 3) } else { String::new() })
+    });
+    let name = format!("On {branch}: {what}");
+    let i_commit = r.find_commit(r.commit(None, &who, &who, &format!("index on {branch}: {short} {summary}"), &staged_tree, &[&head])?)?;
+    let mut parents = vec![head.clone(), i_commit];
+    if !untracked.is_empty() {
+        let mut u = Index::new()?;
+        for p in &untracked {
+            if let Some((id, mode)) = worktree_entry(&r, &root, p)? {
+                u.add(&entry(p, id, mode))?;
+            }
+        }
+        let u_tree = r.find_tree(u.write_tree_to(&r)?)?;
+        parents.push(r.find_commit(r.commit(None, &who, &who, &format!("untracked files on {branch}: {short} {summary}"), &u_tree, &[])?)?);
+    }
+    let parent_refs: Vec<&Commit> = parents.iter().collect();
+    let w = r.commit(None, &who, &who, &name, &work_tree, &parent_refs)?;
+    r.reference("refs/stash", w, true, &name)?;
+    let mut log = r.reflog("refs/stash")?;
+    if log.get(0).map(|e| e.id_new()) != Some(w) {
+        log.append(w, &who, Some(&name))?;
+        log.write()?;
+    }
+
+    // Saved: take those changes out of the index and the work tree.
+    for p in &tracked {
+        match head_tree.get_path(Path::new(p)) {
+            Ok(e) => index.add(&entry(p, e.id(), e.filemode() as u32))?,
+            Err(_) => {
+                let _ = index.remove_path(Path::new(p));
+            }
+        }
+    }
+    index.write()?;
+    for p in &tracked {
+        if head_tree.get_path(Path::new(p)).is_ok() {
+            r.checkout_head(Some(CheckoutBuilder::new().force().path(p)))?;
+        } else {
+            let _ = std::fs::remove_file(root.join(p));
+        }
+    }
+    for p in &untracked {
+        std::fs::remove_file(root.join(p))?;
+    }
+    Ok(())
+}
+
 pub fn stash_apply(repo: &Path, index: usize, pop: bool) -> Result<()> {
     let mut r = open(repo)?;
     apply_stash(&mut r, index, pop)

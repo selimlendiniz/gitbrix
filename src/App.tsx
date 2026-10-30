@@ -36,7 +36,7 @@ import { TabBar } from "./components/TabBar";
 import { AboutDialog } from "./components/TitlebarItems";
 import { loadTabSummaries } from "./tabStatus";
 import { Toolbar } from "./components/Toolbar";
-import { WipPanel } from "./components/WipPanel";
+import { StashPickDialog, WipPanel } from "./components/WipPanel";
 import { WorkspaceView } from "./components/WorkspaceView";
 import { loadWorkspacePrs, useWorkspaces } from "./workspaces";
 import { TerminalPanel } from "./components/TerminalPanel";
@@ -357,6 +357,7 @@ export default function App() {
       <IssueDialog />
       <ImportDialog />
       <CiDialog />
+      <StashPickDialog />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
       <CleanupDialog />

@@ -638,6 +638,8 @@ export const api = {
 
   stashSave: (repo: string, message: string | null, includeUntracked: boolean) =>
     invoke<void>("stash_save", { repo, message, includeUntracked }),
+  /** Stash only these files' changes. */
+  stashPaths: (repo: string, paths: string[], message: string | null) => invoke<void>("stash_paths", { repo, paths, message }),
   /** With `id`, the stash is found by id (the index may be stale). */
   stashApply: (repo: string, index: number, pop: boolean, id: string | null = null) =>
     invoke<void>("stash_apply", { repo, index, pop, id }),

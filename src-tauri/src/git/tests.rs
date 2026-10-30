@@ -2165,3 +2165,63 @@ fn suggestions_replace_lines_of_a_clean_file() {
     assert!(ops::apply_suggestion(&r, "a.txt", 4, 9, "x").is_err());
     assert!(ops::apply_suggestion(&r, "missing.txt", 1, 1, "x").is_err());
 }
+
+#[test]
+fn stash_only_some_files() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "a\n", "first");
+    t.commit("b.txt", "b\n", "second");
+    t.write("a.txt", "a changed\n");
+    t.write("b.txt", "b changed\n");
+    t.write("new [1].txt", "new\n");
+    ops::stash_paths(&t.path, &["a.txt".into(), "new [1].txt".into()], None).unwrap();
+    // b.txt's change stays; a.txt and the untracked file went.
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "a\n");
+    assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b changed\n");
+    assert!(!t.path.join("new [1].txt").exists());
+    let list = t.git(&["stash", "list"]);
+    assert_eq!(list, "stash@{0}: On main: a.txt, new [1].txt");
+    ops::stash_paths(&t.path, &["b.txt".into()], Some("just b")).unwrap();
+    assert!(t.git(&["stash", "list"]).starts_with("stash@{0}: On main: just b\n"));
+    assert!(ops::stash_paths(&t.path, &["a.txt".into()], None).is_err(), "nothing left to stash there");
+    // A path like a pattern takes only itself.
+    t.write("x1.txt", "x\n");
+    t.write("x[1].txt", "y\n");
+    ops::stash_paths(&t.path, &["x[1].txt".into()], None).unwrap();
+    assert!(t.path.join("x1.txt").exists() && !t.path.join("x[1].txt").exists());
+    t.git(&["stash", "drop", "-q"]);
+    // Staged changes go with their file, and come back staged.
+    t.write("b.txt", "b staged\n");
+    t.git(&["add", "b.txt"]);
+    t.write("b.txt", "b changed twice\n");
+    ops::stash_paths(&t.path, &["b.txt".into()], None).unwrap();
+    assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b\n");
+    assert_eq!(t.git(&["status", "--porcelain", "--", "b.txt"]), "");
+    t.git(&["stash", "pop", "-q", "--index"]);
+    assert_eq!(t.git(&["diff", "--cached", "--", "b.txt"]).lines().last().unwrap(), "+b staged");
+    assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b changed twice\n");
+    t.git(&["reset", "-q", "--", "b.txt"]);
+    // Back in one piece.
+    t.git(&["stash", "pop", "-q", "stash@{1}"]);
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "a changed\n");
+    assert!(t.path.join("new [1].txt").exists());
+}
+
+
+
+#[test]
+fn a_partial_stash_pops_back_in_the_app() {
+    let t = TestRepo::new();
+    t.commit("a.txt", "a\n", "first");
+    t.commit("b.txt", "b\n", "second");
+    t.write("a.txt", "a changed\n");
+    t.write("b.txt", "b changed\n");
+    t.write("n.txt", "new\n");
+    ops::stash_paths(&t.path, &["a.txt".into(), "n.txt".into()], Some("part")).unwrap();
+    assert_eq!(t.git(&["status", "--porcelain"]), "M b.txt");
+    ops::stash_apply(&t.path, 0, true).unwrap();
+    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "a changed\n");
+    assert_eq!(fs::read_to_string(t.path.join("n.txt")).unwrap(), "new\n");
+    assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b changed\n");
+    assert_eq!(t.git(&["stash", "list"]), "");
+}

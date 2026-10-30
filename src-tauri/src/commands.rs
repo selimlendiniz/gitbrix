@@ -419,6 +419,12 @@ pub fn init_repo(path: String) -> Result<String> {
     Ok(p.to_string_lossy().into_owned())
 }
 
+/// Stash only these files' changes.
+#[tauri::command(async)]
+pub fn stash_paths(repo: String, paths: Vec<String>, message: Option<String>) -> Result<()> {
+    ops::stash_paths(&workdir(&repo)?, &paths, message.as_deref())
+}
+
 #[tauri::command(async)]
 pub fn stash_save(repo: String, message: Option<String>, include_untracked: bool) -> Result<()> {
     ops::stash_save(&workdir(&repo)?, message.as_deref(), include_untracked)

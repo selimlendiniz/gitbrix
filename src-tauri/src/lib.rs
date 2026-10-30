@@ -104,6 +104,7 @@ pub fn run() {
             commands::push_tag,
             commands::init_repo,
             commands::stash_save,
+            commands::stash_paths,
             commands::stash_apply,
             commands::stash_drop,
             commands::stash_store,

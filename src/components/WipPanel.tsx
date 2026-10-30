@@ -2,7 +2,7 @@ import { useState } from "react";
 import { create } from "zustand";
 
 import { api } from "../api";
-import { discardAll, discardFiles, fileItems, ignoreItems, lfsItems, stashSave } from "../actions";
+import { discardAll, discardFiles, fileItems, ignoreItems, lfsItems, stashFiles, stashSave } from "../actions";
 import { useStore } from "../store";
 import { describe, trackHead } from "../undo";
 import { FileViewToggle } from "./CommitPanel";
@@ -21,6 +21,61 @@ const useDraft = create<{ summary: string; body: string; amend: boolean }>(() =>
 }));
 
 const SUMMARY_SOFT_LIMIT = 72;
+
+const useStashPick = create<{ open: boolean }>(() => ({ open: false }));
+
+/** Pick which changed files go into a stash. */
+export function StashPickDialog() {
+  const open = useStashPick((s) => s.open);
+  const status = useStore((s) => s.status);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  if (!open || !status) return null;
+  const close = () => {
+    useStashPick.setState({ open: false });
+    setPicked(new Set());
+  };
+  const files = [...new Map([...status.staged, ...status.unstaged].map((f) => [f.path, f])).values()];
+  const toggle = (path: string) => {
+    const next = new Set(picked);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    setPicked(next);
+  };
+  return (
+    <div className="modal-backdrop" onMouseDown={close}>
+      <div className="modal" role="dialog" aria-label="Stash files" onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === "Escape" && close()}>
+        <div className="modal-title">Stash some files</div>
+        <p className="modal-message">Their changes (staged ones too) go into a stash; the others stay.</p>
+        <div className="stash-pick">
+          {files.map((f) => (
+            <label key={f.path} className="checkbox">
+              <input type="checkbox" checked={picked.has(f.path)} onChange={() => toggle(f.path)} />
+              <span className={`status-badge s-${f.status}`}>{f.status[0].toUpperCase()}</span>
+              <span className="stash-pick-path">{f.path}</span>
+            </label>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="small-btn" onClick={close}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="small-btn primary"
+            disabled={!picked.size}
+            onClick={() => {
+              const paths = files.filter((f) => picked.has(f.path)).map((f) => f.path);
+              close();
+              void stashFiles(paths);
+            }}
+          >
+            Stash {picked.size || ""} file{picked.size === 1 ? "" : "s"}…
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function WipPanel() {
   const repo = useStore((s) => s.repo)!;
@@ -85,8 +140,11 @@ export function WipPanel() {
                     Discard all
                   </button>
                 )}
-                <button className="link-btn" onClick={() => stashSave()}>
+                <button className="link-btn" onClick={() => stashSave()} title="Stash all changes">
                   Stash
+                </button>
+                <button className="link-btn" onClick={() => useStashPick.setState({ open: true })} title="Pick the files to stash">
+                  Stash files…
                 </button>
                 <button className="small-btn" onClick={() => run("Staging", (r) => api.stageAll(r), undefined, "status")}>
                   Stage all
@@ -108,6 +166,7 @@ export function WipPanel() {
           onMenu={(f, x, y) =>
             showMenu(x, y, [
               { label: "Stage file", onSelect: () => stage([f.path]) },
+              { label: "Stash this file…", disabled: f.status === "conflicted", onSelect: () => void stashFiles(f.oldPath ? [f.path, f.oldPath] : [f.path]) },
               { label: "Discard changes…", danger: true, disabled: f.status === "conflicted", onSelect: () => discardFiles([f.path]) },
               { separator: true, label: "" },
               { label: "File history", disabled: f.status === "untracked", onSelect: () => openDiff({ kind: "history", path: f.path }) },
@@ -149,7 +208,12 @@ export function WipPanel() {
           activePath={active?.staged ? active.path : null}
           onOpen={(f) => openDiff({ kind: "wip", path: f.path, staged: true })}
           onActivate={(f) => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path])}
-          onMenu={(f, x, y) => showMenu(x, y, [{ label: "Unstage file", onSelect: () => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path]) }])}
+          onMenu={(f, x, y) =>
+            showMenu(x, y, [
+              { label: "Unstage file", onSelect: () => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path]) },
+              { label: "Stash this file…", onSelect: () => void stashFiles(f.oldPath ? [f.path, f.oldPath] : [f.path]) },
+            ])
+          }
           actions={(f) => (
             <button className="icon-btn unstage" title="Unstage file" onClick={() => unstage(f.oldPath ? [f.path, f.oldPath] : [f.path])}>
               <IconMinus size={12} />

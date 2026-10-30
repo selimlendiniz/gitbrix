@@ -313,6 +313,23 @@ export async function stashSave() {
   if (ok && repo && id) pushUndo({ label: "stash", repo, run: (r) => api.stashApply(r, 0, true, id) });
 }
 
+/** Stash some files only; asks for a name. */
+export async function stashFiles(paths: string[]) {
+  if (!paths.length) return;
+  const res = await s().prompt({
+    title: paths.length === 1 ? `Stash ${paths[0].split("/").pop()}` : `Stash ${paths.length} files`,
+    label: "Message (optional)",
+    placeholder: paths.length === 1 ? paths[0] : "part of the work",
+    confirmLabel: "Stash",
+    allowEmpty: true,
+  });
+  if (!res) return;
+  const ok = await s().run("Stashing", (r) => api.stashPaths(r, paths, res.value.trim() || null), "Stashed");
+  const repo = s().repo?.path;
+  const id = s().stashes[0]?.id ?? null;
+  if (ok && repo && id) pushUndo({ label: "stash", repo, run: (r) => api.stashApply(r, 0, true, id) });
+}
+
 function stashId(index: number): string | null {
   return s().stashes.find((st) => st.index === index)?.id ?? null;
 }

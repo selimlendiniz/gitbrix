@@ -4768,3 +4768,22 @@ body.dragging * {
 .ansi-fg-13 { color: #e2c5ff; }
 .ansi-fg-14 { color: #56d4dd; }
 .ansi-fg-15 { color: #ffffff; }
+
+.stash-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+
+.stash-pick .checkbox {
+  gap: 8px;
+}
+
+.stash-pick-path {
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
