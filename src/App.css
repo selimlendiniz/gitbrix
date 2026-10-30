@@ -2545,6 +2545,7 @@ textarea {
 
 .stash-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 10px;
 }
@@ -4814,4 +4815,22 @@ body.dragging * {
   font-size: 13.5px;
   line-height: 1.6;
   max-width: 900px;
+}
+
+.label-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.label-picker .issue-label {
+  cursor: pointer;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 11px;
+}
+
+.label-picker .issue-label.on {
+  color: var(--text);
 }

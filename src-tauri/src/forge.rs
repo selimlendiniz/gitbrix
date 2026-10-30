@@ -15,6 +15,7 @@ use crate::error::{Error, Result};
 use crate::git::{repo as repos, ssh};
 
 pub mod ci;
+pub mod edit;
 pub mod issues;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -209,14 +210,21 @@ fn request_as(method: &str, url: &str, token: &str, body: Option<&Value>, accept
             .call(),
         _ => {
             if method == "DELETE" {
-                agent
+                let req = agent
                     .delete(url)
                     .header("Authorization", &auth)
                     .header("User-Agent", "gitbrix")
-                    .header("Accept", accept)
-                    .call()
+                    .header("Accept", accept);
+                match body {
+                    Some(b) => req.force_send_body().send_json(b),
+                    None => req.call(),
+                }
             } else {
-            let req = if method == "PUT" { agent.put(url) } else { agent.post(url) };
+            let req = match method {
+                "PUT" => agent.put(url),
+                "PATCH" => agent.patch(url),
+                _ => agent.post(url),
+            };
             let req = req
                 .header("Authorization", &auth)
                 .header("User-Agent", "gitbrix")
@@ -897,7 +905,7 @@ mod tests {
     type Bodies = Arc<Mutex<Vec<(String, Value)>>>;
 
     /// `serve`, also keeping each request body (`METHOD /path` → JSON).
-    fn serve_bodies(routes: Vec<(&'static str, Value)>) -> (String, Log, Bodies) {
+    pub(super) fn serve_bodies(routes: Vec<(&'static str, Value)>) -> (String, Log, Bodies) {
         let bodies = Arc::new(Mutex::new(Vec::new()));
         let kept = bodies.clone();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();

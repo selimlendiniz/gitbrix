@@ -13,6 +13,7 @@ import { CiMark } from "./CiMark";
 import { FileList } from "./FileList";
 import { Markdown } from "./Markdown";
 import { Threads } from "./Threads";
+import { setRequestOpen, useEditRequest } from "./EditRequest";
 import { removePending, submitReview, useReview, type Pending } from "../review";
 
 const when = (iso: string) => {
@@ -276,6 +277,14 @@ export function PullRequestPanel() {
           <button className="small-btn" onClick={() => void checkoutPullRequest(pr)}>
             Check out
           </button>
+          <button className="small-btn" onClick={() => useEditRequest.setState({ pr })} title="Title, description, reviewers, labels, draft">
+            Edit…
+          </button>
+          {conv && (
+            <button className="small-btn" onClick={() => void setRequestOpen(pr, !conv.open)}>
+              {conv.open ? "Close" : "Reopen"}
+            </button>
+          )}
           {pr.canApprove && !pr.approvedByMe && (
             <button className="small-btn" onClick={() => void approvePullRequest(pr)}>
               Approve…

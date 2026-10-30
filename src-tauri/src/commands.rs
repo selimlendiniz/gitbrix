@@ -640,6 +640,29 @@ pub fn comment_pull_request(repo: String, remote: String, number: u64, body: Str
     forge::comment(&workdir(&repo)?, &remote, number, &body)
 }
 
+/// What of a request can be changed, as it is now.
+#[tauri::command(async)]
+pub fn pull_request_details(repo: String, remote: String, number: u64) -> Result<forge::edit::RequestDetails> {
+    forge::edit::details(&workdir(&repo)?, &remote, number)
+}
+
+/// The labels of the remote's project.
+#[tauri::command(async)]
+pub fn project_labels(repo: String, remote: String) -> Result<Vec<forge::issues::Label>> {
+    forge::edit::labels(&workdir(&repo)?, &remote)
+}
+
+#[tauri::command(async)]
+pub fn edit_pull_request(repo: String, remote: String, number: u64, edit: forge::edit::RequestEdit) -> Result<()> {
+    forge::edit::edit(&workdir(&repo)?, &remote, number, &edit)
+}
+
+/// Close a request, or reopen it.
+#[tauri::command(async)]
+pub fn set_pull_request_open(repo: String, remote: String, number: u64, open: bool) -> Result<()> {
+    forge::edit::set_open(&workdir(&repo)?, &remote, number, open)
+}
+
 /// Answer in a request's thread (`first`: its first comment).
 #[tauri::command(async)]
 pub fn reply_pull_request(repo: String, remote: String, number: u64, thread: String, first: String, body: String) -> Result<()> {

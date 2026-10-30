@@ -112,6 +112,18 @@ const READS: Record<string, (a: Args) => unknown> = {
   merge_pull_request: (a) => (a.whenChecksPass ? "scheduled" : "merged"),
   update_check: () =>
     window.__gitbrixUpdate ?? { current: "0.1.0", version: null, notes: null, date: null, kind: "rpm", canInstall: true },
+  pull_request_details: () => ({
+    title: "Dark theme",
+    body: "Makes the UI darker.",
+    draft: true,
+    open: true,
+    reviewers: ["grace"],
+    labels: ["ui"],
+  }),
+  project_labels: () => [
+    { name: "bug", color: "#d73a4a" },
+    { name: "ui", color: "#1d76db" },
+  ],
   pull_request_conversation_for: () => ({
     description: "",
     comments: window.__gitbrixCommentsFor ?? [],

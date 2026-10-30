@@ -173,6 +173,18 @@ export interface LineAt {
   oldLine: number | null;
 }
 
+export interface RequestDetails {
+  title: string;
+  body: string;
+  draft: boolean;
+  open: boolean;
+  /** Usernames asked to review. */
+  reviewers: string[];
+  labels: string[];
+}
+
+export type RequestEdit = Omit<RequestDetails, "open">;
+
 export type ReviewVerdict = "comment" | "approve" | "request_changes";
 
 export interface NewReview {
@@ -693,6 +705,13 @@ export const api = {
     body: string,
   ) => invoke<void>("comment_pull_request_line", { repo, remote, number, at, body }),
   /** `merged` now, or `scheduled` to merge once checks pass. */
+  pullRequestDetails: (repo: string, remote: string, number: number) =>
+    invoke<RequestDetails>("pull_request_details", { repo, remote, number }),
+  projectLabels: (repo: string, remote: string) => invoke<IssueLabel[]>("project_labels", { repo, remote }),
+  editPullRequest: (repo: string, remote: string, number: number, edit: RequestEdit) =>
+    invoke<void>("edit_pull_request", { repo, remote, number, edit }),
+  setPullRequestOpen: (repo: string, remote: string, number: number, open: boolean) =>
+    invoke<void>("set_pull_request_open", { repo, remote, number, open }),
   replyPullRequest: (repo: string, remote: string, number: number, thread: string, first: string, body: string) =>
     invoke<void>("reply_pull_request", { repo, remote, number, thread, first, body }),
   resolvePullRequestThread: (repo: string, remote: string, number: number, thread: string, resolved: boolean) =>

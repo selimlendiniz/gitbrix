@@ -52,6 +52,7 @@ import { IssueDialog } from "./components/Issues";
 import { ImportDialog } from "./components/Transfer";
 import { CiDialog } from "./components/CiDialog";
 import { FileFinder, useFileFinder } from "./components/FileFinder";
+import { EditRequestDialog } from "./components/EditRequest";
 import { checkForUpdates } from "./updates";
 import { isMainWindow } from "./windows";
 import { loadIdentity, loadProfiles } from "./profiles";
@@ -363,6 +364,7 @@ export default function App() {
       <CiDialog />
       <StashPickDialog />
       <FileFinder />
+      <EditRequestDialog />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
       <CleanupDialog />
