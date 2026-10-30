@@ -10,6 +10,7 @@ import { dropTarget } from "../dnd";
 import { FileList, FileRow } from "./FileList";
 import { IconMinus, IconPlus, IconTrash } from "./Icons";
 import { CommitIdentity } from "./Profiles";
+import { issueOfBranch, useIssues, withClosing } from "../issues";
 
 // The commit message survives switching to another commit and back.
 const useDraft = create<{ summary: string; body: string; amend: boolean }>(() => ({
@@ -30,6 +31,8 @@ export function WipPanel() {
   const busy = useStore((s) => s.busy);
   const { summary, body, amend } = useDraft();
   const [committing, setCommitting] = useState(false);
+  const issueNumber = issueOfBranch(repo.headBranch);
+  const issue = useIssues((s) => s.byRepo[repo.path]?.items.find((i) => i.number === issueNumber));
 
   if (!status) return <div className="panel-loading">Loading changes…</div>;
 
@@ -183,6 +186,16 @@ export function WipPanel() {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canCommit) commit();
           }}
         />
+        {issueNumber !== null && withClosing(body, issueNumber) !== body && (
+          <button
+            type="button"
+            className="link-btn closes-hint"
+            title={issue ? `${issue.title}\nCloses the issue when this reaches the default branch` : "Closes the issue when this reaches the default branch"}
+            onClick={() => useDraft.setState({ body: withClosing(body, issueNumber) })}
+          >
+            + Closes #{issueNumber}
+          </button>
+        )}
         <button className="primary-btn" disabled={!canCommit || committing} onClick={commit} title="Ctrl+Enter">
           {amend
             ? "Amend previous commit"

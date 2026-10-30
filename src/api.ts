@@ -440,6 +440,39 @@ export interface PullRequestInbox {
   accounts: string[];
 }
 
+export interface IssueLabel {
+  name: string;
+  /** `#rrggbb`, or empty. */
+  color: string;
+}
+
+export interface Issue {
+  provider: Provider;
+  remote: string;
+  /** `host/owner/repo`. */
+  project: string;
+  number: number;
+  title: string;
+  /** Markdown. */
+  body: string;
+  author: string;
+  url: string;
+  labels: IssueLabel[];
+  assignees: string[];
+  assignedToMe: boolean;
+  mine: boolean;
+  comments: number;
+  created: string;
+  updated: string;
+}
+
+export interface Issues {
+  items: Issue[];
+  problems: string[];
+  covered: boolean;
+  projects: string[];
+}
+
 export const api = {
   initialRepo: () => invoke<string | null>("initial_repo"),
   openRepo: (path: string) => invoke<RepoInfo>("open_repo", { path }),
@@ -545,6 +578,7 @@ export const api = {
   removeAccount: (id: string) => invoke<void>("remove_account", { id }),
 
   pullRequests: (repo: string) => invoke<PullRequests>("pull_requests", { repo }),
+  issues: (repo: string) => invoke<Issues>("issues", { repo }),
   pullRequestInbox: () => invoke<PullRequestInbox>("pull_request_inbox"),
   approvePullRequest: (account: string, project: string, number: number) =>
     invoke<void>("approve_pull_request", { account, project, number }),

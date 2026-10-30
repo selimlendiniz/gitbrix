@@ -4095,3 +4095,68 @@ body.dragging * {
   outline-offset: -2px;
   border-radius: 4px;
 }
+
+/* Issues */
+.icon-btn.text-btn {
+  width: auto;
+  padding: 0 4px;
+  font-size: 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.icon-btn.text-btn.on {
+  border-color: var(--accent);
+}
+
+.issue-label-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.issue-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0;
+}
+
+.issue-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.issue-meta {
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.issue-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12.5px;
+  line-height: 1.5;
+  max-height: 46vh;
+  overflow: auto;
+  margin: 10px 0;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.modal-actions .spacer {
+  flex: 1;
+}
+
+.closes-hint {
+  align-self: flex-start;
+}

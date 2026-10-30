@@ -227,3 +227,10 @@ export const IconActivity = (p: P) => (
     <path d="M1.5 8h3l2-4.5 3 9 2-4.5h3" />
   </Svg>
 );
+
+export const IconIssue = (p: P) => (
+  <Svg {...p}>
+    <circle cx="8" cy="8" r="6" />
+    <circle cx="8" cy="8" r="1" fill="currentColor" />
+  </Svg>
+);

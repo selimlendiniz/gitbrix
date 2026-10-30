@@ -39,6 +39,7 @@ export function Dialog() {
       <form
         className="modal"
         role="dialog"
+        aria-label={dialog.title}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") {

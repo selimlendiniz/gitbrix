@@ -16,6 +16,10 @@ declare global {
     __gitbrixPrs?: unknown;
     /** `pull_requests` answers per repository path; wins over __gitbrixPrs. */
     __gitbrixPrsByRepo?: Record<string, unknown>;
+    /** The checked-out branch `open_repo` reports; tests set it. */
+    __gitbrixHead?: string;
+    /** What `issues` answers; tests set it. */
+    __gitbrixIssues?: unknown;
     /** What `pull_request_inbox` answers; tests set it. */
     __gitbrixInbox?: unknown;
     /** What `bisect_status` (and the bisect actions) answer; tests set it. */
@@ -31,6 +35,8 @@ declare global {
   }
 }
 
+const info = () => (window.__gitbrixHead ? { ...fixture.info, headBranch: window.__gitbrixHead } : fixture.info);
+
 // Profiles saved in this page session.
 let profiles: { active: string | null; list: { id: string; name: string; userName: string; userEmail: string }[] } = {
   active: null,
@@ -43,8 +49,8 @@ let accounts: { id: string }[] = [];
 // `?open` in the URL plays the role of a path on the command line.
 const READS: Record<string, (a: Args) => unknown> = {
   initial_repo: () => (new URLSearchParams(location.search).has("open") ? fixture.info.path : null),
-  open_repo: () => fixture.info,
-  repo_info: () => fixture.info,
+  open_repo: () => info(),
+  repo_info: () => info(),
   get_graph: () => fixture.graph,
   get_status: () => fixture.status,
   get_stashes: () => fixture.stashes,
@@ -83,6 +89,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   },
   pull_requests: (a) =>
     window.__gitbrixPrsByRepo?.[a.repo as string] ?? window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
+  issues: () => window.__gitbrixIssues ?? { items: [], problems: [], covered: false, projects: [] },
   pull_request_inbox: () => window.__gitbrixInbox ?? { items: [], problems: [], accounts: [] },
   // The fixture repository is summed up from its recording; any other path
   // looks like a clean repository named after its folder.

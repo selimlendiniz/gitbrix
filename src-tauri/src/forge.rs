@@ -14,6 +14,8 @@ use crate::accounts::{self, Account};
 use crate::error::{Error, Result};
 use crate::git::{repo as repos, ssh};
 
+pub mod issues;
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequest {
@@ -635,16 +637,25 @@ fn remotes(repo: &Path) -> Result<Vec<(String, String)>> {
     Ok(out)
 }
 
-/// Open pull/merge requests of every remote an account covers.
-pub fn list(repo: &Path) -> Result<PullRequests> {
+/// What every remote an account covers lists, gathered: `T`s, the remotes
+/// that couldn't be listed and why (`what` names the things in the
+/// advice to add an account), and the projects listed.
+pub(crate) struct Listed<T> {
+    pub items: Vec<T>,
+    pub problems: Vec<String>,
+    pub covered: bool,
+    pub projects: Vec<String>,
+}
+
+fn each_project<T>(repo: &Path, what: &str, list: impl Fn(&Project, &str, &str) -> Result<Vec<T>>) -> Result<Listed<T>> {
     let all = accounts::usable(Some(&repos::workdir(&repos::open(repo)?)))?;
-    let mut out = PullRequests::default();
+    let mut out = Listed { items: Vec::new(), problems: Vec::new(), covered: false, projects: Vec::new() };
     let mut seen = Vec::new();
     for (remote, url) in remotes(repo)? {
         let Some((project, account)) = project_for(&url, &all) else {
             if let Some(host) = known_forge(&url) {
                 out.problems.push(format!(
-                    "{remote}: add a {host} account in Settings to see its requests"
+                    "{remote}: add a {host} account in Settings to see its {what}"
                 ));
             }
             continue;
@@ -661,7 +672,7 @@ pub fn list(repo: &Path) -> Result<PullRequests> {
             ));
             continue;
         };
-        match list_project(&project, &remote, &token) {
+        match list(&project, &remote, &token) {
             Ok(items) => {
                 out.projects.push(format!("{}/{}", project.host, project.path));
                 out.items.extend(items);
@@ -669,6 +680,13 @@ pub fn list(repo: &Path) -> Result<PullRequests> {
             Err(e) => out.problems.push(format!("{remote}: {e}")),
         }
     }
+    Ok(out)
+}
+
+/// Open pull/merge requests of every remote an account covers.
+pub fn list(repo: &Path) -> Result<PullRequests> {
+    let l = each_project(repo, "requests", list_project)?;
+    let mut out = PullRequests { items: l.items, problems: l.problems, covered: l.covered, projects: l.projects };
     out.items.sort_by(|a, b| b.created.cmp(&a.created));
     Ok(out)
 }
@@ -819,7 +837,7 @@ mod tests {
 
     /// A one-thread HTTP server answering from `routes` (method + path
     /// prefix → JSON) and recording each request line with its token.
-    fn serve(routes: Vec<(&'static str, Value)>) -> (String, Arc<Mutex<Vec<String>>>) {
+    pub(super) fn serve(routes: Vec<(&'static str, Value)>) -> (String, Arc<Mutex<Vec<String>>>) {
         let (addr, log, _) = serve_bodies(routes);
         (addr, log)
     }
@@ -1113,7 +1131,7 @@ mod tests {
         assert_eq!(error_detail(&json!({ "error": "insufficient_scope" })), "insufficient_scope");
     }
 
-    fn project(provider: &str, api: &str, username: &str) -> Project {
+    pub(super) fn project(provider: &str, api: &str, username: &str) -> Project {
         Project {
             provider: provider.into(),
             path: "team/app".into(),

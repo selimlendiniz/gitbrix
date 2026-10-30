@@ -17,7 +17,7 @@ import { pushUndo, trackHead } from "./undo";
 
 const s = () => useStore.getState();
 
-function copy(text: string, done = "Copied to clipboard") {
+export function copy(text: string, done = "Copied to clipboard") {
   navigator.clipboard?.writeText(text).then(
     () => s().toast("info", done),
     () => s().toast("error", "Clipboard is not available"),

@@ -8,6 +8,7 @@ import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
 import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconPullRequest, IconStash, IconTag, IconTrash } from "./Icons";
 import { CiMark } from "./CiMark";
+import { IssueList } from "./Issues";
 import { useCleanup } from "./CleanupDialog";
 
 function Section({
@@ -161,6 +162,7 @@ export function Sidebar() {
           ))}
         </Section>
         <PullRequestSection />
+        <IssueList Section={Section} />
         <Section title="Tags" icon={<IconTag size={13} />} count={tags.length}>
           {tags.map((r) => (
             <RefItem key={r.fullName} r={r} label={r.name} />

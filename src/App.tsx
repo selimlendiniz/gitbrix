@@ -45,6 +45,8 @@ import { useStore } from "./store";
 import { undoLast } from "./undo";
 import { backgroundFetch, lfsPullIfNeeded } from "./actions";
 import { loadInbox, loadPrs, usePrView } from "./prs";
+import { loadIssues } from "./issues";
+import { IssueDialog } from "./components/Issues";
 import { loadIdentity, loadProfiles } from "./profiles";
 import { loadCi } from "./ci";
 
@@ -149,7 +151,10 @@ function usePullRequests() {
   const minutes = useSettings((s) => s.prPoll);
   const repoPath = useStore((s) => s.repo?.path);
   useEffect(() => {
-    if (repoPath) void loadPrs(repoPath);
+    if (repoPath) {
+      void loadPrs(repoPath);
+      void loadIssues(repoPath);
+    }
   }, [repoPath]);
   useEffect(() => {
     void loadInbox();
@@ -159,6 +164,8 @@ function usePullRequests() {
     const id = setInterval(() => {
       void loadInbox();
       for (const tab of useStore.getState().tabs) void loadPrs(tab.path);
+      const open = useStore.getState().repo?.path;
+      if (open) void loadIssues(open);
       if (useWorkspaces.getState().open) void loadWorkspacePrs();
       loadTabSummaries();
     }, minutes * 60_000);
@@ -309,6 +316,7 @@ export default function App() {
       <CommandPalette />
       <SettingsDialog />
       <AboutDialog />
+      <IssueDialog />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
       <CleanupDialog />

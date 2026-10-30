@@ -495,6 +495,12 @@ pub fn pull_requests(repo: String) -> Result<forge::PullRequests> {
     forge::list(&workdir(&repo)?)
 }
 
+/// Open issues of the repository's remotes.
+#[tauri::command(async)]
+pub fn issues(repo: String) -> Result<forge::issues::Issues> {
+    forge::issues::list(&workdir(&repo)?)
+}
+
 /// Requests involving the user across every account.
 #[tauri::command(async)]
 pub fn pull_request_inbox() -> Result<forge::Inbox> {
