@@ -150,13 +150,16 @@ test("diffs are syntax highlighted with intra-line marks", async ({ page }) => {
 
 test("tabs: new tab shows the welcome screen, closing returns", async ({ page }) => {
   await page.goto("/?open");
-  await expect(page.locator(".tab")).toHaveText(["demo-app"]);
+  // Repository tabs; the pinned Workspaces tab comes first and stays.
+  const repoTab = page.locator(".tab:not(.pinned)");
+  await expect(page.locator(".tab")).toHaveText(["Workspaces", "demo-app"]);
   await page.getByTitle("Open another repository").click();
   await expect(page.getByRole("button", { name: /Open repository/ })).toBeVisible();
-  await page.locator(".tab").click();
+  await repoTab.click();
   await expect(page.locator(".repo-name")).toHaveText("demo-app");
-  await page.locator(".tab").getByTitle("Close tab").click();
-  await expect(page.locator(".tab")).toHaveCount(0);
+  await repoTab.getByTitle("Close tab").click();
+  await expect(repoTab).toHaveCount(0);
+  await expect(page.locator(".tab")).toHaveText(["Workspaces"]);
   await expect(page.getByRole("button", { name: /Open repository/ })).toBeVisible();
 });
 

@@ -332,17 +332,17 @@ try {
     await click(".modal.wide button[type=submit]");
     await waitFor("cloned repo opened", async () => (await text(".repo-name")) === "origin", 60000);
     await waitFor("cloned graph", () => js("return document.querySelectorAll('.graph-row').length > 3"));
-    await waitFor("two tabs", () => js("return [...document.querySelectorAll('.tab')].map(t => t.textContent).join(',') === 'demo-app,origin'"));
+    await waitFor("two tabs", () => js("return [...document.querySelectorAll('.tab:not(.pinned)')].map(t => t.textContent).join(',') === 'demo-app,origin'"));
     // Back to the first tab.
-    await js(`document.querySelector('.tab').click()`);
+    await js(`document.querySelector('.tab:not(.pinned)').click()`);
     await waitFor("first tab active", async () => (await text(".repo-name")) === "demo-app");
-    await js(`document.querySelectorAll('.tab')[1].click()`);
+    await js(`document.querySelectorAll('.tab:not(.pinned)')[1].click()`);
     await waitFor("second tab active", async () => (await text(".repo-name")) === "origin");
     await shot("14-cloned");
   });
 
   await step("opens a branch in a new worktree tab", async () => {
-    await js(`[...document.querySelectorAll('.tab')].find(t => t.textContent.includes('demo-app')).click()`);
+    await js(`[...document.querySelectorAll('.tab:not(.pinned)')].find(t => t.textContent.includes('demo-app')).click()`);
     await waitFor("demo tab", async () => (await text(".repo-name")) === "demo-app");
     await js(`const item = [...document.querySelectorAll('.side-item')].find(e => e.textContent.trim().startsWith('side'));
               item.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, clientX: 100, clientY: 300}))`);
@@ -356,7 +356,7 @@ try {
   });
 
   await step("lists submodules", async () => {
-    await js(`[...document.querySelectorAll('.tab')].find(t => t.textContent === 'demo-app').click()`);
+    await js(`[...document.querySelectorAll('.tab:not(.pinned)')].find(t => t.textContent === 'demo-app').click()`);
     await waitFor("demo tab", async () => (await text(".repo-name")) === "demo-app");
     git("-c", "protocol.file.allow=always", "submodule", "add", "-q", join(demo, "origin.git"), "vendor/origin");
     await waitFor("submodule section", () =>
@@ -402,7 +402,7 @@ try {
   });
 
   await step("pushes a new branch and sets its upstream", async () => {
-    await js(`[...document.querySelectorAll('.tab')].find(t => t.textContent === 'origin').click()`);
+    await js(`[...document.querySelectorAll('.tab:not(.pinned)')].find(t => t.textContent === 'origin').click()`);
     await waitFor("clone tab", async () => (await text(".repo-name")) === "origin");
     await js(`[...document.querySelectorAll('.tool-btn')].find(b => b.textContent.includes('Branch')).click()`);
     await waitFor("dialog", () => js("return !!document.querySelector('.modal input')"));
@@ -420,7 +420,7 @@ try {
   });
 
   await step("shows image changes side by side", async () => {
-    await js(`[...document.querySelectorAll('.tab')].find(t => t.textContent === 'demo-app').click()`);
+    await js(`[...document.querySelectorAll('.tab:not(.pinned)')].find(t => t.textContent === 'demo-app').click()`);
     await waitFor("demo tab", async () => (await text(".repo-name")) === "demo-app");
     // 1x1 PNGs: red, then blue.
     const red = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
