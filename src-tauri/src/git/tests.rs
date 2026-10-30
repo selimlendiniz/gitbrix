@@ -2028,3 +2028,27 @@ fn release_notes_list_commits_since_the_previous_tag() {
     assert_eq!(history::release_notes(&t.open(), "v1.2").unwrap(), "- after");
     assert!(history::release_notes(&t.open(), "nope").is_err());
 }
+
+#[test]
+fn a_commits_tree_and_files_can_be_browsed() {
+    let t = TestRepo::new();
+    t.write("src/main.rs", "fn main() {}\n");
+    t.write("src/lib/util.rs", "pub fn x() {}\n");
+    t.write("README.md", "hi\n");
+    t.write("logo.png", "\u{0}\u{1}binary");
+    let first = t.commit("Zeta.txt", "z\n", "files");
+    t.commit("README.md", "changed\n", "later");
+
+    let names = |dir: &str| -> Vec<(String, &'static str)> {
+        history::tree_at(&t.open(), &first, dir).unwrap().into_iter().map(|e| (e.name, e.kind)).collect()
+    };
+    assert_eq!(names(""), [("src".into(), "dir"), ("logo.png".into(), "file"), ("README.md".into(), "file"), ("Zeta.txt".into(), "file")]);
+    assert_eq!(names("src"), [("lib".into(), "dir"), ("main.rs".into(), "file")]);
+    assert_eq!(history::tree_at(&t.open(), &first, "src/lib").unwrap()[0].path, "src/lib/util.rs");
+    assert!(history::tree_at(&t.open(), &first, "nope").is_err());
+
+    let readme = history::file_at(&t.open(), &first, "README.md").unwrap();
+    assert_eq!(readme.text.as_deref(), Some("hi\n"), "the file as it was in that commit");
+    let logo = history::file_at(&t.open(), &first, "logo.png").unwrap();
+    assert!(logo.binary && logo.text.is_none());
+}

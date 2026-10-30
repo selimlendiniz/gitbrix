@@ -407,6 +407,7 @@ export function commitMenu(c: CommitRow): MenuItem[] {
   return [
     ...(isHead ? [{ label: "Edit commit message…", onSelect: () => rewordHead() }, { separator: true, label: "" }] : []),
     { label: "Check out this commit…", onSelect: () => checkoutDetached(c.id) },
+    { label: "Browse files at this commit", onSelect: () => void s().openDiff({ kind: "tree", rev: c.id, path: null }) },
     { label: "Create branch here…", onSelect: () => createBranch(c.id, sid) },
     { label: "Create tag here…", onSelect: () => createTag(c.id, sid) },
     { separator: true, label: "" },

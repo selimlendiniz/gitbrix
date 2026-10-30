@@ -312,3 +312,67 @@ pub fn release_notes(repo: &Repository, tag: &str) -> Result<String> {
     }
     Ok(lines.join("\n"))
 }
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TreeEntry {
+    pub name: String,
+    /// From the repository root.
+    pub path: String,
+    /// `dir`, `file`, `link` or `submodule`.
+    pub kind: &'static str,
+    pub size: Option<u64>,
+}
+
+/// The entries of folder `dir` ("" for the root) at commit `rev`: folders
+/// first, then files, each by name.
+pub fn tree_at(repo: &Repository, rev: &str, dir: &str) -> Result<Vec<TreeEntry>> {
+    let commit = repo.revparse_single(rev).and_then(|o| o.peel_to_commit()).map_err(|_| Error::msg(format!("Unknown revision {rev}")))?;
+    let root = commit.tree()?;
+    let tree = if dir.is_empty() {
+        root
+    } else {
+        let entry = root.get_path(Path::new(dir)).map_err(|_| Error::msg(format!("No folder {dir} in that commit")))?;
+        repo.find_tree(entry.id()).map_err(|_| Error::msg(format!("{dir} isn't a folder")))?
+    };
+    let mut out: Vec<TreeEntry> = tree
+        .iter()
+        .map(|e| {
+            let name = e.name().unwrap_or("?").to_owned();
+            let path = if dir.is_empty() { name.clone() } else { format!("{dir}/{name}") };
+            let (kind, size) = match (e.kind(), e.filemode()) {
+                (Some(git2::ObjectType::Tree), _) => ("dir", None),
+                (Some(git2::ObjectType::Commit), _) => ("submodule", None),
+                (_, 0o120000) => ("link", None),
+                _ => ("file", repo.find_blob(e.id()).ok().map(|b| b.size() as u64)),
+            };
+            TreeEntry { name, path, kind, size }
+        })
+        .collect();
+    out.sort_by(|a, b| (a.kind != "dir").cmp(&(b.kind != "dir")).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+    Ok(out)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileAt {
+    /// None for binary files and ones too big to show.
+    pub text: Option<String>,
+    pub binary: bool,
+    pub size: u64,
+}
+
+const MAX_TEXT: usize = 2 * 1024 * 1024;
+
+/// A file's content at commit `rev`, as text when it is text (LFS
+/// pointers show their content when it's here).
+pub fn file_at(repo: &Repository, rev: &str, path: &str) -> Result<FileAt> {
+    let commit = repo.revparse_single(rev).and_then(|o| o.peel_to_commit()).map_err(|_| Error::msg(format!("Unknown revision {rev}")))?;
+    let entry = commit.tree()?.get_path(Path::new(path)).map_err(|_| Error::msg(format!("No file {path} in that commit")))?;
+    let blob = repo.find_blob(entry.id()).map_err(|_| Error::msg(format!("{path} isn't a file")))?;
+    let data = super::lfs::display_content(repo, blob.content()).unwrap_or_else(|| blob.content().to_vec());
+    let size = data.len() as u64;
+    let binary = data.iter().take(8000).any(|b| *b == 0);
+    let text = (!binary && data.len() <= MAX_TEXT).then(|| String::from_utf8_lossy(&data).into_owned());
+    Ok(FileAt { text, binary, size })
+}

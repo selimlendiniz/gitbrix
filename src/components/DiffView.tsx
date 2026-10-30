@@ -501,7 +501,7 @@ function SideLine({ l, side, tokens }: { l: DiffLine | null; side: "old" | "new"
   );
 }
 
-const IMAGE_TYPES: Record<string, string> = {
+export const IMAGE_TYPES: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
@@ -513,7 +513,7 @@ const IMAGE_TYPES: Record<string, string> = {
   avif: "image/avif",
 };
 
-function ext(path: string): string {
+export function ext(path: string): string {
   const base = path.slice(path.lastIndexOf("/") + 1);
   const dot = base.lastIndexOf(".");
   return dot < 0 ? "" : base.slice(dot + 1).toLowerCase();

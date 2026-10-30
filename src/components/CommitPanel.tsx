@@ -43,6 +43,13 @@ export function CommitPanel() {
         {stash && <div className="stash-kicker">stash@{"{"}{stash.index}{"}"}</div>}
         <div className="commit-summary">{stash ? stash.message : summary}</div>
         {body && !stash && <pre className="commit-body">{body}</pre>}
+        {!stash && (
+          <div className="stash-actions">
+            <button className="small-btn" onClick={() => void useStore.getState().openDiff({ kind: "tree", rev: details.id, path: null })}>
+              Browse files
+            </button>
+          </div>
+        )}
         {stash && (
           <div className="stash-actions">
             <button className="small-btn primary" onClick={() => stashPop(stash.index)}>

@@ -100,6 +100,14 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  tree_at: (a) =>
+    a.dir === ""
+      ? [
+          { name: "src", path: "src", kind: "dir", size: null },
+          { name: "README.md", path: "README.md", kind: "file", size: 20 },
+        ]
+      : [{ name: "main.rs", path: "src/main.rs", kind: "file", size: 30 }],
+  file_at: (a) => ({ text: a.path === "src/main.rs" ? "fn main() {\n    println!(\"hi\");\n}\n" : "# Demo\n", binary: false, size: 30 }),
   release_notes: () => "- Parser: tokenizer\n- Write getting started guide",
   create_release: () => "https://gitlab.com/team/demo-app/-/releases/v0.2.0",
   bisect_status: () => window.__gitbrixBisect ?? { active: false, bad: null, good: [], skipped: [], current: null, remaining: 0, steps: 0, found: null },

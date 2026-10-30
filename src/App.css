@@ -1605,6 +1605,63 @@ textarea {
   gap: 16px;
 }
 
+.tree-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 280px) minmax(0, 1fr);
+}
+
+.tree-side {
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding-right: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tree-item:hover {
+  background: var(--row-hover);
+}
+
+.tree-item.selected {
+  background: var(--bg-select);
+}
+
+.tree-note {
+  padding: 4px 12px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.tree-file {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.tree-code .dl .ln {
+  width: 48px;
+}
+
+.tree-image {
+  padding: 16px;
+}
+
+.tree-image img {
+  max-width: 100%;
+  background: repeating-conic-gradient(#8883 0% 25%, transparent 0% 50%) 50% / 16px 16px;
+}
+
 .settings-inline {
   display: flex;
   align-items: center;

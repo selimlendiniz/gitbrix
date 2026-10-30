@@ -712,3 +712,19 @@ pub fn release_notes(repo: String, tag: String) -> Result<String> {
 pub fn create_release(repo: String, remote: String, release: forge::NewRelease) -> Result<String> {
     forge::release(&workdir(&repo)?, &remote, &release)
 }
+
+/// One folder of a commit's file tree.
+#[tauri::command(async)]
+pub fn tree_at(repo: String, rev: String, dir: String) -> Result<Vec<history::TreeEntry>> {
+    if !dir.is_empty() {
+        ops::check_path(&dir)?;
+    }
+    history::tree_at(&open(&repo)?, &rev, &dir)
+}
+
+/// A file's content at a commit.
+#[tauri::command(async)]
+pub fn file_at(repo: String, rev: String, path: String) -> Result<history::FileAt> {
+    ops::check_path(&path)?;
+    history::file_at(&open(&repo)?, &rev, &path)
+}

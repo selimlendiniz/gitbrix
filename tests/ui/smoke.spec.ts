@@ -1112,3 +1112,23 @@ test("release: a tag's menu pushes the tag, then releases it with the notes", as
   });
   expect(errors).toEqual([]);
 });
+
+test("browse files: a commit's tree, folders open, a file shows highlighted", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await page.getByText("Tidy up main").click();
+  const id = await page.locator(".graph-row", { hasText: "Tidy up main" }).getAttribute("data-commit");
+  await page.getByRole("button", { name: "Browse files" }).click();
+  const view = page.getByTestId("tree");
+  await expect(view.locator(".tree-item")).toHaveText(["src", "README.md"]);
+  await view.locator(".tree-item", { hasText: "src" }).click();
+  await view.locator(".tree-item", { hasText: "main.rs" }).click();
+  await expect(view.locator(".tree-code .dl")).toHaveCount(3);
+  await expect(view.locator(".tree-code")).toContainText('println!("hi");');
+  await expect(view.locator(".tree-code .hl-keyword").first()).toHaveText("fn");
+  expect(await lastCall(page, "file_at")).toMatchObject({ rev: id, path: "src/main.rs" });
+  await page.screenshot({ path: "test-results/shots/browse-files.png" });
+  await view.getByRole("button", { name: "Blame" }).click();
+  await expect(page.locator(".view-kind")).toContainText(/blame/i);
+  expect(errors).toEqual([]);
+});

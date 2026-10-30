@@ -19,6 +19,7 @@ import { BisectBanner } from "./components/BisectBanner";
 import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { RebaseView } from "./components/RebaseView";
 import { ReflogView } from "./components/ReflogView";
+import { TreeView } from "./components/TreeView";
 import { RepoDialogs } from "./components/RepoDialogs";
 import { DragGhost } from "./components/DragGhost";
 import { PullRequestsDialog } from "./components/PullRequestsDialog";
@@ -268,6 +269,8 @@ export default function App() {
                 <RebaseView />
               ) : diffSource?.kind === "reflog" ? (
                 <ReflogView />
+              ) : diffSource?.kind === "tree" ? (
+                <TreeView />
               ) : diffSource ? (
                 <DiffView />
               ) : (
