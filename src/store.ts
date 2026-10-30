@@ -54,7 +54,8 @@ export type DiffSource =
   | { kind: "blame"; path: string; rev: string | null }
   | { kind: "rebase"; base: string }
   | { kind: "reflog" }
-  | { kind: "tree"; rev: string; path: string | null };
+  | { kind: "tree"; rev: string; path: string | null }
+  | { kind: "stats" };
 
 export interface Toast {
   id: number;

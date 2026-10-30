@@ -13,7 +13,7 @@ use crate::accounts;
 use crate::forge;
 use crate::profiles;
 use crate::terminal::{self, Terminals};
-use crate::git::{bisect, cleanup, diff, history, lfs, log, net, ops, patch, rebase, refs, repo, status, workspace, worktree};
+use crate::git::{bisect, cleanup, diff, history, lfs, log, net, ops, patch, rebase, refs, repo, stats, status, workspace, worktree};
 use crate::watch::{self, WatchState};
 
 fn open(path: &str) -> Result<git2::Repository> {
@@ -727,4 +727,10 @@ pub fn tree_at(repo: String, rev: String, dir: String) -> Result<Vec<history::Tr
 pub fn file_at(repo: String, rev: String, path: String) -> Result<history::FileAt> {
     ops::check_path(&path)?;
     history::file_at(&open(&repo)?, &rev, &path)
+}
+
+/// Who commits, when, and which files change most, on the current branch.
+#[tauri::command(async)]
+pub fn repo_stats(repo: String) -> Result<stats::Stats> {
+    stats::stats(&open(&repo)?)
 }

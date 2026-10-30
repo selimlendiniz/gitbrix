@@ -111,6 +111,7 @@ export function Toolbar() {
               { separator: true, label: "" },
               { label: "Reflog (recover lost commits)…", onSelect: () => useStore.getState().openDiff({ kind: "reflog" }) },
               { label: "Clean up branches…", onSelect: () => useCleanup.setState({ open: true }) },
+              { label: "Statistics", onSelect: () => void useStore.getState().openDiff({ kind: "stats" }) },
               { label: "Apply patch as commits…", hint: "git am", onSelect: () => void applyPatchFile(true) },
               { label: "Apply patch to working tree…", hint: "git apply", onSelect: () => void applyPatchFile(false) },
               { separator: true, label: "" },

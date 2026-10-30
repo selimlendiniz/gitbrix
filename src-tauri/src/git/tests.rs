@@ -2052,3 +2052,37 @@ fn a_commits_tree_and_files_can_be_browsed() {
     let logo = history::file_at(&t.open(), &first, "logo.png").unwrap();
     assert!(logo.binary && logo.text.is_none());
 }
+
+#[test]
+fn stats_count_authors_weeks_hours_and_busy_files() {
+    let t = TestRepo::new();
+    let commit_as = |name: &str, email: &str, date: &str, file: &str, content: &str| {
+        t.write(file, content);
+        t.git(&["add", "-A"]);
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(&t.path)
+            .args(["commit", "-q", "-m", "c", "--author", &format!("{name} <{email}>")])
+            .env("GIT_AUTHOR_DATE", date)
+            .env("GIT_COMMITTER_DATE", date)
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+    };
+    // Monday 2026-01-05 09:30 local (+03:00), then two on later days.
+    commit_as("Ada", "ada@x", "2026-01-05T09:30:00+03:00", "a.txt", "1");
+    commit_as("Ada", "ADA@x", "2026-01-06T10:00:00+03:00", "a.txt", "2");
+    commit_as("Bob", "bob@x", "2026-01-20T23:15:00+00:00", "b.txt", "1");
+
+    let s = super::stats::stats(&t.open()).unwrap();
+    assert_eq!(s.commits, 3);
+    let who: Vec<(&str, usize)> = s.authors.iter().map(|a| (a.name.as_str(), a.commits)).collect();
+    assert_eq!(who, [("Ada", 2), ("Bob", 1)], "the same email in any case is one person");
+    assert_eq!(s.hours[0][9], 1, "Monday 09:00 in the author's own time");
+    assert_eq!(s.hours[1][10], 1);
+    assert_eq!(s.hours[1][23], 1, "2026-01-20 was a Tuesday");
+    assert_eq!(s.weeks.iter().sum::<usize>(), 3);
+    assert_eq!(s.weeks.len(), 52);
+    assert_eq!(s.hot_files[0].path, "a.txt");
+    assert_eq!(s.hot_files[0].changes, 2);
+}

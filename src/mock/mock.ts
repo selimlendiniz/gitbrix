@@ -100,6 +100,25 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  repo_stats: () => ({
+    commits: 17,
+    merges: 2,
+    first: 1767225600,
+    last: 1767657600,
+    authors: [
+      { name: "Ada Lovelace", email: "ada@example.com", commits: 9, first: 1767225600, last: 1767657600 },
+      { name: "Grace Hopper", email: "grace@example.com", commits: 5, first: 1767225600, last: 1767484800 },
+      { name: "Margaret Hamilton", email: "mh@example.com", commits: 3, first: 1767398400, last: 1767657600 },
+    ],
+    weeks: Array.from({ length: 52 }, (_, i) => (i > 48 ? [6, 8, 3][i - 49] : 0)),
+    weeksStart: 1736553600,
+    hours: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => (d < 5 && h >= 9 && h <= 18 ? (h * d) % 4 : 0))),
+    hotFiles: [
+      { path: "src/main.rs", changes: 6 },
+      { path: "CHANGELOG.md", changes: 4 },
+    ],
+    hotWindow: 15,
+  }),
   tree_at: (a) =>
     a.dir === ""
       ? [

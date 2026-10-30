@@ -140,6 +140,7 @@ pub fn run() {
             commands::create_release,
             commands::tree_at,
             commands::file_at,
+            commands::repo_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

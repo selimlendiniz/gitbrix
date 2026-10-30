@@ -68,6 +68,21 @@ export interface Ci {
   url: string;
 }
 
+export interface RepoStats {
+  commits: number;
+  merges: number;
+  first: number | null;
+  last: number | null;
+  authors: { name: string; email: string; commits: number; first: number; last: number }[];
+  /** Commits per week, oldest first, ending with the newest commit's week. */
+  weeks: number[];
+  weeksStart: number;
+  /** [weekday (Monday first)][hour] */
+  hours: number[][];
+  hotFiles: { path: string; changes: number }[];
+  hotWindow: number;
+}
+
 export interface TreeEntry {
   name: string;
   path: string;
@@ -582,6 +597,7 @@ export const api = {
   /** Returns the release's page. The tag must already be on the remote. */
   createRelease: (repo: string, remote: string, release: { tag: string; name: string; notes: string; draft: boolean; prerelease: boolean }) =>
     invoke<string>("create_release", { repo, remote, release }),
+  repoStats: (repo: string) => invoke<RepoStats>("repo_stats", { repo }),
   treeAt: (repo: string, rev: string, dir: string) => invoke<TreeEntry[]>("tree_at", { repo, rev, dir }),
   fileAt: (repo: string, rev: string, path: string) => invoke<FileAt>("file_at", { repo, rev, path }),
   bisectStatus: (repo: string) => invoke<BisectStatus>("bisect_status", { repo }),

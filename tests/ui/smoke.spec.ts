@@ -1132,3 +1132,19 @@ test("browse files: a commit's tree, folders open, a file shows highlighted", as
   await expect(page.locator(".view-kind")).toContainText(/blame/i);
   expect(errors).toEqual([]);
 });
+
+test("statistics: totals, activity, contributors, busy files", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/?open");
+  await page.locator(".repo-btn").click();
+  await page.getByRole("menuitem", { name: "Statistics" }).click();
+  const view = page.getByTestId("stats");
+  await expect(view.locator(".stat-value").first()).toHaveText("17");
+  await expect(view.locator(".stats-weeks .stats-fill")).toHaveCount(3);
+  await expect(view.locator(".stats-table").first()).toContainText("Ada Lovelace");
+  await expect(view.locator(".stats-table").first()).toContainText("53%");
+  await page.screenshot({ path: "test-results/shots/stats.png" });
+  await view.locator(".stats-file", { hasText: "src/main.rs" }).click();
+  await expect(page.locator(".view-kind")).toContainText(/history/i);
+  expect(errors).toEqual([]);
+});

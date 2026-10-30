@@ -1662,6 +1662,139 @@ textarea {
   background: repeating-conic-gradient(#8883 0% 25%, transparent 0% 50%) 50% / 16px 16px;
 }
 
+.stats-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.stat-tile {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.stat-note,
+.stats-more {
+  font-size: 11px;
+}
+
+.stats-section h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.stats-weeks {
+  width: 100%;
+  max-width: 900px;
+  display: block;
+}
+
+.stats-hours {
+  width: 100%;
+  max-width: 560px;
+  display: block;
+}
+
+.stats-fill {
+  fill: var(--accent);
+}
+
+.stats-empty {
+  fill: var(--bg-hover);
+}
+
+.stats-bar:hover .stats-fill {
+  fill: var(--accent-strong);
+}
+
+.stats-axis {
+  stroke: var(--border-strong);
+}
+
+.stats-tick {
+  font-size: 9px;
+  fill: var(--text-faint);
+}
+
+.stats-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.stats-table td {
+  padding: 3px 6px;
+}
+
+.stats-name,
+.stats-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+.stats-path {
+  font-family: var(--mono);
+}
+
+.stats-share {
+  width: 40%;
+}
+
+.stats-share-bar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.stats-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stats-file {
+  cursor: pointer;
+}
+
+.stats-file:hover {
+  background: var(--row-hover);
+}
+
 .settings-inline {
   display: flex;
   align-items: center;

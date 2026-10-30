@@ -20,6 +20,7 @@ import { ContextMenu, Dialog, Toasts } from "./components/Overlays";
 import { RebaseView } from "./components/RebaseView";
 import { ReflogView } from "./components/ReflogView";
 import { TreeView } from "./components/TreeView";
+import { StatsView } from "./components/StatsView";
 import { RepoDialogs } from "./components/RepoDialogs";
 import { DragGhost } from "./components/DragGhost";
 import { PullRequestsDialog } from "./components/PullRequestsDialog";
@@ -271,6 +272,8 @@ export default function App() {
                 <ReflogView />
               ) : diffSource?.kind === "tree" ? (
                 <TreeView />
+              ) : diffSource?.kind === "stats" ? (
+                <StatsView />
               ) : diffSource ? (
                 <DiffView />
               ) : (
