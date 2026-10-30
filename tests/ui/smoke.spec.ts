@@ -152,14 +152,14 @@ test("tabs: new tab shows the welcome screen, closing returns", async ({ page })
   await page.goto("/?open");
   // Repository tabs; the pinned Workspaces tab comes first and stays.
   const repoTab = page.locator(".tab:not(.pinned)");
-  await expect(page.locator(".tab")).toHaveText(["Workspaces", "demo-app"]);
+  await expect(page.locator(".tab .tab-name")).toHaveText(["Workspaces", "demo-app"]);
   await page.getByTitle("Open another repository").click();
   await expect(page.getByRole("button", { name: /Open repository/ })).toBeVisible();
   await repoTab.click();
   await expect(page.locator(".repo-name")).toHaveText("demo-app");
   await repoTab.getByTitle("Close tab").click();
   await expect(repoTab).toHaveCount(0);
-  await expect(page.locator(".tab")).toHaveText(["Workspaces"]);
+  await expect(page.locator(".tab .tab-name")).toHaveText(["Workspaces"]);
   await expect(page.getByRole("button", { name: /Open repository/ })).toBeVisible();
 });
 
@@ -604,7 +604,7 @@ test("title bar: own window buttons, also on the welcome screen", async ({ page 
     expect(await calls(page)).toContain(cmd);
   }
   await page.goto("/?open");
-  await expect(page.locator(".titlebar .tab.active")).toHaveText("demo-app");
+  await expect(page.locator(".titlebar .tab.active .tab-name")).toHaveText("demo-app");
   await expect(page.locator(".titlebar .tab").first()).toHaveText("Workspaces");
   await expect(page.locator(".titlebar-drag")).toHaveAttribute("data-tauri-drag-region", "true");
   await page.locator(".titlebar").screenshot({ path: "test-results/shots/titlebar.png" });

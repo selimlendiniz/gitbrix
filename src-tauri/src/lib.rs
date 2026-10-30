@@ -1,4 +1,5 @@
 mod accounts;
+mod avatars;
 mod commands;
 mod error;
 mod forge;
@@ -20,6 +21,9 @@ pub fn run() {
             if let Ok(dir) = app.path().app_config_dir() {
                 accounts::init(dir.clone());
                 profiles::init(dir);
+            }
+            if let Ok(dir) = app.path().app_cache_dir() {
+                avatars::init(dir.join("avatars"));
             }
             Ok(())
         })
@@ -141,6 +145,7 @@ pub fn run() {
             commands::tree_at,
             commands::file_at,
             commands::repo_stats,
+            commands::avatars,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

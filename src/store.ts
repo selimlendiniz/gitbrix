@@ -15,6 +15,7 @@ import {
   WIP_ID,
   WorkingStatus,
 } from "./api";
+import { report } from "./activity";
 import { addRecent } from "./recent";
 import { useSettings } from "./settings";
 import { loadTabs, saveTabs, Tab } from "./tabs";
@@ -541,7 +542,10 @@ export const useStore = create<State>((set, get) => ({
     } catch (e) {
       const text = errorText(e);
       ok = blockedByLocalChanges(text) ? await retryWithStash(repo.path, label, fn, success, text) : false;
-      if (!blockedByLocalChanges(text)) get().toast("error", text);
+      if (!blockedByLocalChanges(text)) {
+        get().toast("error", text);
+        report(`${label} · ${repo.name}`, text);
+      }
     } finally {
       set({ busy: null, progress: null });
       await get().refresh(scope);

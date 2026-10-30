@@ -200,3 +200,30 @@ export const IconEyeOff = (p: P) => (
     <path d="M2 2l12 12M6.6 3.7A6.8 6.8 0 0 1 8 3.5c4 0 6.5 4.5 6.5 4.5a11 11 0 0 1-1.9 2.5M4.2 5A11 11 0 0 0 1.5 8S4 12.5 8 12.5c.9 0 1.8-.2 2.6-.6" />
   </Svg>
 );
+
+export const IconBell = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z" />
+    <path d="M6.5 14a1.5 1.5 0 0 0 3 0" />
+  </Svg>
+);
+
+export const IconUser = (p: P) => (
+  <Svg {...p}>
+    <circle cx="8" cy="5.5" r="2.5" />
+    <path d="M3 13.5a5 5 0 0 1 10 0" />
+  </Svg>
+);
+
+export const IconAlert = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 2 14.5 13.5h-13z" />
+    <path d="M8 6.5v3M8 11.5v.01" />
+  </Svg>
+);
+
+export const IconActivity = (p: P) => (
+  <Svg {...p}>
+    <path d="M1.5 8h3l2-4.5 3 9 2-4.5h3" />
+  </Svg>
+);

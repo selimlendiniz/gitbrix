@@ -8,6 +8,7 @@ import { api, errorText, RepoStats } from "../api";
 import { fullTime, relativeTime } from "../format";
 import { useStore } from "../store";
 import { IconClose } from "./Icons";
+import { Avatar } from "./Avatar";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -150,7 +151,9 @@ export function StatsView() {
                 <tbody>
                   {stats.authors.slice(0, 25).map((a) => (
                     <tr key={a.email || a.name} title={`${a.email}\nfirst ${fullTime(a.first)}\nlast ${fullTime(a.last)}`}>
-                      <td className="stats-name">{a.name}</td>
+                      <td className="stats-name">
+                        <Avatar email={a.email} name={a.name} size={18} /> {a.name}
+                      </td>
                       <td className="stats-share">
                         <span className="stats-share-bar" style={{ width: `${(a.commits / top) * 100}%` }} />
                       </td>

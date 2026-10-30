@@ -15,12 +15,10 @@ import {
   IconRefresh,
   IconStash,
   IconPop,
-  IconSearch,
   IconSettings,
   IconTerminal,
   IconUndo,
 } from "./Icons";
-import { usePalette } from "./CommandPalette";
 import { useSettings } from "../settings";
 import { nextUndo, undoLast, useUndo } from "../undo";
 import { PullRequestsButton } from "./PullRequestsDialog";
@@ -193,9 +191,6 @@ export function Toolbar() {
           onClick={toggleTerminal}
         >
           <IconTerminal size={15} />
-        </button>
-        <button className="icon-btn" title="Command palette (Ctrl+K)" onClick={() => usePalette.setState({ open: true })}>
-          <IconSearch size={15} />
         </button>
         <button className="icon-btn" title="Settings" onClick={() => useSettingsDialog.setState({ open: true })}>
           <IconSettings size={15} />

@@ -131,6 +131,24 @@ Kurulabilir paket (release derlemesi):
 34. **İstatistikler**: repo menüsü → Statistics: toplamlar, haftalık
     commit grafiği, gün × saat ısı haritası, katkıcılar, en çok değişen
     dosyalar (tıklayınca geçmişi açılır).
+35. **Başlık çubuğu**: soldaki gitbrix logosu menü (aç, klonla, son
+    repolar, ayarlar, hakkında, çıkış). Ortadaki arama kutusu komut
+    paletini açar (araç çubuğundaki büyüteç kaldırıldı). Sekmelerde
+    sarı nokta = commit'lenmemiş değişiklik (kırmızı = çakışma), ↑ push
+    edilecek, ↓ çekilecek commit. Çok sekme açınca sağda ⌄ çıkar, tüm
+    sekmeleri listeler; fare tekerleği sekmeleri yana kaydırır.
+36. **Zil**: tüm hesaplarda seni ilgilendiren PR/MR'lar; sayı = senin
+    onayını/incelemeni bekleyenler. Repo uygulamada açıksa tıklayınca
+    uygulama içinde inceleme açılır, değilse tarayıcıda.
+37. **Arka plan işleri**: otomatik fetch, workspace fetch, PR kontrolü
+    çalışırken başlıkta dönen simge; bir şey hata verirse kırmızı sayı,
+    tıklayınca son hatalar (toast'lar kaybolsa da burada kalır), Clear.
+38. **Hesap düğmesi**: sağdaki avatar: kim olarak commit atıldığı,
+    hesaplar, profil değiştirme.
+39. **Gravatar**: grafikteki commit noktalarında, yazar sütununda, commit
+    panelinde ve istatistiklerde yazar resimleri. GitHub noreply
+    adreslerinde GitHub profil resmi. Disk önbelleği: bir hafta. Ayarlar →
+    Author pictures → Initials only ile kapanır.
 
 ## Bilerek yapmadıklarım
 
@@ -145,8 +163,9 @@ Kurulabilir paket (release derlemesi):
   işlemi); testler sahte sunucuyla. Okuma tarafı GitLab test projende
   canlı denendi.
 
-- Gravatar avatarları: e-posta hash'ini dışarı göndermek demek; onun yerine
-  baş harfler kullanılıyor.
+- Gravatar açık geliyor (sen istedin): yazarların e-posta adreslerinin
+  SHA-256 hash'i gravatar.com'a gidiyor. İstemezsen Ayarlar → Author
+  pictures → Initials only.
 - Push/pull'u gerçek bir uzak sunucuya (GitHub) karşı denemedim; testler
   yerel bare repolarla. Kendi anahtarınla bir kez denemen iyi olur.
 - Commit imzası yalnızca "signed" rozeti olarak gösteriliyor, doğrulanmıyor.

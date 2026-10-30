@@ -8,6 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
 import { api, Conversation, errorText, PullRequest, PullRequestInbox, PullRequests, RequestRange } from "./api";
+import { begin, end } from "./activity";
 import { useSettings } from "./settings";
 import { useStore } from "./store";
 
@@ -188,12 +189,15 @@ export function loadPrs(repo: string) {
     usePrs.setState((s) => ({ byRepo: { ...s.byRepo, [repo]: { ...(s.byRepo[repo] ?? empty), ...p } } }));
   return once(repo, async () => {
     patch({ loading: true });
+    const task = begin(`Checking pull requests of ${repo.split("/").pop()}`);
     try {
       const res = await api.pullRequests(repo);
       patch({ ...res, error: undefined, loading: false });
       remember(repoSources(res));
+      end(task);
     } catch (e) {
       patch({ error: errorText(e), loading: false });
+      end(task, errorText(e));
     }
   });
 }
@@ -204,12 +208,15 @@ export function loadInbox() {
   const patch = (p: Partial<InboxPrs>) => usePrs.setState((s) => ({ inbox: { ...(s.inbox ?? empty), ...p } }));
   return once("\0inbox", async () => {
     patch({ loading: true });
+    const task = begin("Checking your pull requests");
     try {
       const res = await api.pullRequestInbox();
       patch({ ...res, error: undefined, loading: false });
       remember(inboxSources(res));
+      end(task);
     } catch (e) {
       patch({ error: errorText(e), loading: false });
+      end(task, errorText(e));
     }
   });
 }

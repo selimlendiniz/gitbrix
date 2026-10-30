@@ -60,7 +60,14 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
   and tag changes, stash drops
 - Auto-refresh when files or refs change outside the app
 - Tabs for several repositories, command palette (Ctrl+K), dark and light
-  themes, resizable panels, keyboard shortcuts (press `?`), own title bar
+  themes, resizable panels, keyboard shortcuts (press `?`)
+- Own title bar: app menu with recent repositories, search box (command
+  palette), tab marks (uncommitted changes, ↑ to push, ↓ to pull) and a
+  list of all tabs when they don't fit, pull requests waiting for you on
+  every account, background work and recent problems, account and
+  profile switcher
+- Author pictures from Gravatar (GitHub's for noreply addresses), cached
+  on disk; can be turned off
 - Workspaces (a pinned tab the app starts on): many repositories in one
   list with branch, ahead/behind, local changes and open requests; all
   their pull/merge requests together; fetch them all at once; add a

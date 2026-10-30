@@ -5,9 +5,9 @@
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
 import { MouseEvent, useEffect, useState } from "react";
 
-import { errorText, PullRequest, RepoSummary } from "../api";
+import { errorText, RepoSummary } from "../api";
 import { relativeTime } from "../format";
-import { openPullRequest, prKey, usePrs, wantsReview } from "../prs";
+import { prKey, usePrs, wantsReview } from "../prs";
 import { useStore } from "../store";
 import {
   addRepos,
@@ -18,11 +18,13 @@ import {
   loadSummaries,
   loadWorkspacePrs,
   removeRepo,
+  reviewPullRequest,
   renameWorkspace,
   scanFolder,
   selectWorkspace,
   useWorkspaces,
   Workspace,
+  folderName,
 } from "../workspaces";
 import { IconFetch, IconFolder, IconPlus, IconPullRequest, IconWorkspace } from "./Icons";
 import { defaultFilter, matchesFilter, PrFilter, PrFilters, PrRow } from "./PullRequestsDialog";
@@ -98,10 +100,6 @@ function rowMenu(x: number, y: number, path: string) {
   ]);
 }
 
-function folderName(path: string): string {
-  return path.split("/").filter(Boolean).pop() ?? path;
-}
-
 function Row({ path, summary }: { path: string; summary: RepoSummary | undefined }) {
   const fetching = useWorkspaces((st) => st.fetching.includes(path));
   const fetchError = useWorkspaces((st) => st.fetchErrors[path]);
@@ -153,13 +151,6 @@ function Row({ path, summary }: { path: string; summary: RepoSummary | undefined
   );
 }
 
-/** Open the request's repository (in its tab) and review the request. */
-async function review(path: string, pr: PullRequest) {
-  hideWorkspaces();
-  if (s().repo?.path !== path) await s().openRepo(path);
-  if (s().repo?.path === path) openPullRequest(pr);
-}
-
 function WorkspacePrs({ repos }: { repos: string[] }) {
   const byRepo = usePrs((st) => st.byRepo);
   const summaries = useWorkspaces((st) => st.summaries);
@@ -190,7 +181,7 @@ function WorkspacePrs({ repos }: { repos: string[] }) {
             key={prKey(pr)}
             pr={pr}
             where={summaries[path]?.info?.name ?? folderName(path)}
-            onOpen={() => void review(path, pr)}
+            onOpen={() => void reviewPullRequest(path, pr)}
           />
         ))}
         {!loading && !shown.length && (

@@ -10,6 +10,7 @@ import { shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
 import { bisectMenu } from "./bisect";
 import { useRelease } from "./components/ReleaseDialog";
+import { begin, end } from "./activity";
 import { createPullRequest, loadInbox, loadPrs, openPullRequest, prLabel, usePrs } from "./prs";
 import { MenuItem, useStore } from "./store";
 import { pushUndo, trackHead } from "./undo";
@@ -233,10 +234,14 @@ export async function backgroundFetch() {
   const repo = st.repo;
   if (!repo || st.busy || st.remotes.length === 0) return;
   useStore.setState({ busy: "Auto-fetching", progress: null });
+  const task = begin(`Auto-fetching ${repo.name}`);
   try {
     await api.fetch(repo.path);
-  } catch {
-    // Offline or no credentials: stay quiet; a manual fetch shows errors.
+    end(task);
+  } catch (e) {
+    // Offline or no credentials: no toast; a manual fetch shows errors,
+    // and the title bar keeps this one.
+    end(task, errorText(e));
   } finally {
     useStore.setState({ busy: null, progress: null });
   }

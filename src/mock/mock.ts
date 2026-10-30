@@ -24,6 +24,8 @@ declare global {
     __gitbrixFailOnce?: Record<string, string>;
     /** What `ci_statuses` answers; tests set it. */
     __gitbrixCi?: Record<string, unknown>;
+    /** Author pictures `avatars` answers, by lowercased address; tests set it. */
+    __gitbrixAvatars?: Record<string, string>;
     /** Repositories `find_repos` finds; tests set it. */
     __gitbrixFound?: string[];
   }
@@ -71,6 +73,8 @@ const READS: Record<string, (a: Args) => unknown> = {
   compare_file_diff: (a) =>
     (fixture.commitDiffs as Record<string, unknown>)[`${a.to}:${a.path}`] ?? fail(`No fixture diff for ${a.path}`),
   "plugin:dialog|open": () => fixture.info.path,
+  "plugin:app|version": () => "0.1.0",
+  avatars: (a) => Object.fromEntries((a.emails as string[]).map((e) => [e, window.__gitbrixAvatars?.[e] ?? null])),
   get_accounts: () => accounts,
   add_account: (a) => {
     const account = { id: `${a.provider}|${a.url}|mock-user`, provider: a.provider, url: a.url, username: "mock-user", name: "Mock User" };

@@ -20,6 +20,8 @@ export interface Settings {
   prPoll: number;
   /** Desktop notification for new requests the user can approve. */
   prNotify: boolean;
+  /** Author pictures from Gravatar (sends a hash of each address). */
+  gravatar: boolean;
   sidebarWidth: number;
   detailsWidth: number;
   terminalHeight: number;
@@ -39,6 +41,7 @@ export const DEFAULTS: Settings = {
   autoStash: "ask",
   prPoll: 3,
   prNotify: true,
+  gravatar: true,
   sidebarWidth: 240,
   detailsWidth: 380,
   terminalHeight: 240,

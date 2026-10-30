@@ -17,6 +17,48 @@ scripts/record-fixture.sh      # re-record the UI fixture from the demo repo
 
 ## Log
 
+### 2026-10-30 — title bar items, Gravatar
+
+- Title bar, left to right: app menu (the gitbrix mark: open, clone, new,
+  recent repositories, palette, settings, shortcuts, about, quit), the
+  tabs, a "⌄" list of every tab once they don't fit (the mouse wheel
+  scrolls them sideways), a search box in the drag area that opens the
+  command palette (its toolbar button is gone), then background work,
+  the pull request bell and the account picture.
+- Tab marks: a dot for uncommitted changes (red for conflicts), ↑ to push,
+  ↓ to pull. The open repository's come live from the store; the other
+  tabs' from `repo_summaries`, read again when tabs change, the app gets
+  focus, the open repository is left, and on the pull request timer
+  (`src/tabStatus.ts`).
+- Bell: the account-wide list (`pull_request_inbox`, already polled for
+  notifications) grouped into waiting for you / yours / assigned and
+  others; the count is the first group. A request whose repository is
+  open in the app (its `byRepo` list has it, with the remote) opens in
+  the review panel; others open in the browser.
+- Background work (`src/activity.ts`): auto-fetch, workspace fetches and
+  pull request checks show as a spinner with their label; failures from
+  these and from every `store.run` operation are kept (the same one
+  again moves up with a count) with a red count until looked at. Auto-
+  fetch errors were silent before; now they land here, still no toast.
+- Account button: the picture of whoever commits in the open repository
+  (profile or git config), a menu with the accounts and the profiles.
+- Gravatar (`src-tauri/src/avatars.rs`): SHA-256 of the trimmed,
+  lowercased address, `d=404` so a missing picture means initials;
+  `<id>+name@users.noreply.github.com` uses GitHub's picture for that
+  user id. Fetched 6 at a time, kept as data URLs in the app cache dir
+  for a week (absent ones for a day); network failures aren't kept. No
+  credentials, redirects allowed (no token involved). The webview's CSP
+  stays `img-src 'self' data:`. Frontend batches the addresses rendered
+  together into one call (`src/avatars.ts`). Shown in the graph dots
+  (inside a ring of the lane colour), the author column, the commit
+  panel (also co-authors), statistics and the account button. Settings
+  → Author pictures turns it off.
+- Fix: dialogs could run below the window (14vh top padding + a max
+  height of 100vh − 32px); long Settings hid its Done button.
+- Tests: Rust 125 (+3 avatars, local server), unit 54, Playwright 66
+  (+7 `tests/ui/titlebar.spec.ts`), e2e 24 steps (tab names read from
+  `.tab-name` now that tabs carry marks).
+
 ### 2026-10-30 — several commits, branch cleanup, auto-stash, bisect, line comments, releases, file tree, statistics
 
 - Selection: Ctrl+click toggles, Shift+click selects a range (`store.multi`,

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 
 import { checkoutRef, fileItems, refMenu, stashApply, stashDrop, stashPop } from "../actions";
-import { laneColor } from "../colors";
-import { fullTime, initials, shortId } from "../format";
+import { fullTime, shortId } from "../format";
+import { Avatar } from "./Avatar";
 import { useStore } from "../store";
 import { FileList } from "./FileList";
 import { updateSettings, useSettings } from "../settings";
@@ -10,7 +10,6 @@ import { IconBranch, IconCloud, IconFile, IconFolder, IconTag } from "./Icons";
 
 export function CommitPanel() {
   const details = useStore((s) => s.details);
-  const graph = useStore((s) => s.graph);
   const selectedId = useStore((s) => s.selectedId);
   const diffSource = useStore((s) => s.diffSource);
   const openDiff = useStore((s) => s.openDiff);
@@ -23,7 +22,6 @@ export function CommitPanel() {
     return <div className="panel-loading">Loading commit…</div>;
   }
 
-  const row = graph?.commits.find((c) => c.id === details.id);
   const stash = stashes.find((st) => st.id === details.id);
   const [summary, ...bodyLines] = details.message.split("\n");
   const coAuthors = coAuthorsOf(details.message);
@@ -66,9 +64,7 @@ export function CommitPanel() {
       </div>
 
       <div className="commit-meta">
-        <div className="avatar" style={{ background: laneColor(row?.color ?? 0) }}>
-          {initials(details.author.name)}
-        </div>
+        <Avatar email={details.author.email} name={details.author.name} size={34} />
         <div className="commit-people">
           <div>
             <strong>{details.author.name}</strong> <span className="dim">&lt;{details.author.email}&gt;</span>
@@ -79,7 +75,17 @@ export function CommitPanel() {
               committed by {details.committer.name} {fullTime(details.committer.time)}
             </div>
           )}
-          {coAuthors.length > 0 && <div className="dim">with {coAuthors.map((c) => c.name).join(", ")}</div>}
+          {coAuthors.length > 0 && (
+            <div className="dim">
+              with{" "}
+              {coAuthors.map((c) => (
+                <span key={c.email || c.name} className="coauthor" title={c.email}>
+                  <Avatar email={c.email} name={c.name} size={14} />
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          )}
           {details.signed && (
             <div>
               <span className="signed-badge" title="The commit carries a signature (not verified here)">

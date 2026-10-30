@@ -32,6 +32,8 @@ export interface DrawOptions {
   nodeText: string;
   /** Ring around the selected commit. */
   ring: string;
+  /** The author's picture, drawn inside the dot instead of initials. */
+  avatar?: (email: string) => HTMLImageElement | null;
 }
 
 function segment(ctx: CanvasRenderingContext2D, [from, to, color]: Seg, y0: number, y1: number) {
@@ -154,7 +156,18 @@ export function drawGraph(ctx: CanvasRenderingContext2D, o: DrawOptions) {
       ctx.arc(x, y, NODE_R + 2.5, 0, Math.PI * 2);
       ctx.stroke();
     }
-    ctx.fillStyle = o.nodeText;
-    ctx.fillText(initials(c.authorName), x, y + 0.5);
+    const img = o.avatar?.(c.authorEmail);
+    if (img) {
+      // Inside a thin ring of the lane colour.
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, NODE_R - 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, x - NODE_R + 2, y - NODE_R + 2, (NODE_R - 2) * 2, (NODE_R - 2) * 2);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = o.nodeText;
+      ctx.fillText(initials(c.authorName), x, y + 0.5);
+    }
   }
 }

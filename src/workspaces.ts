@@ -3,8 +3,9 @@
 
 import { create } from "zustand";
 
-import { api, errorText, RepoSummary } from "./api";
-import { loadPrs } from "./prs";
+import { begin, end } from "./activity";
+import { api, errorText, PullRequest, RepoSummary } from "./api";
+import { loadPrs, openPullRequest } from "./prs";
 import { useStore } from "./store";
 
 const KEY = "gitbrix.workspaces";
@@ -81,6 +82,14 @@ useStore.subscribe((st, prev) => {
   if (!background && st.repo?.path !== prev.repo?.path && st.repo && useWorkspaces.getState().open) hideWorkspaces();
 });
 
+/** Open the request's repository (in its tab) and review the request. */
+export async function reviewPullRequest(path: string, pr: PullRequest) {
+  hideWorkspaces();
+  const st = useStore.getState();
+  if (st.repo?.path !== path) await st.openRepo(path);
+  if (useStore.getState().repo?.path === path) openPullRequest(pr);
+}
+
 /** Pull/merge requests of every repository in the active workspace, a few
  * repositories at a time. */
 export async function loadWorkspacePrs() {
@@ -130,6 +139,10 @@ export function deleteWorkspace(id: string) {
     return { list, active: s.active === id ? list[0]?.id ?? null : s.active };
   });
   save();
+}
+
+export function folderName(path: string): string {
+  return path.split("/").filter(Boolean).pop() ?? path;
 }
 
 function unique(paths: string[]): string[] {
@@ -201,11 +214,14 @@ export async function fetchRepos(paths: string[]) {
         done(path, "Busy with another operation");
         continue;
       }
+      const task = begin(`Fetching ${folderName(path)}`);
       try {
         await api.fetch(path);
         done(path);
+        end(task);
       } catch (e) {
         done(path, errorText(e));
+        end(task, errorText(e));
       }
       if (useStore.getState().repo?.path === path) void useStore.getState().refresh();
     }

@@ -4,6 +4,7 @@
 //!
 //! All commands are `async` so git work never blocks the UI thread.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use git2::Oid;
@@ -733,4 +734,10 @@ pub fn file_at(repo: String, rev: String, path: String) -> Result<history::FileA
 #[tauri::command(async)]
 pub fn repo_stats(repo: String) -> Result<stats::Stats> {
     stats::stats(&open(&repo)?)
+}
+
+/// Author pictures (Gravatar, GitHub noreply) as data URLs, by address.
+#[tauri::command(async)]
+pub fn avatars(emails: Vec<String>) -> HashMap<String, Option<String>> {
+    crate::avatars::avatars(&emails)
 }

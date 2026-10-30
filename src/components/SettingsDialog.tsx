@@ -129,6 +129,18 @@ export function SettingsDialog() {
               Test
             </button>
           </span>
+          <span>Author pictures</span>
+          <span className="settings-inline">
+            <Choice
+              value={settings.gravatar ? "on" : "off"}
+              onChange={(v) => set({ gravatar: v === "on" })}
+              options={[
+                { value: "on", label: "Gravatar" },
+                { value: "off", label: "Initials only" },
+              ]}
+            />
+            <span className="dim settings-note">Sends a hash of each author's e-mail address to gravatar.com</span>
+          </span>
           <span>Panels</span>
           <span>
             <button

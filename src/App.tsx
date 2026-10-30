@@ -31,6 +31,8 @@ import { ShortcutsDialog, useShortcuts } from "./components/ShortcutsDialog";
 import { Sidebar } from "./components/Sidebar";
 import { Splitter } from "./components/Splitter";
 import { TabBar } from "./components/TabBar";
+import { AboutDialog } from "./components/TitlebarItems";
+import { loadTabSummaries } from "./tabStatus";
 import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
 import { WorkspaceView } from "./components/WorkspaceView";
@@ -158,6 +160,7 @@ function usePullRequests() {
       void loadInbox();
       for (const tab of useStore.getState().tabs) void loadPrs(tab.path);
       if (useWorkspaces.getState().open) void loadWorkspacePrs();
+      loadTabSummaries();
     }, minutes * 60_000);
     return () => clearInterval(id);
   }, [minutes]);
@@ -305,6 +308,7 @@ export default function App() {
       <ContextMenu />
       <CommandPalette />
       <SettingsDialog />
+      <AboutDialog />
       <PullRequestsDialog />
       <CreatePullRequestDialog />
       <CleanupDialog />

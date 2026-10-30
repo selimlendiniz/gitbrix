@@ -14,6 +14,8 @@ import { IconClose, IconCloud, IconLaptop, IconSearch, IconStash, IconTag } from
 import { useCi } from "../ci";
 import { useBisect } from "../bisect";
 import { CiMark } from "./CiMark";
+import { Avatar } from "./Avatar";
+import { avatarImage, useAvatars } from "../avatars";
 
 const REFS_W = 190;
 const MAX_GRAPH_W = 320;
@@ -55,6 +57,10 @@ export function CommitGraph() {
   const showMenu = useStore((s) => s.showMenu);
   // Redraw the canvas when the theme changes its colours.
   const theme = useSettings((s) => s.theme);
+  // …and as author pictures arrive.
+  const gravatar = useSettings((s) => s.gravatar);
+  const pics = useAvatars((s) => s.pics);
+  const decoded = useAvatars((s) => s.decoded);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -196,8 +202,9 @@ export function CommitGraph() {
       background: cssVar("--bg-graph", "#16181e"),
       nodeText: cssVar("--node-text", "#0d0f14"),
       ring: cssVar("--node-ring", "#ffffff"),
+      avatar: gravatar ? avatarImage : undefined,
     });
-  }, [commits, first, last, scrollTop, viewH, gw, selectedId, repo?.headOid, theme]);
+  }, [commits, first, last, scrollTop, viewH, gw, selectedId, repo?.headOid, theme, gravatar, pics, decoded]);
 
   // Reaching the end of a truncated history loads the next page.
   const truncated = graph?.truncated ?? false;
@@ -449,7 +456,8 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills
       </div>
       {show.author && (
         <div className="cell author" title={c.authorEmail}>
-          {c.authorName}
+          {c.kind === "commit" && <Avatar email={c.authorEmail} name={c.authorName} size={16} />}
+          <span className="author-name">{c.authorName}</span>
         </div>
       )}
       {show.date && (
