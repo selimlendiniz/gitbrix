@@ -14,6 +14,8 @@ declare global {
     __gitbrixCalls: { cmd: string; args: Args }[];
     /** What `pull_requests` answers; tests set it. */
     __gitbrixPrs?: unknown;
+    /** `pull_requests` answers per repository path; wins over __gitbrixPrs. */
+    __gitbrixPrsByRepo?: Record<string, unknown>;
     /** What `pull_request_inbox` answers; tests set it. */
     __gitbrixInbox?: unknown;
     /** What `ci_statuses` answers; tests set it. */
@@ -71,7 +73,8 @@ const READS: Record<string, (a: Args) => unknown> = {
     accounts = [...accounts.filter((x) => x.id !== account.id), account];
     return account;
   },
-  pull_requests: () => window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
+  pull_requests: (a) =>
+    window.__gitbrixPrsByRepo?.[a.repo as string] ?? window.__gitbrixPrs ?? { items: [], problems: [], covered: false, projects: [] },
   pull_request_inbox: () => window.__gitbrixInbox ?? { items: [], problems: [], accounts: [] },
   // The fixture repository is summed up from its recording; any other path
   // looks like a clean repository named after its folder.

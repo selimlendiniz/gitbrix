@@ -5,6 +5,7 @@ import App from "./App";
 import { api } from "./api";
 import { useStore } from "./store";
 import { loadTabs } from "./tabs";
+import { hideWorkspaces, openInBackground, showWorkspaces } from "./workspaces";
 
 declare global {
   interface Window {
@@ -26,11 +27,17 @@ async function start() {
       <App />
     </React.StrictMode>,
   );
-  // A path on the command line wins; otherwise reopen the last session.
+  // A path on the command line opens that repository; otherwise the app
+  // starts on the Workspaces tab with the last session's repository behind it.
   const initial = await api.initialRepo().catch(() => null);
   const { active } = loadTabs();
-  if (initial) void useStore.getState().openRepo(initial);
-  else if (active) void useStore.getState().openRepo(active);
+  if (initial) {
+    hideWorkspaces();
+    void useStore.getState().openRepo(initial);
+  } else {
+    showWorkspaces();
+    if (active) void openInBackground(active);
+  }
 }
 
 void start();

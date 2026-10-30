@@ -1,14 +1,14 @@
-// The requests involving the user on every account (asked to review,
-// opened, assigned), whichever repository they belong to.
+// The open repository's pull/merge requests, by involvement (to review,
+// mine, assigned, all). The Workspaces tab lists those of every repository
+// in a workspace with the same rows.
 
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { create } from "zustand";
 
 import { PullRequest } from "../api";
 import { approvePullRequest } from "../actions";
 import { relativeTime } from "../format";
-import { loadInbox, openPullRequest, prKey, prLabel, usePrs, wantsReview } from "../prs";
+import { loadPrs, openPullRequest, prKey, prLabel, usePrs, wantsReview } from "../prs";
 import { useStore } from "../store";
 import { CiMark } from "./CiMark";
 import { IconFetch, IconPullRequest } from "./Icons";
@@ -16,16 +16,16 @@ import { useSettingsDialog } from "./SettingsDialog";
 
 export const usePrDialog = create<{ open: boolean }>(() => ({ open: false }));
 
-type Filter = "review" | "mine" | "assigned" | "all";
+export type PrFilter = "review" | "mine" | "assigned" | "all";
 
-const FILTERS: { value: Filter; label: string }[] = [
+const PR_FILTERS: { value: PrFilter; label: string }[] = [
   { value: "review", label: "To review" },
   { value: "mine", label: "Mine" },
   { value: "assigned", label: "Assigned" },
   { value: "all", label: "All" },
 ];
 
-function matches(pr: PullRequest, filter: Filter): boolean {
+export function matchesFilter(pr: PullRequest, filter: PrFilter): boolean {
   switch (filter) {
     case "review":
       return !pr.mine && (pr.reviewRequested || wantsReview(pr));
@@ -38,11 +38,31 @@ function matches(pr: PullRequest, filter: Filter): boolean {
   }
 }
 
-/** Toolbar button with the number of open requests involving the user;
- * it stands out more while some wait for the user's approval. */
+/** Start on what needs the user, if anything does. */
+export function defaultFilter(items: PullRequest[]): PrFilter {
+  return items.some((p) => matchesFilter(p, "review")) ? "review" : "all";
+}
+
+/** Filter buttons, each with its count. */
+export function PrFilters({ items, filter, onChange }: { items: PullRequest[]; filter: PrFilter; onChange: (f: PrFilter) => void }) {
+  return (
+    <span className="segmented">
+      {PR_FILTERS.map((f) => (
+        <button key={f.value} type="button" className={filter === f.value ? "on" : ""} onClick={() => onChange(f.value)}>
+          {f.label} <span className="side-count">{items.filter((p) => matchesFilter(p, f.value)).length}</span>
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/** Toolbar button with the open repository's request count; it stands out
+ * more while some wait for the user's approval. */
 export function PullRequestsButton() {
-  const total = usePrs((s) => s.inbox?.items.length ?? 0);
-  const waiting = usePrs((s) => s.inbox?.items.filter(wantsReview).length ?? 0);
+  const repo = useStore((s) => s.repo?.path);
+  const items = usePrs((s) => (repo ? s.byRepo[repo]?.items : undefined)) ?? [];
+  const total = items.length;
+  const waiting = items.filter(wantsReview).length;
   const title = total
     ? `Pull requests: ${total} open${waiting ? `, ${waiting} waiting for your approval` : ""}`
     : "Pull requests";
@@ -58,28 +78,11 @@ export function PullRequestsButton() {
   );
 }
 
-/** The same request as listed for the open repository, if it is there:
- * that one knows its remote, so it can be reviewed in the app. */
-function local(pr: PullRequest): PullRequest | undefined {
-  const repo = useStore.getState().repo?.path;
-  return repo ? usePrs.getState().byRepo[repo]?.items.find((x) => x.project === pr.project && x.number === pr.number) : undefined;
-}
-
-function review(pr: PullRequest) {
-  const mine = local(pr);
-  if (!mine) {
-    void openUrl(pr.url);
-    return;
-  }
-  usePrDialog.setState({ open: false });
-  openPullRequest(mine);
-}
-
-function Row({ pr }: { pr: PullRequest }) {
-  const path = pr.project.slice(pr.project.indexOf("/") + 1);
+/** One request: number, title, badges, where, author, branches, age. */
+export function PrRow({ pr, where, onOpen }: { pr: PullRequest; where?: ReactNode; onOpen: () => void }) {
   const created = Date.parse(pr.created) / 1000;
   return (
-    <div className="pr-row" onClick={() => review(pr)} title={local(pr) ? "Review in gitbrix" : `Open ${pr.url}`}>
+    <div className="pr-row" onClick={onOpen} title="Review in gitbrix">
       <div className="pr-row-main">
         <span className="pr-number">{prLabel(pr)}</span>
         <span className="pr-title">{pr.title}</span>
@@ -90,7 +93,7 @@ function Row({ pr }: { pr: PullRequest }) {
         {!pr.approved && pr.approvedByMe && <span className="pr-badge ok">you approved</span>}
       </div>
       <div className="pr-row-meta">
-        <span className="pr-project">{path}</span>
+        {where && <span className="pr-project">{where}</span>}
         <span>{pr.author}</span>
         <span className="pr-branches">
           {pr.sourceBranch} → {pr.targetBranch}
@@ -115,21 +118,20 @@ function Row({ pr }: { pr: PullRequest }) {
 
 export function PullRequestsDialog() {
   const open = usePrDialog((s) => s.open);
-  const inbox = usePrs((s) => s.inbox);
-  const [filter, setFilter] = useState<Filter | null>(null);
+  const repo = useStore((s) => s.repo);
+  const data = usePrs((s) => (repo ? s.byRepo[repo.path] : undefined));
+  const [filter, setFilter] = useState<PrFilter | null>(null);
   useEffect(() => {
-    if (open) void loadInbox();
+    if (open && repo) void loadPrs(repo.path);
     else setFilter(null);
-  }, [open]);
-  if (!open) return null;
+  }, [open, repo?.path]);
+  if (!open || !repo) return null;
   const close = () => usePrDialog.setState({ open: false });
 
-  const items = inbox?.items ?? [];
-  const count = (f: Filter) => items.filter((p) => matches(p, f)).length;
-  // Start on what needs the user, if anything does.
-  const current = filter ?? (count("review") ? "review" : "all");
-  const shown = items.filter((p) => matches(p, current));
-  const noAccounts = inbox && !inbox.loading && !inbox.accounts.length && !inbox.problems.length && !inbox.error;
+  const items = data?.items ?? [];
+  const current = filter ?? defaultFilter(items);
+  const shown = items.filter((p) => matchesFilter(p, current));
+  const uncovered = data && !data.loading && !data.covered && !data.problems.length && !data.error;
 
   return (
     <div className="modal-backdrop" onMouseDown={close}>
@@ -145,26 +147,20 @@ export function PullRequestsDialog() {
         onKeyDown={(e) => e.key === "Escape" && close()}
       >
         <div className="pr-dialog-head">
-          <span className="modal-title">Pull requests</span>
-          <span className="segmented">
-            {FILTERS.map((f) => (
-              <button key={f.value} type="button" className={current === f.value ? "on" : ""} onClick={() => setFilter(f.value)}>
-                {f.label} <span className="side-count">{count(f.value)}</span>
-              </button>
-            ))}
-          </span>
+          <span className="modal-title">Pull requests · {repo.name}</span>
+          <PrFilters items={items} filter={current} onChange={setFilter} />
           <button
             type="button"
-            className={`icon-btn${inbox?.loading ? " spinning" : ""}`}
+            className={`icon-btn${data?.loading ? " spinning" : ""}`}
             title="Check again"
-            onClick={() => void loadInbox()}
+            onClick={() => void loadPrs(repo.path)}
           >
             <IconFetch size={13} />
           </button>
         </div>
-        {noAccounts ? (
+        {uncovered ? (
           <div className="pr-empty">
-            Add a GitHub or GitLab account to see the pull requests you are involved in.{" "}
+            No GitHub or GitLab account covers this repository's remotes.{" "}
             <button
               type="button"
               className="small-btn"
@@ -179,13 +175,20 @@ export function PullRequestsDialog() {
         ) : (
           <div className="pr-list">
             {shown.map((pr) => (
-              <Row key={prKey(pr)} pr={pr} />
+              <PrRow
+                key={prKey(pr)}
+                pr={pr}
+                onOpen={() => {
+                  close();
+                  openPullRequest(pr);
+                }}
+              />
             ))}
-            {inbox && !inbox.loading && !shown.length && <div className="pr-empty">Nothing here</div>}
-            {!inbox && <div className="pr-empty">Loading…</div>}
+            {data && !data.loading && !shown.length && <div className="pr-empty">Nothing here</div>}
+            {!data && <div className="pr-empty">Loading…</div>}
           </div>
         )}
-        {[...(inbox?.error ? [inbox.error] : []), ...(inbox?.problems ?? [])].map((p) => (
+        {[...(data?.error ? [data.error] : []), ...(data?.problems ?? [])].map((p) => (
           <p key={p} className="modal-error">
             {p}
           </p>

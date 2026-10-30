@@ -316,6 +316,7 @@ const GITHUB_QUERY: &str = "query($owner: String!, $name: String!) {
         reviewDecision
         viewerLatestReview { state }
         reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } }
+        assignees(first: 20) { nodes { login } }
         commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
       }
     }

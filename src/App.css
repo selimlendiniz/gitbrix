@@ -1112,6 +1112,36 @@ textarea {
   white-space: nowrap;
 }
 
+.ws-prs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(90, 169, 255, 0.12);
+}
+
+.ws-prs.waiting {
+  color: var(--warn);
+  background: rgba(229, 180, 90, 0.14);
+}
+
+.ws-prs-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ws-prs-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .ws-empty {
   max-width: 520px;
   color: var(--text-dim);

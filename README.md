@@ -51,9 +51,10 @@ A fast, graph-first desktop Git client built with Tauri 2, Rust and React.
 - Auto-refresh when files or refs change outside the app
 - Tabs for several repositories, command palette (Ctrl+K), dark and light
   themes, resizable panels, keyboard shortcuts (press `?`), own title bar
-- Workspaces (a pinned tab): many repositories in one list with branch,
-  ahead/behind and local changes; fetch them all at once; add a folder's
-  repositories
+- Workspaces (a pinned tab the app starts on): many repositories in one
+  list with branch, ahead/behind, local changes and open requests; all
+  their pull/merge requests together; fetch them all at once; add a
+  folder's repositories
 - Profiles (work, personal…): the name and email commits are made with,
   and which accounts are used; folder rules pick the profile per
   repository
@@ -80,8 +81,8 @@ approve, merge), check it out or open it in the browser. Create one from
 a branch's menu, with reviewers and as a draft; the branch is pushed
 first if needed. CI status (GitHub checks, GitLab pipelines) shows on
 commits in the graph and on requests. The Pull Requests
-button in the toolbar lists those involving you on every account (to
-review, yours, assigned). New ones you can
+button in the toolbar lists the open repository's (to review, yours,
+assigned, all). New ones you can
 approve raise a desktop notification (checked every 3 minutes for every
 open tab; Settings → Pull requests / Notifications). GitLab tokens need
 `read_api` (or `api` to approve); GitHub fine-grained tokens need "Pull

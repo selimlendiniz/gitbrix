@@ -521,16 +521,22 @@ test("pull requests: hidden without an account, problems shown", async ({ page }
   await expect(page.locator(".side-note.error")).toContainText("add a github.com account");
 });
 
-test("pull requests window: every account's requests, by involvement", async ({ page }) => {
+test("pull requests window: only the open repository's requests, by involvement", async ({ page }) => {
   const errors = trackErrors(page);
-  const items = [
-    mr(11, { title: "Review me", project: "gitlab.com/other/service", remote: "", reviewRequested: true }),
-    mr(12, { title: "My change", project: "gitlab.com/team/demo-app", remote: "", mine: true, canApprove: false, assigned: true }),
-    mr(13, { title: "Old approval", project: "gitlab.com/other/service", remote: "", reviewRequested: true, approvedByMe: true, canApprove: false }),
+  const here = [
+    mr(11, { title: "Review me", reviewRequested: true }),
+    mr(12, { title: "My change", mine: true, canApprove: false, assigned: true }),
+    mr(13, { title: "Old approval", reviewRequested: true, approvedByMe: true, canApprove: false }),
   ];
-  await page.addInitScript((list) => {
-    window.__gitbrixInbox = { items: list, problems: [], accounts: ["gitlab|https://gitlab.com|me"] };
-  }, items);
+  await page.addInitScript((items) => {
+    window.__gitbrixPrs = { items, problems: [], covered: true, projects: ["gitlab.com/team/demo-app"] };
+    // Another repository's request, involving the user: not in this window.
+    window.__gitbrixInbox = {
+      items: [{ ...items[0], number: 99, title: "Elsewhere", project: "gitlab.com/other/service", remote: "" }],
+      problems: [],
+      accounts: ["gitlab|https://gitlab.com|me"],
+    };
+  }, here);
   await page.goto("/?open");
   // The toolbar button counts what waits for the user's approval, and stands out.
   const button = page.locator(".pr-button");
@@ -539,24 +545,29 @@ test("pull requests window: every account's requests, by involvement", async ({ 
   await page.locator(".toolbar-right").screenshot({ path: "test-results/shots/pr-button.png" });
   await button.click();
   const dialog = page.getByRole("dialog", { name: "Pull requests" });
+  await expect(dialog.locator(".modal-title")).toHaveText("Pull requests · demo-app");
   await expect(dialog.locator(".pr-row")).toHaveCount(2);
-  await expect(dialog.locator(".pr-row").first()).toContainText("other/service");
   await page.screenshot({ path: "test-results/shots/pull-requests-window.png" });
   await dialog.getByRole("button", { name: /^Mine/ }).click();
   await expect(dialog.locator(".pr-row")).toHaveCount(1);
   await expect(dialog.locator(".pr-row")).toContainText("My change");
   await dialog.getByRole("button", { name: /^All/ }).click();
   await expect(dialog.locator(".pr-row")).toHaveCount(3);
+  await expect(dialog).not.toContainText("Elsewhere");
 
   await dialog.locator(".pr-row", { hasText: "Review me" }).getByRole("button", { name: "Approve…" }).click();
   await page.getByRole("dialog").filter({ hasText: "Approve !11" }).getByRole("button", { name: "Approve" }).click();
-  await expect.poll(() => lastCall(page, "approve_pull_request")).toMatchObject({ project: "gitlab.com/other/service", number: 11 });
+  await expect.poll(() => lastCall(page, "approve_pull_request")).toMatchObject({ project: "gitlab.com/team/demo-app", number: 11 });
+
+  // A row opens the request in the app.
+  await dialog.locator(".pr-row", { hasText: "My change" }).click();
+  await expect(page.getByTestId("pull-request").locator(".commit-summary")).toHaveText("My change");
   expect(errors).toEqual([]);
 });
 
 test("pull requests button: shows the open count without anything to approve", async ({ page }) => {
-  await page.addInitScript((list) => {
-    window.__gitbrixInbox = { items: list, problems: [], accounts: ["a"] };
+  await page.addInitScript((items) => {
+    window.__gitbrixPrs = { items, problems: [], covered: true, projects: ["gitlab.com/team/demo-app"] };
   }, [mr(21, { mine: true, canApprove: false }), mr(22, { mine: true, canApprove: false })]);
   await page.goto("/?open");
   const button = page.locator(".pr-button");
@@ -582,6 +593,8 @@ test("pull requests window: points to Settings without accounts", async ({ page 
 test("title bar: own window buttons, also on the welcome screen", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".titlebar .tab.pinned")).toHaveText("Workspaces");
+  await page.getByTitle("Open another repository").click();
+  await expect(page.getByRole("button", { name: /Open repository/ })).toBeVisible();
   for (const [name, cmd] of [
     ["Minimize", "plugin:window|minimize"],
     ["Maximize", "plugin:window|toggle_maximize"],
@@ -858,5 +871,57 @@ test("patches: save a commit, copy it, apply a file as commits or to the work tr
   await page.locator(".repo-btn").click();
   await page.getByRole("menuitem", { name: /Apply patch to working tree/ }).click();
   await expect.poll(() => lastCall(page, "apply_patch_file")).toMatchObject({ commit: false });
+  expect(errors).toEqual([]);
+});
+
+test("start: the Workspaces tab is selected, the last repository waits in its tab", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("gitbrix.tabs", JSON.stringify({ tabs: [{ path: "/home/demo/codes/demo-app", name: "demo-app" }], active: "/home/demo/codes/demo-app" }));
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("workspaces")).toBeVisible();
+  await expect(page.locator(".titlebar .tab.active")).toHaveText("Workspaces");
+  await expect.poll(() => lastCall(page, "open_repo")).toMatchObject({ path: "/home/demo/codes/demo-app" });
+  // Still on Workspaces once the repository has loaded.
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId("workspaces")).toBeVisible();
+  await page.locator(".titlebar .tab", { hasText: "demo-app" }).click();
+  await expect(page.locator(".graph-row").first()).toBeVisible();
+});
+
+test("workspaces: every repository's requests together; one opens in its repository", async ({ page }) => {
+  const errors = trackErrors(page);
+  const demo = "/home/demo/codes/demo-app";
+  await page.addInitScript(
+    ([demo, a, b]) => {
+      localStorage.setItem("gitbrix.workspaces", JSON.stringify({ list: [{ id: "w", name: "Work", repos: [demo, "/home/me/code/api"] }], active: "w" }));
+      window.__gitbrixPrsByRepo = {
+        [demo]: { items: [a], problems: [], covered: true, projects: ["gitlab.com/team/demo-app"] },
+        "/home/me/code/api": { items: [b], problems: [], covered: true, projects: ["gitlab.com/team/api"] },
+      };
+    },
+    [
+      demo,
+      mr(31, { title: "Demo change", canApprove: false, created: "2026-10-28T10:00:00Z" }),
+      mr(32, { title: "API change", project: "gitlab.com/team/api", reviewRequested: true, created: "2026-10-29T10:00:00Z" }),
+    ] as const,
+  );
+  await page.goto("/");
+  const view = page.getByTestId("workspaces");
+  // Request counts on the repository rows.
+  await expect(view.locator(".ws-row", { hasText: "api" }).locator(".ws-prs.waiting")).toHaveText("1");
+  await view.getByRole("button", { name: /^Pull requests/ }).click();
+  await expect(view.getByRole("button", { name: /^Pull requests/ })).toContainText("2");
+  // Starts on what waits for the user.
+  await expect(view.locator(".pr-row")).toHaveCount(1);
+  await expect(view.locator(".pr-row")).toContainText("API change");
+  await view.getByRole("button", { name: /^All/ }).click();
+  await expect(view.locator(".pr-row .pr-title")).toHaveText(["API change", "Demo change"]);
+  await expect(view.locator(".pr-row", { hasText: "Demo change" })).toContainText("demo-app");
+  await page.screenshot({ path: "test-results/shots/workspace-prs.png" });
+
+  await view.locator(".pr-row", { hasText: "Demo change" }).click();
+  await expect(view).toHaveCount(0);
+  await expect(page.getByTestId("pull-request").locator(".commit-summary")).toHaveText("Demo change");
   expect(errors).toEqual([]);
 });

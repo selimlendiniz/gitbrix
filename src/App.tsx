@@ -28,7 +28,7 @@ import { TabBar } from "./components/TabBar";
 import { Toolbar } from "./components/Toolbar";
 import { WipPanel } from "./components/WipPanel";
 import { WorkspaceView } from "./components/WorkspaceView";
-import { useWorkspaces } from "./workspaces";
+import { loadWorkspacePrs, useWorkspaces } from "./workspaces";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { toggleTerminal } from "./terminal";
 import { openRepoDialog, Welcome } from "./components/Welcome";
@@ -151,6 +151,7 @@ function usePullRequests() {
     const id = setInterval(() => {
       void loadInbox();
       for (const tab of useStore.getState().tabs) void loadPrs(tab.path);
+      if (useWorkspaces.getState().open) void loadWorkspacePrs();
     }, minutes * 60_000);
     return () => clearInterval(id);
   }, [minutes]);

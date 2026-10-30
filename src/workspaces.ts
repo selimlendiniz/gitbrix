@@ -4,6 +4,7 @@
 import { create } from "zustand";
 
 import { api, errorText, RepoSummary } from "./api";
+import { loadPrs } from "./prs";
 import { useStore } from "./store";
 
 const KEY = "gitbrix.workspaces";
@@ -43,7 +44,9 @@ interface State extends Saved {
 
 export const useWorkspaces = create<State>(() => ({
   ...load(),
-  open: false,
+  // The app starts on the Workspaces tab (a repository on the command line
+  // hides it at start).
+  open: true,
   summaries: {},
   loading: false,
   fetching: [],
@@ -53,16 +56,40 @@ export const useWorkspaces = create<State>(() => ({
 export function showWorkspaces() {
   useWorkspaces.setState({ open: true });
   void loadSummaries();
+  void loadWorkspacePrs();
 }
 
 export function hideWorkspaces() {
   useWorkspaces.setState({ open: false });
 }
 
+let background = false;
+
+/** Open a repository behind the Workspaces tab (the last session's, at
+ * start), so its tab is ready without leaving the workspaces. */
+export async function openInBackground(path: string) {
+  background = true;
+  try {
+    await useStore.getState().openRepo(path);
+  } finally {
+    background = false;
+  }
+}
+
 // Opening a repository (palette, recent list, drop) shows its tab.
 useStore.subscribe((st, prev) => {
-  if (st.repo?.path !== prev.repo?.path && st.repo && useWorkspaces.getState().open) hideWorkspaces();
+  if (!background && st.repo?.path !== prev.repo?.path && st.repo && useWorkspaces.getState().open) hideWorkspaces();
 });
+
+/** Pull/merge requests of every repository in the active workspace, a few
+ * repositories at a time. */
+export async function loadWorkspacePrs() {
+  const queue = [...(activeWorkspace()?.repos ?? [])];
+  const worker = async () => {
+    for (let path = queue.shift(); path; path = queue.shift()) await loadPrs(path);
+  };
+  await Promise.all([worker(), worker(), worker()]);
+}
 
 function save() {
   const { list, active } = useWorkspaces.getState();
@@ -89,6 +116,7 @@ export function selectWorkspace(id: string) {
   useWorkspaces.setState({ active: id, fetchErrors: {} });
   save();
   void loadSummaries();
+  void loadWorkspacePrs();
 }
 
 export function renameWorkspace(id: string, name: string) {
@@ -115,6 +143,7 @@ export function addRepos(paths: string[]) {
   useWorkspaces.setState((s) => ({ list: s.list.map((w) => (w.id === ws.id ? { ...w, repos } : w)), active: ws.id }));
   save();
   void loadSummaries();
+  void loadWorkspacePrs();
 }
 
 export function removeRepo(path: string) {

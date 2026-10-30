@@ -69,13 +69,16 @@ Kurulabilir paket (release derlemesi):
 16. Hesabı olan bir repoda sol panelde "Pull Requests": çift tık checkout,
     sağ tık → tarayıcıda aç / Approve. Başka biri onaylayabileceğin bir
     MR açınca masaüstü bildirimi gelir (3 dakikada bir kontrol).
-17. Araç çubuğunda sağ üstteki PR simgesi: tüm hesaplarda seni ilgilendiren
-    açık MR/PR'lar (To review / Mine / Assigned / All).
+17. Araç çubuğunda sağ üstteki PR simgesi: açık reponun MR/PR'ları
+    (To review / Mine / Assigned / All); satıra tıklayınca uygulamada açılır.
 18. **Workspaces** (başlık çubuğunda en soldaki sabit sekme): solda
     workspace listesi (+ ile yenisi, sağ tıkla yeniden adlandır / sil),
     sağda seçilenin repoları. "Add → All repositories in a folder…" ile
     `~/codes`'u seç; her repo için branch, ↑↓, değişen dosya sayısı.
     "Fetch all" hepsini çeker, satıra tıklamak repoyu kendi sekmesinde açar.
+    Uygulama bu sekmeyle açılır (son repo arkada hazır bekler).
+    "Pull requests" düğmesi workspace'teki tüm repoların MR'larını birlikte
+    listeler; repo satırlarında da MR sayısı görünür.
 19. **Profiller** (Ayarlar → Profiles): iş ve kişisel için ad/e-posta,
     klasör kuralı (örn. `~/codes/is`) ve kullanılacak hesaplar. Sağ
     üstteki yeşil noktalı düğmeden geçiş yapılır; commit formunun altında

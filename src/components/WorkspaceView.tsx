@@ -3,10 +3,11 @@
 // fetch for all of them at once.
 
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
-import { MouseEvent, useEffect } from "react";
+import { MouseEvent, useEffect, useState } from "react";
 
-import { errorText, RepoSummary } from "../api";
+import { errorText, PullRequest, RepoSummary } from "../api";
 import { relativeTime } from "../format";
+import { openPullRequest, prKey, usePrs, wantsReview } from "../prs";
 import { useStore } from "../store";
 import {
   addRepos,
@@ -15,6 +16,7 @@ import {
   fetchRepos,
   hideWorkspaces,
   loadSummaries,
+  loadWorkspacePrs,
   removeRepo,
   renameWorkspace,
   scanFolder,
@@ -22,7 +24,8 @@ import {
   useWorkspaces,
   Workspace,
 } from "../workspaces";
-import { IconFetch, IconFolder, IconPlus, IconWorkspace } from "./Icons";
+import { IconFetch, IconFolder, IconPlus, IconPullRequest, IconWorkspace } from "./Icons";
+import { defaultFilter, matchesFilter, PrFilter, PrFilters, PrRow } from "./PullRequestsDialog";
 
 const s = () => useStore.getState();
 
@@ -103,6 +106,8 @@ function Row({ path, summary }: { path: string; summary: RepoSummary | undefined
   const fetching = useWorkspaces((st) => st.fetching.includes(path));
   const fetchError = useWorkspaces((st) => st.fetchErrors[path]);
   const current = useStore((st) => st.repo?.path === path);
+  const prs = usePrs((st) => st.byRepo[path]?.items);
+  const waiting = prs?.filter(wantsReview).length ?? 0;
   const info = summary?.info;
   const error = fetchError ?? summary?.error;
   return (
@@ -131,11 +136,74 @@ function Row({ path, summary }: { path: string; summary: RepoSummary | undefined
         {!!summary?.conflicts && <span className="ws-conflict">{summary.conflicts} conflicted</span>}
         {!!summary?.changes && <span className="ws-dirty">{summary.changes} changed</span>}
         {info && info.state !== "clean" && <span className="pr-badge review">{info.state}</span>}
+        {!!prs?.length && (
+          <span
+            className={`ws-prs${waiting ? " waiting" : ""}`}
+            title={`${prs.length} open request${prs.length === 1 ? "" : "s"}${waiting ? `, ${waiting} waiting for your approval` : ""}`}
+          >
+            <IconPullRequest size={11} /> {prs.length}
+          </span>
+        )}
       </div>
       <div className="ws-fetched dim">
         {fetching ? <span className="spinner" /> : summary?.fetched ? relativeTime(summary.fetched) : ""}
       </div>
       {error && <div className="ws-error">{error}</div>}
+    </div>
+  );
+}
+
+/** Open the request's repository (in its tab) and review the request. */
+async function review(path: string, pr: PullRequest) {
+  hideWorkspaces();
+  if (s().repo?.path !== path) await s().openRepo(path);
+  if (s().repo?.path === path) openPullRequest(pr);
+}
+
+function WorkspacePrs({ repos }: { repos: string[] }) {
+  const byRepo = usePrs((st) => st.byRepo);
+  const summaries = useWorkspaces((st) => st.summaries);
+  const [filter, setFilter] = useState<PrFilter | null>(null);
+  const all = repos.flatMap((path) => (byRepo[path]?.items ?? []).map((pr) => ({ path, pr })));
+  // A project reached from two repositories (clones, worktrees) shows once.
+  const seen = new Set<string>();
+  const items = all.filter(({ pr }) => !seen.has(prKey(pr)) && !!seen.add(prKey(pr)));
+  items.sort((a, b) => b.pr.created.localeCompare(a.pr.created));
+  const current = filter ?? defaultFilter(items.map((i) => i.pr));
+  const shown = items.filter((i) => matchesFilter(i.pr, current));
+  const loading = repos.some((p) => byRepo[p]?.loading);
+  const problems = repos.flatMap((p) => {
+    const d = byRepo[p];
+    const name = summaries[p]?.info?.name ?? folderName(p);
+    return [...(d?.error ? [d.error] : []), ...(d?.problems ?? [])].map((x) => `${name}: ${x}`);
+  });
+  const covered = repos.some((p) => byRepo[p]?.covered);
+  return (
+    <div className="ws-prs-view">
+      <div className="ws-prs-head">
+        <PrFilters items={items.map((i) => i.pr)} filter={current} onChange={setFilter} />
+        {loading && <span className="spinner" />}
+      </div>
+      <div className="ws-list">
+        {shown.map(({ path, pr }) => (
+          <PrRow
+            key={prKey(pr)}
+            pr={pr}
+            where={summaries[path]?.info?.name ?? folderName(path)}
+            onOpen={() => void review(path, pr)}
+          />
+        ))}
+        {!loading && !shown.length && (
+          <div className="pr-empty">
+            {covered || items.length ? "Nothing here" : "No GitHub or GitLab account covers these repositories' remotes (Settings → Accounts)."}
+          </div>
+        )}
+      </div>
+      {problems.map((p) => (
+        <p key={p} className="modal-error">
+          {p}
+        </p>
+      ))}
     </div>
   );
 }
@@ -156,13 +224,17 @@ export function WorkspaceView() {
   const loading = useWorkspaces((st) => st.loading);
   const fetching = useWorkspaces((st) => st.fetching.length);
   const tabs = useStore((st) => st.tabs.length);
+  const [view, setView] = useState<"repos" | "prs">("repos");
+  const byRepo = usePrs((st) => st.byRepo);
   useEffect(() => {
     void loadSummaries();
+    void loadWorkspacePrs();
   }, [active]);
   const ws = list.find((w) => w.id === active) ?? list[0] ?? null;
   const repos = ws?.repos ?? [];
   const changed = repos.filter((p) => summaries[p]?.changes).length;
   const behind = repos.filter((p) => summaries[p]?.info?.behind).length;
+  const prCount = new Set(repos.flatMap((p) => (byRepo[p]?.items ?? []).map((pr) => `${pr.project}#${pr.number}`))).size;
 
   return (
     <div className="ws-page" data-testid="workspaces">
@@ -213,17 +285,37 @@ export function WorkspaceView() {
             </span>
           )}
           <span className="ws-spacer" />
+          {repos.length > 0 && (
+            <span className="segmented">
+              <button type="button" className={view === "repos" ? "on" : ""} onClick={() => setView("repos")}>
+                Repositories <span className="side-count">{repos.length}</span>
+              </button>
+              <button type="button" className={view === "prs" ? "on" : ""} onClick={() => setView("prs")}>
+                Pull requests <span className="side-count">{prCount}</span>
+              </button>
+            </span>
+          )}
           <button type="button" className="small-btn" onClick={addMenu}>
             <IconPlus size={12} /> Add
           </button>
           <button type="button" className="small-btn" disabled={!repos.length || fetching > 0} onClick={() => void fetchRepos(repos)}>
             <IconFetch size={12} /> Fetch all
           </button>
-          <button type="button" className={`icon-btn${loading ? " spinning" : ""}`} title="Check again" onClick={() => void loadSummaries()}>
+          <button
+            type="button"
+            className={`icon-btn${loading ? " spinning" : ""}`}
+            title="Check again"
+            onClick={() => {
+              void loadSummaries();
+              void loadWorkspacePrs();
+            }}
+          >
             <IconFetch size={13} />
           </button>
         </div>
-        {repos.length ? (
+        {repos.length && view === "prs" ? (
+          <WorkspacePrs repos={repos} />
+        ) : repos.length ? (
           <div className="ws-list">
             <div className="ws-row ws-cols">
               <span>Repository</span>
