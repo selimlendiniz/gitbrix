@@ -6,7 +6,7 @@ incelemen için. Ayrıntılı geliştirme günlüğü `PROGRESS.md`'de (İngiliz
 ## Çalıştırma
 
 ```bash
-cd ~/codes/gitbrix
+cd ~/codes/gitbrix/desktop
 pnpm install                       # ilk sefer
 pnpm tauri dev                     # uygulamayı aç
 ```
