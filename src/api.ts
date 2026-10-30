@@ -468,6 +468,10 @@ export interface PullRequest {
   approved: boolean;
   /** CI on the latest commit; null without CI. */
   ci?: CiState | null;
+  /** Comments so far (GitHub: comments and reviews). */
+  comments?: number;
+  /** The user is mentioned in it (account-wide list). */
+  mentioned?: boolean;
 }
 
 export interface PullRequests {
@@ -660,6 +664,9 @@ export const api = {
   overlaps: (repo: string) => invoke<Overlap[]>("overlaps", { repo }),
   issues: (repo: string) => invoke<Issues>("issues", { repo }),
   pullRequestInbox: () => invoke<PullRequestInbox>("pull_request_inbox"),
+  /** A request's conversation by account and project (account-wide list). */
+  pullRequestConversationFor: (account: string, project: string, number: number) =>
+    invoke<Conversation>("pull_request_conversation_for", { account, project, number }),
   approvePullRequest: (account: string, project: string, number: number) =>
     invoke<void>("approve_pull_request", { account, project, number }),
   /** A fork's request on its own branch (pr/N or mr/N); returns the branch. */

@@ -22,6 +22,8 @@ declare global {
     __gitbrixOverlaps?: unknown;
     /** What `update_check` answers; tests set it. */
     __gitbrixUpdate?: unknown;
+    /** Comments `pull_request_conversation_for` answers; tests set them. */
+    __gitbrixCommentsFor?: unknown[];
     /** What `ci_jobs` answers; tests set it. */
     __gitbrixCiJobs?: unknown;
     /** What `ci_log` answers; tests set it. */
@@ -110,6 +112,13 @@ const READS: Record<string, (a: Args) => unknown> = {
   merge_pull_request: (a) => (a.whenChecksPass ? "scheduled" : "merged"),
   update_check: () =>
     window.__gitbrixUpdate ?? { current: "0.1.0", version: null, notes: null, date: null, kind: "rpm", canInstall: true },
+  pull_request_conversation_for: () => ({
+    description: "",
+    comments: window.__gitbrixCommentsFor ?? [],
+    open: true,
+    mergeable: null,
+    mergeStatus: "",
+  }),
   ci_jobs: () => window.__gitbrixCiJobs ?? { url: "", state: null, jobs: [] },
   ci_log: () => window.__gitbrixCiLog ?? "",
   read_text_file: (a) => window.__gitbrixFile ?? fail(`No file ${a.path}`),

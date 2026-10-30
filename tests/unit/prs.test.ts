@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { PullRequest, PullRequestInbox, PullRequests, RefInfo } from "../../src/api";
-import { inboxSources, Memory, newForReview, prLabel, repoSources, requestForBranch, wantsReview } from "../../src/prs";
+import { commentNews, inboxSources, Memory, newForReview, prKey, prLabel, repoSources, requestForBranch, wantsReview } from "../../src/prs";
 
 const pr = (number: number, over: Partial<PullRequest> = {}): PullRequest => ({
   provider: "gitlab",
@@ -110,4 +110,29 @@ describe("the request of a branch", () => {
     expect(requestForBranch([fork], ref("feature/ui", "local"), [])).toBeUndefined();
     expect(requestForBranch([pr({ provider: "github", sameRepo: false, number: 7 })], ref("pr/7", "local"), [])?.number).toBe(7);
   });
+});
+
+describe("comment news", () => {
+  const item = (number: number, comments: number, mentioned = false) => ({ ...pr(number), comments, mentioned });
+  const empty: Memory = { seen: {}, notified: [] };
+
+  it("only records at first, then finds more comments and new mentions", () => {
+    const first = commentNews([item(1, 2), item(2, 0, true)], empty, "2026-10-30T10:00:00Z");
+    expect(first.more).toEqual([]);
+    expect(first.mentioned).toEqual([]);
+    const next = commentNews([item(1, 4), item(2, 0, true), item(3, 5, true)], first.mem, "2026-10-30T11:00:00Z");
+    expect(next.more.map((p) => p.number)).toEqual([1]);
+    expect(next.since[prKey(item(1, 0))]).toBe("2026-10-30T10:00:00Z");
+    // Request 2 was mentioned already; 3 is new to the list and mentions the user.
+    expect(next.mentioned.map((p) => p.number)).toEqual([3]);
+    // Nothing new: nothing to tell.
+    const again = commentNews([item(1, 4), item(3, 5, true)], next.mem, "2026-10-30T12:00:00Z");
+    expect([again.more, again.mentioned]).toEqual([[], []]);
+  });
+});
+
+it("the review memory keeps what the comment memory wrote", () => {
+  const mem: Memory = { seen: {}, notified: [], comments: { "a#1": 2 }, checked: { "a#1": "t" }, mentions: ["a#1"] };
+  const { mem: next } = newForReview([{ key: "k", items: [] }], mem);
+  expect([next.comments, next.checked, next.mentions]).toEqual([{ "a#1": 2 }, { "a#1": "t" }, ["a#1"]]);
 });

@@ -532,6 +532,12 @@ pub fn pull_request_inbox() -> Result<forge::Inbox> {
     forge::inbox()
 }
 
+/// A request's conversation by account and project (the account-wide list).
+#[tauri::command(async)]
+pub fn pull_request_conversation_for(account: String, project: String, number: u64) -> Result<forge::Conversation> {
+    forge::conversation_for(&account, &project, number)
+}
+
 #[tauri::command(async)]
 pub fn approve_pull_request(account: String, project: String, number: u64) -> Result<()> {
     forge::approve(&account, &project, number)

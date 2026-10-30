@@ -123,6 +123,7 @@ pub fn run() {
             commands::issues,
             commands::overlaps,
             commands::approve_pull_request,
+            commands::pull_request_conversation_for,
             commands::checkout_pull_request,
             commands::repo_summaries,
             commands::find_repos,

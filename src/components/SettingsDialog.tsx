@@ -137,6 +137,15 @@ export function SettingsDialog() {
               Test
             </button>
           </span>
+          <span>Comments</span>
+          <Choice
+            value={settings.commentNotify ? "on" : "off"}
+            onChange={(v) => set({ commentNotify: v === "on" })}
+            options={[
+              { value: "on", label: "Notify about comments on my requests and mentions" },
+              { value: "off", label: "Off" },
+            ]}
+          />
           <span>Author pictures</span>
           <span className="settings-inline">
             <Choice

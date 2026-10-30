@@ -57,6 +57,10 @@ pub struct PullRequest {
     /// CI on the latest commit: `success`, `failed`, `running`, `pending`,
     /// `canceled`, `skipped` or `manual`; none without CI.
     pub ci: Option<String>,
+    /// Comments so far (GitHub: comments and reviews), to notice new ones.
+    pub comments: u64,
+    /// The user is mentioned in it (account-wide list only).
+    pub mentioned: bool,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -328,6 +332,8 @@ const GITHUB_QUERY: &str = "query($owner: String!, $name: String!) {
         reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } }
         assignees(first: 20) { nodes { login } }
         commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+        comments { totalCount }
+        reviews { totalCount }
       }
     }
   }
@@ -392,6 +398,8 @@ fn github_pr(n: &Value, me: &str, can_write: bool, project: &str, remote: &str, 
         approved_by_me,
         approved: n["reviewDecision"].as_str() == Some("APPROVED"),
         ci: n["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["state"].as_str().and_then(ci_state),
+        comments: n["comments"]["totalCount"].as_u64().unwrap_or(0) + n["reviews"]["totalCount"].as_u64().unwrap_or(0),
+        mentioned: false,
     }
 }
 
@@ -402,6 +410,7 @@ const GITHUB_INBOX: &str = "query {
   review: search(query: \"is:pr is:open archived:false review-requested:@me\", type: ISSUE, first: 50) { nodes { ...pr } }
   mine: search(query: \"is:pr is:open archived:false author:@me\", type: ISSUE, first: 50) { nodes { ...pr } }
   assigned: search(query: \"is:pr is:open archived:false assignee:@me\", type: ISSUE, first: 50) { nodes { ...pr } }
+  mentioned: search(query: \"is:pr is:open archived:false mentions:@me\", type: ISSUE, first: 30) { nodes { ...pr } }
 }
 fragment pr on PullRequest {
   number title url isDraft createdAt updatedAt
@@ -414,6 +423,8 @@ fragment pr on PullRequest {
   assignees(first: 20) { nodes { login } }
   repository { nameWithOwner viewerPermission }
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+  comments { totalCount }
+  reviews { totalCount }
 }";
 
 fn github_inbox(p: &Project, token: &str) -> Result<Vec<PullRequest>> {
@@ -423,7 +434,7 @@ fn github_inbox(p: &Project, token: &str) -> Result<Vec<PullRequest>> {
     }
     let me = text(&data["data"]["viewer"]["login"]);
     let mut out: Vec<PullRequest> = Vec::new();
-    for search in ["review", "mine", "assigned"] {
+    for search in ["review", "mine", "assigned", "mentioned"] {
         for n in data["data"][search]["nodes"].as_array().into_iter().flatten() {
             // Search results can be issues; those have no head branch.
             if n["number"].is_null() || n["headRefName"].is_null() {
@@ -437,10 +448,12 @@ fn github_inbox(p: &Project, token: &str) -> Result<Vec<PullRequest>> {
                 pr.review_requested = true;
                 pr.can_approve = !pr.mine;
             }
+            pr.mentioned = search == "mentioned";
             match out.iter_mut().find(|o| o.url == pr.url) {
                 Some(o) => {
                     o.review_requested |= pr.review_requested;
                     o.can_approve |= pr.can_approve;
+                    o.mentioned |= pr.mentioned;
                 }
                 None => out.push(pr),
             }
@@ -570,6 +583,8 @@ fn gitlab_pr(mr: &Value, approval: Option<&Value>, me: Option<&str>, project: &s
         approved_by_me,
         approved,
         ci: mr["head_pipeline"]["status"].as_str().and_then(ci_state),
+        comments: mr["user_notes_count"].as_u64().unwrap_or(0),
+        mentioned: false,
     }
 }
 
@@ -594,13 +609,28 @@ fn gitlab_inbox(p: &Project, token: &str) -> Result<Vec<PullRequest>> {
             }
         }
     }
+    // Mentions are to-dos on GitLab.
+    let todos = get(&format!("{}/todos?state=pending&type=MergeRequest&per_page=50", p.api), token).unwrap_or(Value::Null);
+    let mut mentioned = Vec::new();
+    for t in todos.as_array().into_iter().flatten() {
+        if !matches!(t["action_name"].as_str(), Some("mentioned" | "directly_addressed")) || t["target"]["state"].as_str() != Some("opened") {
+            continue;
+        }
+        let mr = &t["target"];
+        mentioned.push(mr["id"].clone());
+        if !mrs.iter().any(|m| m["id"] == mr["id"]) {
+            mrs.push(mr.clone());
+        }
+    }
     let approvals = gitlab_approvals(p, &mrs, Some(&me), token);
     Ok(mrs
         .iter()
         .zip(approvals)
         .filter_map(|(mr, approval)| {
             let project = format!("{}/{}", p.host, gitlab_project_of(mr["web_url"].as_str()?)?);
-            Some(gitlab_pr(mr, approval.as_ref(), Some(&me), &project, "", &p.account))
+            let mut pr = gitlab_pr(mr, approval.as_ref(), Some(&me), &project, "", &p.account);
+            pr.mentioned = mentioned.contains(&mr["id"]);
+            Some(pr)
         })
         .collect())
 }
@@ -753,7 +783,9 @@ pub fn inbox() -> Result<Inbox> {
 
 /// Approve a pull/merge request as the account's user. `project` is the
 /// request's `host/owner/repo` key and must be on the account's host.
-pub fn approve(account_id: &str, project: &str, number: u64) -> Result<()> {
+/// A project (`host/owner/repo`) reached with an account, which must be on
+/// the same host; with the account's token.
+fn account_project(account_id: &str, project: &str) -> Result<(Project, String)> {
     let account = accounts::list()?
         .into_iter()
         .find(|a| a.id == account_id)
@@ -765,6 +797,17 @@ pub fn approve(account_id: &str, project: &str, number: u64) -> Result<()> {
         .ok_or_else(|| Error::msg(format!("{project} isn't on {host}")))?;
     let project = project_in(&account, path.to_owned()).ok_or_else(|| Error::msg("Invalid account address"))?;
     let token = accounts::token(&account).ok_or_else(|| Error::msg("The account's token isn't in the system keyring"))?;
+    Ok((project, token))
+}
+
+/// A request's conversation from the account-wide list (no local remote).
+pub fn conversation_for(account_id: &str, project: &str, number: u64) -> Result<Conversation> {
+    let (p, token) = account_project(account_id, project)?;
+    conversation_in(&p, &token, number)
+}
+
+pub fn approve(account_id: &str, project: &str, number: u64) -> Result<()> {
+    let (project, token) = account_project(account_id, project)?;
     match project.provider.as_str() {
         "github" => github_approve(&project, &token, number),
         _ => gitlab_approve(&project, &token, number),
@@ -1332,6 +1375,10 @@ mod tests {
                     "web_url": format!("https://git.test/grp/app{id}/-/merge_requests/{iid}"),
                     "created_at": format!("2026-10-2{id}T10:00:00Z"), "updated_at": "2026-10-29T10:00:00Z" })
         };
+        let opened = |mut v: Value| {
+            v["state"] = json!("opened");
+            v
+        };
         let list = "GET /api/v4/merge_requests?state=opened&per_page=50&order_by=created_at&sort=desc&";
         let review = mr(1, 5, "ada", json!([{ "username": "me" }]), json!([]));
         let mine = mr(2, 6, "me", json!([]), json!([{ "username": "me" }]));
@@ -1341,9 +1388,19 @@ mod tests {
             // Assigned and created overlap: listed once.
             (Box::leak(format!("{list}scope=assigned_to_me").into_boxed_str()), json!([mine])),
             ("GET /api/v4/projects/41/merge_requests/5/approvals", json!({ "user_can_approve": true, "user_has_approved": false, "approved": false })),
+            ("GET /api/v4/todos?state=pending&type=MergeRequest", json!([
+                // On one already listed, and on another; a done/closed one isn't.
+                { "action_name": "mentioned", "target": opened(review.clone()) },
+                { "action_name": "directly_addressed", "target": opened(mr(3, 7, "bob", json!([]), json!([]))) },
+                { "action_name": "assigned", "target": opened(mr(4, 8, "bob", json!([]), json!([]))) },
+                { "action_name": "mentioned", "target": mr(5, 9, "bob", json!([]), json!([])) }
+            ])),
         ]);
         let items = gitlab_inbox(&project("gitlab", &format!("{addr}/api/v4"), "me"), "tok").unwrap();
-        assert_eq!(items.len(), 2);
+        assert_eq!(items.len(), 3);
+        let mentioned: Vec<u64> = items.iter().filter(|i| i.mentioned).map(|i| i.number).collect();
+        assert_eq!(mentioned, [5, 7]);
+        let items: Vec<PullRequest> = items.into_iter().filter(|i| i.number != 7).collect();
         let by = |n: u64| items.iter().find(|i| i.number == n).unwrap();
         assert!(by(5).review_requested && by(5).can_approve && !by(5).mine);
         assert_eq!(by(5).project, "git.test/grp/app1");
@@ -1366,12 +1423,19 @@ mod tests {
             // Requested through a team: not in reviewRequests by name.
             "review": { "nodes": [pr(1, "org/api", "READ", false)] },
             "mine": { "nodes": [pr(2, "me/tool", "ADMIN", true)] },
-            "assigned": { "nodes": [pr(2, "me/tool", "ADMIN", true), pr(3, "org/web", "WRITE", false), { "number": 9 }] } } });
+            "assigned": { "nodes": [pr(2, "me/tool", "ADMIN", true), pr(3, "org/web", "WRITE", false), { "number": 9 }] },
+            "mentioned": { "nodes": [pr(3, "org/web", "WRITE", false), pr(4, "org/docs", "READ", false)] } } });
+        let mut data = data;
+        data["data"]["review"]["nodes"][0]["comments"] = json!({ "totalCount": 2 });
+        data["data"]["review"]["nodes"][0]["reviews"] = json!({ "totalCount": 3 });
         let (addr, _) = serve(vec![("POST /graphql", data)]);
         let items = github_inbox(&project("github", &addr, "me"), "tok").unwrap();
-        assert_eq!(items.iter().map(|i| (i.number, i.can_approve)).collect::<Vec<_>>(), vec![(1, true), (2, false), (3, true)]);
+        assert_eq!(items.iter().map(|i| (i.number, i.can_approve)).collect::<Vec<_>>(), vec![(1, true), (2, false), (3, true), (4, false)]);
         assert!(items[0].review_requested && items[2].assigned);
         assert_eq!(items[0].project, "git.test/org/api");
+        // Comments and reviews counted; mentions flagged, also on one listed before.
+        assert_eq!(items[0].comments, 5);
+        assert_eq!(items.iter().map(|i| i.mentioned).collect::<Vec<_>>(), [false, false, true, true]);
     }
 
     #[test]

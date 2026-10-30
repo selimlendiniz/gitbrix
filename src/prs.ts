@@ -37,6 +37,12 @@ const MEMORY = "gitbrix.prs.memory";
 export interface Memory {
   seen: Record<string, string[]>;
   notified: string[];
+  /** Per request (account-wide list): comments counted at the last look… */
+  comments?: Record<string, number>;
+  /** …and when that was (ISO), to tell new comments from old. */
+  checked?: Record<string, string>;
+  /** Requests the user was already told they're mentioned in. */
+  mentions?: string[];
 }
 
 /** A list of requests checked as one: a project's, or an account's inbox. */
@@ -48,7 +54,14 @@ export interface Source {
 function loadMemory(): Memory {
   try {
     const raw = JSON.parse(localStorage.getItem(MEMORY) ?? "{}");
-    return { seen: raw?.seen ?? {}, notified: Array.isArray(raw?.notified) ? raw.notified : [] };
+    return {
+      seen: raw?.seen ?? {},
+      notified: Array.isArray(raw?.notified) ? raw.notified : [],
+      // Absent until the first look at comments, which only records.
+      comments: raw?.comments,
+      checked: raw?.checked,
+      mentions: Array.isArray(raw?.mentions) ? raw.mentions : undefined,
+    };
   } catch {
     return { seen: {}, notified: [] };
   }
@@ -109,7 +122,7 @@ export function newForReview(sources: Source[], mem: Memory): { fresh: PullReque
     const open = new Set(items.map(prKey));
     seen[key] = [...known.filter((k) => open.has(k)), ...added.map(prKey)];
   }
-  return { fresh, mem: { seen, notified: [...notified].slice(-500) } };
+  return { fresh, mem: { ...mem, seen, notified: [...notified].slice(-500) } };
 }
 
 function notify(prs: PullRequest[]) {
@@ -165,6 +178,86 @@ function show(prs: PullRequest[]) {
   invoke("plugin:notification|notify", { options }).catch(() => {});
 }
 
+/**
+ * What changed in the account-wide list since the last look: requests with
+ * more comments (to read), and ones the user is newly mentioned in. The
+ * first look only records. Requests gone from the list are forgotten.
+ */
+export function commentNews(items: PullRequest[], mem: Memory, now: string): { more: PullRequest[]; mentioned: PullRequest[]; since: Record<string, string>; mem: Memory } {
+  const counts = mem.comments ?? {};
+  const checked = mem.checked ?? {};
+  const known = new Set(mem.mentions ?? []);
+  const first = !mem.comments;
+  const more: PullRequest[] = [];
+  const mentioned: PullRequest[] = [];
+  const since: Record<string, string> = {};
+  const nextCounts: Record<string, number> = {};
+  const nextChecked: Record<string, string> = {};
+  for (const pr of items) {
+    const key = prKey(pr);
+    const n = pr.comments ?? 0;
+    nextCounts[key] = n;
+    nextChecked[key] = now;
+    if (!first && key in counts && n > counts[key]) {
+      more.push(pr);
+      since[key] = checked[key] ?? now;
+    }
+    if (pr.mentioned && !known.has(key) && !first) mentioned.push(pr);
+  }
+  const mentions = items.filter((p) => p.mentioned).map(prKey);
+  return { more, mentioned, since, mem: { ...mem, comments: nextCounts, checked: nextChecked, mentions } };
+}
+
+/** The user's name on the request's account (`provider|url|name`). */
+function me(pr: PullRequest): string {
+  return pr.account.split("|").pop() ?? "";
+}
+
+function firstLine(text: string): string {
+  const line = text.trim().split("\n")[0];
+  return line.length > 140 ? `${line.slice(0, 140)}…` : line;
+}
+
+/** Read the conversations that grew and tell about other people's new
+ * comments; then about mentions not covered by those. */
+async function tellComments(more: PullRequest[], mentioned: PullRequest[], since: Record<string, string>) {
+  const told = new Set<string>();
+  for (const pr of more) {
+    try {
+      const conv = await api.pullRequestConversationFor(pr.account, pr.project, pr.number);
+      const fresh = conv.comments.filter((c) => !c.system && c.author !== me(pr) && c.created > (since[prKey(pr)] ?? ""));
+      if (!fresh.length) continue;
+      told.add(prKey(pr));
+      const at = new RegExp(`@${me(pr).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w.-])`, "i");
+      const mention = fresh.find((c) => at.test(c.body));
+      const name = pr.project.split("/").pop();
+      const title =
+        mention
+          ? `${mention.author} mentioned you on ${prLabel(pr)} ${pr.title}`
+          : fresh.length === 1
+            ? `${fresh[0].author} commented on ${prLabel(pr)} ${pr.title}`
+            : `${fresh.length} new comments on ${prLabel(pr)} ${pr.title}`;
+      const body = mention ? firstLine(mention.body) : fresh.length === 1 ? firstLine(fresh[0].body) : [...new Set(fresh.map((c) => c.author))].join(", ");
+      invoke("plugin:notification|notify", { options: { title, body: `${body} · ${name}` } }).catch(() => {});
+    } catch {
+      // Not now: the next check sees the same comments as new.
+    }
+  }
+  for (const pr of mentioned) {
+    if (told.has(prKey(pr))) continue;
+    invoke("plugin:notification|notify", {
+      options: { title: `You were mentioned on ${prLabel(pr)} ${pr.title}`, body: `${pr.author} · ${pr.project.split("/").pop()}` },
+    }).catch(() => {});
+  }
+}
+
+function rememberComments(items: PullRequest[]) {
+  if (!isMainWindow) return;
+  const { more, mentioned, since, mem } = commentNews(items, loadMemory(), new Date().toISOString());
+  saveMemory(mem);
+  if (useSettings.getState().commentNotify) void tellComments(more, mentioned, since);
+}
+
 function remember(sources: Source[]) {
   // One window keeps the memory and notifies, so a request isn't
   // announced once per window.
@@ -217,6 +310,7 @@ export function loadInbox() {
       const res = await api.pullRequestInbox();
       patch({ ...res, error: undefined, loading: false });
       remember(inboxSources(res));
+      rememberComments(res.items);
       end(task);
     } catch (e) {
       patch({ error: errorText(e), loading: false });
