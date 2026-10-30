@@ -593,3 +593,9 @@ pub fn comment_pull_request(repo: String, remote: String, number: u64, body: Str
 pub fn merge_pull_request(repo: String, remote: String, number: u64, method: String, delete_branch: bool) -> Result<()> {
     forge::merge(&workdir(&repo)?, &remote, number, &method, delete_branch)
 }
+
+/// CI status of commits (only those that have one).
+#[tauri::command(async)]
+pub fn ci_statuses(repo: String, shas: Vec<String>) -> Result<std::collections::HashMap<String, forge::Ci>> {
+    forge::ci_statuses(&workdir(&repo)?, &shas)
+}

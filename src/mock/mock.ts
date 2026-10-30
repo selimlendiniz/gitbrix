@@ -16,6 +16,8 @@ declare global {
     __gitbrixPrs?: unknown;
     /** What `pull_request_inbox` answers; tests set it. */
     __gitbrixInbox?: unknown;
+    /** What `ci_statuses` answers; tests set it. */
+    __gitbrixCi?: Record<string, unknown>;
     /** Repositories `find_repos` finds; tests set it. */
     __gitbrixFound?: string[];
   }
@@ -91,6 +93,7 @@ const READS: Record<string, (a: Args) => unknown> = {
   find_repos: () => window.__gitbrixFound ?? [],
   get_profiles: () => profiles,
   terminal_open: () => 7,
+  ci_statuses: (a) => Object.fromEntries(Object.entries(window.__gitbrixCi ?? {}).filter(([sha]) => (a.shas as string[]).includes(sha))),
   pull_request_form: () => ({
     provider: "gitlab",
     project: "gitlab.com/team/demo-app",

@@ -754,3 +754,36 @@ test("review a request in the app: files, diff, comments, merge", async ({ page 
   await expect(panel).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("CI: marks on commits and requests; a click opens the pipeline", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript((first) => {
+    window.__gitbrixPrs = { items: [first], problems: [], covered: true, projects: ["gitlab.com/team/demo-app"] };
+  }, mr(6, { title: "Pipeline", ci: "running" }));
+  await page.goto("/?open");
+  const row = (text: string) => page.locator(".graph-row", { hasText: text });
+  await expect(row("Tidy up main")).toBeVisible();
+  const ids = await page.evaluate(() =>
+    Object.fromEntries([...document.querySelectorAll(".graph-row")].map((r) => [r.textContent ?? "", r.getAttribute("data-commit")])),
+  );
+  const idOf = (text: string) => Object.entries(ids).find(([t]) => t.includes(text))![1]!;
+  await page.evaluate(
+    ([a, b]) => {
+      window.__gitbrixCi = {
+        [a]: { state: "failed", url: "https://ci.example/p/2" },
+        [b]: { state: "success", url: "https://ci.example/p/1" },
+      };
+    },
+    [idOf("Tidy up main"), idOf("UI: dark theme")],
+  );
+  await page.getByTitle("Refresh (F5)").click();
+  await expect(row("Tidy up main").locator(".ci-mark.ci-failed")).toBeVisible();
+  await expect(row("UI: dark theme").locator(".ci-mark.ci-success")).toBeVisible();
+  await expect(row("Experiment: fast path").locator(".ci-mark")).toHaveCount(0);
+  await expect(page.locator(".pr-item", { hasText: "Pipeline" }).locator(".ci-running")).toBeVisible();
+  await page.screenshot({ path: "test-results/shots/ci-marks.png" });
+
+  await row("Tidy up main").locator(".ci-mark").click();
+  await expect.poll(() => lastCall(page, "plugin:opener|open_url")).toMatchObject({ url: "https://ci.example/p/2" });
+  expect(errors).toEqual([]);
+});

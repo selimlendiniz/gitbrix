@@ -60,6 +60,14 @@ export interface CreatedRequest {
   warning: string | null;
 }
 
+export type CiState = "success" | "failed" | "running" | "pending" | "canceled" | "skipped" | "manual";
+
+/** CI status of a commit, and where to see it. */
+export interface Ci {
+  state: CiState;
+  url: string;
+}
+
 /** A request's own commits: from where it leaves its target to its head. */
 export interface RequestRange {
   base: string;
@@ -358,6 +366,8 @@ export interface PullRequest {
   canApprove: boolean;
   approvedByMe: boolean;
   approved: boolean;
+  /** CI on the latest commit; null without CI. */
+  ci?: CiState | null;
 }
 
 export interface PullRequests {
@@ -502,6 +512,9 @@ export const api = {
     invoke<void>("comment_pull_request", { repo, remote, number, body }),
   mergePullRequest: (repo: string, remote: string, number: number, method: MergeMethod, deleteBranch: boolean) =>
     invoke<void>("merge_pull_request", { repo, remote, number, method, deleteBranch }),
+
+  /** CI status of commits; those without CI are left out. */
+  ciStatuses: (repo: string, shas: string[]) => invoke<Record<string, Ci>>("ci_statuses", { repo, shas }),
 
   repoSummaries: (paths: string[]) => invoke<RepoSummary[]>("repo_summaries", { paths }),
   /** Repositories in a folder, up to three levels down. */

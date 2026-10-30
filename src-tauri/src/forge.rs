@@ -3,6 +3,7 @@
 //! (see `accounts`); remotes without one are skipped. The token only goes
 //! to that account's host, and redirects are never followed.
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -50,6 +51,9 @@ pub struct PullRequest {
     pub approved_by_me: bool,
     /// Approved enough to merge, as far as the service says.
     pub approved: bool,
+    /// CI on the latest commit: `success`, `failed`, `running`, `pending`,
+    /// `canceled`, `skipped` or `manual`; none without CI.
+    pub ci: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -312,6 +316,7 @@ const GITHUB_QUERY: &str = "query($owner: String!, $name: String!) {
         reviewDecision
         viewerLatestReview { state }
         reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } }
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
       }
     }
   }
@@ -375,6 +380,7 @@ fn github_pr(n: &Value, me: &str, can_write: bool, project: &str, remote: &str, 
         can_approve: !mine && !approved_by_me && (can_write || review_requested),
         approved_by_me,
         approved: n["reviewDecision"].as_str() == Some("APPROVED"),
+        ci: n["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["state"].as_str().and_then(ci_state),
     }
 }
 
@@ -396,6 +402,7 @@ fragment pr on PullRequest {
   reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } }
   assignees(first: 20) { nodes { login } }
   repository { nameWithOwner viewerPermission }
+  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
 }";
 
 fn github_inbox(p: &Project, token: &str) -> Result<Vec<PullRequest>> {
@@ -460,11 +467,32 @@ fn gitlab_list(p: &Project, remote: &str, token: &str) -> Result<Vec<PullRequest
     let mrs = list.as_array().cloned().unwrap_or_default();
     let project = format!("{}/{}", p.host, p.path);
     let approvals = gitlab_approvals(p, &mrs, me.as_deref(), token);
+    // The list leaves out each MR's pipeline; the project's recent ones
+    // (one call) cover the open MRs' latest commits.
+    let pipelines = gitlab_pipelines(p, token).unwrap_or_default();
     Ok(mrs
         .iter()
         .zip(approvals)
-        .map(|(mr, approval)| gitlab_pr(mr, approval.as_ref(), me.as_deref(), &project, remote, &p.account))
+        .map(|(mr, approval)| {
+            let mut pr = gitlab_pr(mr, approval.as_ref(), me.as_deref(), &project, remote, &p.account);
+            if pr.ci.is_none() {
+                pr.ci = mr["sha"].as_str().and_then(|sha| pipelines.get(sha)).map(|c| c.state.clone());
+            }
+            pr
+        })
         .collect())
+}
+
+/// Latest pipeline per commit among the project's 100 most recent.
+fn gitlab_pipelines(p: &Project, token: &str) -> Result<HashMap<String, Ci>> {
+    let url = format!("{}/projects/{}/pipelines?per_page=100&order_by=id&sort=desc", p.api, encode(&p.path));
+    let mut out = HashMap::new();
+    for pl in get(&url, token)?.as_array().into_iter().flatten() {
+        let (Some(sha), Some(state)) = (pl["sha"].as_str(), pl["status"].as_str().and_then(ci_state)) else { continue };
+        // Newest first: keep the first seen.
+        out.entry(sha.to_owned()).or_insert(Ci { state, url: text(&pl["web_url"]) });
+    }
+    Ok(out)
 }
 
 /// Each MR's approvals (the only place that says whether the user may
@@ -530,6 +558,7 @@ fn gitlab_pr(mr: &Value, approval: Option<&Value>, me: Option<&str>, project: &s
         can_approve: can_approve && !mine && !approved_by_me,
         approved_by_me,
         approved,
+        ci: mr["head_pipeline"]["status"].as_str().and_then(ci_state),
     }
 }
 
@@ -993,6 +1022,35 @@ mod tests {
         merge_in(&gl, "tok", 9, "squash", true).unwrap();
         assert_eq!(bodies.lock().unwrap()[0].1, json!({ "squash": true, "should_remove_source_branch": true }));
         assert!(merge_in(&gl, "tok", 9, "rebase", false).is_err());
+    }
+
+    #[test]
+    fn ci_comes_from_gitlab_pipelines_and_github_rollups() {
+        let a = "a".repeat(40);
+        let b = "b".repeat(40);
+        let (addr, _) = serve(vec![("GET /api/v4/projects/team%2Fapp/pipelines", json!([
+            { "sha": a, "status": "running", "web_url": "https://git.test/p/3" },
+            { "sha": a, "status": "failed", "web_url": "https://git.test/p/2" },
+            { "sha": b, "status": "success", "web_url": "https://git.test/p/1" },
+            { "sha": "c".repeat(40), "status": "success", "web_url": "https://git.test/p/0" }
+        ]))]);
+        let gl = ci_in(&project("gitlab", &format!("{addr}/api/v4"), "me"), "tok", &[a.clone(), b.clone()]).unwrap();
+        // The newest pipeline of a commit wins; commits not asked for stay out.
+        assert_eq!(gl.len(), 2);
+        assert_eq!(gl[&a], Ci { state: "running".into(), url: "https://git.test/p/3".into() });
+        assert_eq!(gl[&b].state, "success");
+
+        let (addr, _, bodies) = serve_bodies(vec![("POST /graphql", json!({ "data": { "repository": {
+            "c0": { "statusCheckRollup": { "state": "FAILURE" } },
+            "c1": { "statusCheckRollup": null }
+        } } }))]);
+        let gh = ci_in(&project("github", &addr, "me"), "tok", &[a.clone(), b.clone(), "not-a-sha\") { x }".into()]).unwrap();
+        assert_eq!(gh.len(), 1);
+        assert_eq!(gh[&a], Ci { state: "failed".into(), url: format!("https://git.test/team/app/commit/{a}/checks") });
+        let query = bodies.lock().unwrap()[0].1["query"].as_str().unwrap().to_owned();
+        assert!(query.contains(&format!("c0: object(oid: \"{a}\")")) && !query.contains("not-a-sha"), "{query}");
+        assert_eq!(ci_state("EXPECTED").as_deref(), Some("pending"));
+        assert_eq!(ci_state("weird"), None);
     }
 
     #[test]
@@ -1560,4 +1618,81 @@ fn live_review() {
     let provider = provider_of_remote(dir.path(), "origin").unwrap();
     let range = crate::git::net::pull_request_range(dir.path(), "origin", &provider, number, "main", &mut |_| {}).unwrap();
     println!("{range:?}");
+}
+
+// ---------------------------------------------------------------------------
+// CI
+
+/// CI status of a commit, and where to see it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ci {
+    pub state: String,
+    pub url: String,
+}
+
+/// One word for the services' many: see `PullRequest::ci`.
+fn ci_state(s: &str) -> Option<String> {
+    Some(
+        match s.to_ascii_lowercase().as_str() {
+            "success" => "success",
+            "failure" | "failed" | "error" => "failed",
+            "running" => "running",
+            "pending" | "expected" | "created" | "waiting_for_resource" | "preparing" | "scheduled" => "pending",
+            "canceled" | "cancelled" => "canceled",
+            "skipped" => "skipped",
+            "manual" => "manual",
+            _ => return None,
+        }
+        .to_owned(),
+    )
+}
+
+fn is_sha(s: &str) -> bool {
+    s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// GitHub: one GraphQL query asks for many commits by alias.
+fn github_ci(p: &Project, token: &str, shas: &[String]) -> Result<HashMap<String, Ci>> {
+    let (owner, name) = p.path.split_once('/').ok_or_else(|| Error::msg("Not a GitHub repository path"))?;
+    let mut out = HashMap::new();
+    let shas: Vec<&String> = shas.iter().filter(|s| is_sha(s)).collect();
+    for chunk in shas.chunks(50) {
+        let fields: String = chunk
+            .iter()
+            .enumerate()
+            .map(|(i, sha)| format!("c{i}: object(oid: \"{sha}\") {{ ... on Commit {{ statusCheckRollup {{ state }} }} }}\n"))
+            .collect();
+        let query = format!("query($owner: String!, $name: String!) {{ repository(owner: $owner, name: $name) {{\n{fields}}} }}");
+        let body = json!({ "query": query, "variables": { "owner": owner, "name": name } });
+        let data = request("POST", &p.graphql, token, Some(&body))?;
+        if let Some(err) = data["errors"].as_array().and_then(|e| e.first()) {
+            return Err(Error::msg(format!("{}: {}", p.host, text(&err["message"]))));
+        }
+        let repo = &data["data"]["repository"];
+        for (i, sha) in chunk.iter().enumerate() {
+            if let Some(state) = repo[format!("c{i}")]["statusCheckRollup"]["state"].as_str().and_then(ci_state) {
+                out.insert((*sha).clone(), Ci { state, url: format!("https://{}/{}/commit/{sha}/checks", p.host, p.path) });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// CI status of the given commits, from the project of the first remote
+/// (origin first) an account covers. Commits without CI are left out.
+pub fn ci_statuses(repo: &Path, shas: &[String]) -> Result<HashMap<String, Ci>> {
+    let all = accounts::usable(Some(repo))?;
+    let Some((p, account)) = remotes(repo)?.into_iter().find_map(|(_, url)| project_for(&url, &all)) else {
+        return Ok(HashMap::new());
+    };
+    let token = accounts::token(&account).ok_or_else(|| Error::msg("The account's token isn't in the system keyring"))?;
+    ci_in(&p, &token, shas)
+}
+
+fn ci_in(p: &Project, token: &str, shas: &[String]) -> Result<HashMap<String, Ci>> {
+    match p.provider.as_str() {
+        "github" => github_ci(p, token, shas),
+        _ => Ok(gitlab_pipelines(p, token)?.into_iter().filter(|(sha, _)| shas.contains(sha)).collect()),
+    }
 }

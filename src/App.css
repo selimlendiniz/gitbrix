@@ -1280,6 +1280,56 @@ textarea {
   background: var(--bg-select);
 }
 
+.ci-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-dim);
+  border: 1px solid currentColor;
+}
+
+.ci-mark.link {
+  cursor: pointer;
+}
+
+.ci-success {
+  color: var(--add);
+}
+
+.ci-failed {
+  color: var(--danger);
+}
+
+.ci-running,
+.ci-pending,
+.ci-manual {
+  color: var(--warn);
+}
+
+.ci-running {
+  animation: ci-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ci-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ci-running {
+    animation: none;
+  }
+}
+
 .settings-inline {
   display: flex;
   align-items: center;

@@ -37,6 +37,7 @@ import { undoLast } from "./undo";
 import { backgroundFetch } from "./actions";
 import { loadInbox, loadPrs, usePrView } from "./prs";
 import { loadIdentity, loadProfiles } from "./profiles";
+import { loadCi } from "./ci";
 
 function isTyping(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
@@ -154,6 +155,24 @@ function usePullRequests() {
   }, [minutes]);
 }
 
+/** CI marks: read again when branch tips or the newest commit change,
+ * and with the pull request checks. */
+function useCiStatus() {
+  const repoPath = useStore((s) => s.repo?.path);
+  const tips = useStore((s) => (s.graph ? `${s.graph.commits.find((c) => c.kind === "commit")?.id}|${s.graph.refs.map((r) => r.target).join(",")}` : ""));
+  const minutes = useSettings((s) => s.prPoll);
+  useEffect(() => {
+    if (!repoPath || !tips) return;
+    const id = setTimeout(() => void loadCi(), 500);
+    return () => clearTimeout(id);
+  }, [repoPath, tips]);
+  useEffect(() => {
+    if (!minutes) return;
+    const id = setInterval(() => void loadCi(), minutes * 60_000);
+    return () => clearInterval(id);
+  }, [minutes]);
+}
+
 /** Profiles at start; the open repository's commit identity on switching. */
 function useProfiles() {
   const repoPath = useStore((s) => s.repo?.path ?? null);
@@ -189,6 +208,7 @@ export default function App() {
   useAutoFetch();
   usePullRequests();
   useProfiles();
+  useCiStatus();
   useFolderDrop();
   const selectedId = useStore((s) => s.selectedId);
   const compareId = useStore((s) => s.compareId);

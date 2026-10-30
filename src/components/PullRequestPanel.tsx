@@ -9,6 +9,7 @@ import { approvePullRequest, checkoutPullRequest } from "../actions";
 import { relativeTime } from "../format";
 import { loadInbox, loadPrs, prLabel, usePrView, wantsReview } from "../prs";
 import { useStore } from "../store";
+import { CiMark } from "./CiMark";
 import { FileList } from "./FileList";
 
 const when = (iso: string) => {
@@ -185,6 +186,7 @@ export function PullRequestPanel() {
           {pr.draft && <span className="pr-badge">draft</span>}
           {wantsReview(pr) && <span className="pr-badge review">{pr.reviewRequested ? "review" : "approve"}</span>}
           {pr.approved && <span className="pr-badge ok">approved</span>}
+          {pr.ci && <CiMark state={pr.ci} url={pr.url} />}
         </div>
         <div className="commit-summary">{pr.title}</div>
         <div className="pr-panel-meta dim">

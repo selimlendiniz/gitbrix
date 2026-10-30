@@ -11,6 +11,8 @@ import { drawGraph, graphWidth, ROW_H } from "../graph/draw";
 import { primaryRef, RefPill, refsByCommit } from "../graph/refs";
 import { useStore } from "../store";
 import { IconClose, IconCloud, IconLaptop, IconSearch, IconStash, IconTag } from "./Icons";
+import { useCi } from "../ci";
+import { CiMark } from "./CiMark";
 
 const REFS_W = 190;
 const MAX_GRAPH_W = 320;
@@ -386,6 +388,7 @@ interface RowProps {
 const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills, selected, compared, dim, wip, onSelect, onMenu }: RowProps) {
   const color = laneColor(c.color);
   const dateFormat = useSettings((s) => s.dateFormat);
+  const ci = useCi((s) => s.statuses[c.id]);
   return (
     <div
       className={`graph-row${selected ? " selected" : ""}${compared ? " compared" : ""}${wip ? " wip" : ""}${dim ? " dim" : ""}`}
@@ -426,7 +429,10 @@ const GraphRow = memo(function GraphRow({ commit: c, index, columns, show, pills
             <IconStash size={12} /> {c.summary}
           </span>
         ) : (
-          <span title={`${c.summary}\n${c.id.slice(0, 10)} · ${c.authorName}`}>{c.summary}</span>
+          <>
+            {ci && <CiMark state={ci.state} url={ci.url} />}
+            <span title={`${c.summary}\n${c.id.slice(0, 10)} · ${c.authorName}`}>{c.summary}</span>
+          </>
         )}
       </div>
       {show.author && (

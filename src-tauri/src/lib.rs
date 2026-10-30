@@ -119,6 +119,7 @@ pub fn run() {
             commands::pull_request_conversation,
             commands::comment_pull_request,
             commands::merge_pull_request,
+            commands::ci_statuses,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

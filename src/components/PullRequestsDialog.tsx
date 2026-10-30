@@ -10,6 +10,7 @@ import { approvePullRequest } from "../actions";
 import { relativeTime } from "../format";
 import { loadInbox, openPullRequest, prKey, prLabel, usePrs, wantsReview } from "../prs";
 import { useStore } from "../store";
+import { CiMark } from "./CiMark";
 import { IconFetch, IconPullRequest } from "./Icons";
 import { useSettingsDialog } from "./SettingsDialog";
 
@@ -82,6 +83,7 @@ function Row({ pr }: { pr: PullRequest }) {
       <div className="pr-row-main">
         <span className="pr-number">{prLabel(pr)}</span>
         <span className="pr-title">{pr.title}</span>
+        {pr.ci && <CiMark state={pr.ci} />}
         {pr.draft && <span className="pr-badge">draft</span>}
         {wantsReview(pr) && <span className="pr-badge review">{pr.reviewRequested ? "review" : "approve"}</span>}
         {pr.approved && <span className="pr-badge ok">approved</span>}

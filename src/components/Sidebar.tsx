@@ -7,6 +7,7 @@ import { createPullRequest, loadPrs, openPullRequest, prLabel, usePrs, usePrView
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
 import { IconEye, IconEyeOff, IconFetch, IconFolder, IconBranch, IconChevron, IconCloud, IconLaptop, IconPlus, IconPullRequest, IconStash, IconTag } from "./Icons";
+import { CiMark } from "./CiMark";
 
 function Section({
   title,
@@ -335,6 +336,7 @@ function PullRequestItem({ pr, onSelect, onMenu }: { pr: PullRequest; onSelect: 
     >
       <span className="pr-number">{prLabel(pr)}</span>
       <span className="side-item-label">{pr.title}</span>
+      {pr.ci && <CiMark state={pr.ci} />}
       {pr.draft && <span className="pr-badge">draft</span>}
       {wantsReview(pr) && <span className="pr-badge review">{pr.reviewRequested ? "review" : "approve"}</span>}
       {pr.approved && <span className="pr-badge ok" title={pr.approvedByMe ? "Approved (you too)" : "Approved"}>✓</span>}
