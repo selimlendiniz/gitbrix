@@ -50,6 +50,13 @@ export function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/** The last part of a path on this machine. A Windows path may use either
+ *  slash; elsewhere a backslash is an ordinary character of a file name. */
+export function fileName(path: string): string {
+  const windows = /^([A-Za-z]:[\\/]|\\\\)/.test(path);
+  return path.split(windows ? /[\\/]/ : "/").filter(Boolean).pop() ?? path;
+}
+
 /** Last path segment and the directory before it. */
 export function splitPath(path: string): { dir: string; base: string } {
   const i = path.lastIndexOf("/");

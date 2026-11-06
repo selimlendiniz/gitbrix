@@ -3,6 +3,7 @@ import { ReactNode, useMemo, useState } from "react";
 import { PullRequest, RefInfo, RemoteInfo } from "../api";
 import { addRemote, addWorktree, checkoutPullRequest, checkoutRef, prMenu, submoduleMenu, updateSubmodules, worktreeMenu, createBranch, refMenu, remoteMenu, remoteOf, stashMenu, toggleHidden, toggleSolo } from "../actions";
 import { beginDrag, dropTarget } from "../dnd";
+import { fileName } from "../format";
 import { createPullRequest, loadPrs, openPullRequest, prLabel, usePrs, usePrView, wantsReview } from "../prs";
 import { useStore } from "../store";
 import { buildTree, RefTree } from "./RefTree";
@@ -197,7 +198,7 @@ export function Sidebar() {
                   }}
                 >
                   {current && <span className="side-head-dot" />}
-                  <span className="side-item-label">{wt.path.split("/").pop()}</span>
+                  <span className="side-item-label">{fileName(wt.path)}</span>
                   <span className="side-count">{wt.main ? "main" : (wt.branch ?? "detached")}</span>
                 </div>
               );

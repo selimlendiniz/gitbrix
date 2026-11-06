@@ -212,8 +212,8 @@ mod tests {
 
     #[test]
     fn home_folders_expand() {
-        let home = std::env::var("HOME").unwrap();
+        let home = crate::host::home_dir().unwrap();
         let all = Profiles { active: None, list: vec![profile("work", &["~/work"], &[])] };
-        assert!(pick(&all, Some(&Path::new(&home).join("work/app"))).is_some());
+        assert!(pick(&all, Some(&home.join("work/app"))).is_some());
     }
 }

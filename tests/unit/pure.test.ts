@@ -8,7 +8,7 @@ import { planProblems, Row } from "../../src/components/RebaseView";
 import { buildTree, countLeaves } from "../../src/components/RefTree";
 import { nameFromUrl } from "../../src/components/RepoDialogs";
 import { splitRows } from "../../src/diff/split";
-import { initials, relativeTime, splitPath } from "../../src/format";
+import { fileName, initials, relativeTime, splitPath } from "../../src/format";
 import { refsByCommit } from "../../src/graph/refs";
 
 const line = (kind: DiffLine["kind"], text: string): DiffLine => ({ kind, text, oldNo: null, newNo: null });
@@ -82,6 +82,17 @@ describe("format", () => {
   it("splits paths", () => {
     expect(splitPath("src/a/b.ts")).toEqual({ dir: "src/a/", base: "b.ts" });
     expect(splitPath("README.md")).toEqual({ dir: "", base: "README.md" });
+  });
+
+  it("names files and folders on either system", () => {
+    expect(fileName("/home/me/code/app")).toBe("app");
+    expect(fileName("/home/me/code/app/")).toBe("app");
+    expect(fileName("/home/me/odd\\name")).toBe("odd\\name");
+    expect(fileName("C:\\Users\\me\\app")).toBe("app");
+    expect(fileName("C:/Users/me/app/")).toBe("app");
+    expect(fileName("C:\\Users\\me/mixed\\app.patch")).toBe("app.patch");
+    expect(fileName("\\\\server\\share\\app")).toBe("app");
+    expect(fileName("app")).toBe("app");
   });
 });
 

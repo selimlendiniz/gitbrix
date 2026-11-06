@@ -70,7 +70,7 @@ fn percent_decode(s: &str) -> String {
 /// Credentials saved by git's `store` helper (`~/.git-credentials`).
 fn stored_credentials(url: &str) -> Option<(String, String)> {
     let (scheme, host, _) = accounts::split_url(url)?;
-    let home = std::env::var_os("HOME").map(PathBuf::from)?;
+    let home = crate::host::home_dir()?;
     let config = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home.join(".config"));
     for file in [home.join(".git-credentials"), config.join("git/credentials")] {
         let Ok(text) = std::fs::read_to_string(file) else { continue };

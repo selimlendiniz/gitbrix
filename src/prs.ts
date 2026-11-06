@@ -9,6 +9,7 @@ import { create } from "zustand";
 
 import { api, Conversation, errorText, PullRequest, PullRequestInbox, PullRequests, RefInfo, RequestRange } from "./api";
 import { begin, end } from "./activity";
+import { fileName } from "./format";
 import { useSettings } from "./settings";
 import { useStore } from "./store";
 import { isMainWindow } from "./windows";
@@ -286,7 +287,7 @@ export function loadPrs(repo: string) {
     usePrs.setState((s) => ({ byRepo: { ...s.byRepo, [repo]: { ...(s.byRepo[repo] ?? empty), ...p } } }));
   return once(repo, async () => {
     patch({ loading: true });
-    const task = begin(`Checking pull requests of ${repo.split("/").pop()}`);
+    const task = begin(`Checking pull requests of ${fileName(repo)}`);
     try {
       const res = await api.pullRequests(repo);
       patch({ ...res, error: undefined, loading: false });

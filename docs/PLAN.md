@@ -6,9 +6,9 @@ visual design; no third-party branding or assets.
 ## Stack
 
 - **Shell:** Tauri 2 (Linux: WebKitGTK 4.1)
-- **Backend:** Rust. Reads via `git2` (libgit2, no network features);
-  writes and network ops via the `git` CLI so hooks, credential helpers,
-  `~/.ssh/config` and GPG signing behave exactly like the terminal.
+- **Backend:** Rust. Everything goes through `git2` (libgit2); the `git`
+  program isn't needed. Hooks, signing and ssh run the system's own programs
+  so that they behave exactly like the terminal.
 - **Frontend:** React 19 + TypeScript + Vite, Zustand for state.
   Commit graph drawn on `<canvas>` with fixed-height row virtualization;
   lane layout is computed in Rust.

@@ -5,6 +5,7 @@ import { create } from "zustand";
 
 import { begin, end } from "./activity";
 import { api, errorText, PullRequest, RepoSummary } from "./api";
+import { fileName } from "./format";
 import { loadPrs, openPullRequest } from "./prs";
 import { useStore } from "./store";
 
@@ -156,7 +157,7 @@ export function deleteWorkspace(id: string) {
 }
 
 export function folderName(path: string): string {
-  return path.split("/").filter(Boolean).pop() ?? path;
+  return fileName(path);
 }
 
 function unique(paths: string[]): string[] {

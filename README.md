@@ -88,7 +88,7 @@ conflicts and continue the same way.
 **Accounts.** For https remotes add a GitHub or GitLab account (self-hosted
 GitLab too) with a personal access token in Settings → Accounts. The token
 is checked with the service, kept in the system keyring (KWallet, GNOME
-Keyring) and sent only to that host over https. `~/.git-credentials` is
+Keyring, Windows Credential Manager) and sent only to that host over https. `~/.git-credentials` is
 read as a fallback.
 
 **Pull / merge requests.** With an account, the sidebar lists the open pull
@@ -178,6 +178,14 @@ libappindicator-gtk3-devel librsvg2-devel libxdo-devel dbus-devel`; for
 e2e also `webkitgtk6.0` (provides `WebKitWebDriver`) and
 `xorg-x11-server-Xvfb`. The tests build their scratch repositories with
 the `git` CLI; the app itself doesn't use it.
+
+On Windows the app needs no Git installation, except that hooks and
+commands written for git (`core.sshCommand`, a bisect's test command) run
+through the `sh` of Git for Windows. Without it a repository's hook stops
+with a message saying so, and those commands go through `cmd`. ssh remotes
+use the OpenSSH client that comes with Windows; there is no prompt for a
+passphrase or a new host key, so use the agent and accept the host in a
+terminal first.
 
 ## Layout
 

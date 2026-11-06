@@ -248,9 +248,7 @@ pub fn run(repo: &Path, command: &str, progress: &mut dyn FnMut(&str)) -> Result
         }
         let current = st.current.clone().unwrap_or_default();
         progress(&format!("Step {step}: testing {}", &current[..current.len().min(7)]));
-        let out = crate::host::command("sh", &[])
-            .arg("-c")
-            .arg(command)
+        let out = crate::host::shell_command(command, &[], &[])
             .current_dir(&workdir)
             .output()
             .map_err(|e| Error::msg(format!("Couldn't run the command: {e}")))?;

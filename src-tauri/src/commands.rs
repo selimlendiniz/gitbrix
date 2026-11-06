@@ -34,7 +34,7 @@ fn oid(s: &str) -> Result<Oid> {
 pub fn initial_repo() -> Option<String> {
     let arg = std::env::args_os().skip(1).find(|a| !a.to_string_lossy().starts_with('-'))?;
     let path = std::fs::canonicalize(arg).ok()?;
-    Some(path.to_string_lossy().into_owned())
+    Some(crate::host::plain_path(&path.to_string_lossy()))
 }
 
 #[tauri::command(async)]

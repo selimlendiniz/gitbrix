@@ -26,6 +26,8 @@ fn hooks_dir(r: &Repository) -> PathBuf {
 /// The hook's path, if it exists and is executable (git ignores the rest).
 fn find(r: &Repository, name: &str) -> Option<PathBuf> {
     let path = hooks_dir(r).join(name);
+    #[cfg(windows)]
+    let path = if path.is_file() { path } else { path.with_file_name(format!("{name}.exe")) };
     let meta = std::fs::metadata(&path).ok()?;
     #[cfg(unix)]
     {
@@ -50,7 +52,10 @@ pub fn exists(r: &Repository, name: &str) -> bool {
 pub fn run(r: &Repository, name: &str, args: &[&str], stdin: Option<&str>) -> Result<()> {
     let Some(hook) = find(r, name) else { return Ok(()) };
     let index = r.path().join("index");
-    let mut cmd = crate::host::command(&hook, &[("GIT_INDEX_FILE", index.as_os_str()), ("GIT_EDITOR", OsStr::new(":"))]);
+    let envs = [("GIT_INDEX_FILE", index.as_os_str()), ("GIT_EDITOR", OsStr::new(":"))];
+    let Some(mut cmd) = crate::host::script(&hook, &envs) else {
+        return Err(Error::msg(format!("The {name} hook needs sh, which comes with Git for Windows")));
+    };
     cmd.args(args)
         .current_dir(r.workdir().unwrap_or_else(|| r.path()))
         .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })

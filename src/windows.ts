@@ -5,6 +5,7 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 import { errorText } from "./api";
+import { fileName } from "./format";
 
 const params = new URLSearchParams(typeof location === "undefined" ? "" : location.search);
 
@@ -22,7 +23,7 @@ export function openWindow(repo?: string, onError?: (text: string) => void) {
   const query = new URLSearchParams({ window: label, ...(repo ? { repo } : {}) });
   const w = new WebviewWindow(label, {
     url: `/?${query}`,
-    title: repo ? `${repo.split("/").pop()} — gitbrix` : "gitbrix",
+    title: repo ? `${fileName(repo)} — gitbrix` : "gitbrix",
     width: 1300,
     height: 840,
     minWidth: 900,

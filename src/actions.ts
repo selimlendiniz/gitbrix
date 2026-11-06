@@ -6,7 +6,7 @@ import { open as pickFile, save as pickSaveFile } from "@tauri-apps/plugin-dialo
 import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 
 import { api, CommitRow, errorText, PullMode, PullRequest, RebaseStep, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
-import { shortId } from "./format";
+import { fileName, shortId } from "./format";
 import { DragItem, DropAction, DropTarget, setDropResolver } from "./dnd";
 import { bisectMenu } from "./bisect";
 import { useRelease } from "./components/ReleaseDialog";
@@ -585,18 +585,18 @@ async function patchText(ids: string[], from: string | null): Promise<string | n
   }
 }
 
-export async function savePatch(ids: string[], from: string | null, fileName: string) {
+export async function savePatch(ids: string[], from: string | null, suggested: string) {
   const text = await patchText(ids, from);
   if (text === null) return;
   try {
     const path = await pickSaveFile({
       title: "Save patch",
-      defaultPath: fileName,
+      defaultPath: suggested,
       filters: [{ name: "Patch", extensions: ["patch", "diff"] }],
     });
     if (!path) return;
     await api.saveTextFile(path, text);
-    s().toast("info", `Saved ${path.split("/").pop()}`);
+    s().toast("info", `Saved ${fileName(path)}`);
   } catch (e) {
     s().toast("error", errorText(e));
   }
@@ -625,7 +625,7 @@ export async function applyPatchFile(asCommits: boolean) {
     return;
   }
   if (!path) return;
-  const name = path.split("/").pop();
+  const name = fileName(path);
   if (asCommits) {
     let subjects: string[] = [];
     try {
@@ -1021,15 +1021,12 @@ export function graphItems(ref: RefInfo): MenuItem[] {
 
 // ---------- worktrees ----------
 
-function baseName(path: string): string {
-  return path.replace(/\/+$/, "").split("/").pop() ?? path;
-}
-
 /** Suggested location: next to the repository, named after the branch. */
 export function worktreePath(repoPath: string, branch: string): string {
-  const root = repoPath.replace(/\/+$/, "");
-  const parent = root.slice(0, root.lastIndexOf("/"));
-  return `${parent}/${baseName(root)}-${branch.replace(/[^\w.-]+/g, "-")}`;
+  const root = repoPath.replace(/[\\/]+$/, "");
+  const name = fileName(root);
+  const parent = root.slice(0, root.length - name.length - 1);
+  return `${parent}/${name}-${branch.replace(/[^\w.-]+/g, "-")}`;
 }
 
 export async function addWorktree(branch?: RefInfo) {

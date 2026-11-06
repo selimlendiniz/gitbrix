@@ -6,6 +6,7 @@ import { create } from "zustand";
 
 import { api, errorText, Issue, Issues } from "./api";
 import { begin, end } from "./activity";
+import { fileName } from "./format";
 import { pushUndo } from "./undo";
 import { useStore } from "./store";
 
@@ -29,7 +30,7 @@ export async function loadIssues(repo: string) {
   const patch = (p: Partial<RepoIssues>) =>
     useIssues.setState((s) => ({ byRepo: { ...s.byRepo, [repo]: { ...(s.byRepo[repo] ?? empty), ...p } } }));
   patch({ loading: true });
-  const task = begin(`Checking issues of ${repo.split("/").pop()}`);
+  const task = begin(`Checking issues of ${fileName(repo)}`);
   try {
     const res = await api.issues(repo);
     patch({ ...res, error: undefined, loading: false });

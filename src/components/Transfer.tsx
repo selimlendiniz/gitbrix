@@ -6,6 +6,7 @@ import { useState } from "react";
 import { create } from "zustand";
 
 import { api, errorText } from "../api";
+import { fileName } from "../format";
 import { applyImport, exportText, Exported, parseExport, Part } from "../transfer";
 import { useStore } from "../store";
 
@@ -21,7 +22,7 @@ async function exportFile() {
     });
     if (!path) return;
     await api.saveTextFile(path, await exportText());
-    toast("info", `Saved ${path.split("/").pop()} (no tokens in it)`);
+    toast("info", `Saved ${fileName(path)} (no tokens in it)`);
   } catch (e) {
     toast("error", errorText(e));
   }
@@ -32,7 +33,7 @@ async function importFile() {
   try {
     const path = await pickFile({ title: "Import settings", filters: [{ name: "gitbrix settings", extensions: ["json"] }] });
     if (typeof path !== "string") return;
-    useImport.setState({ data: parseExport(await api.readTextFile(path)), name: path.split("/").pop() ?? path });
+    useImport.setState({ data: parseExport(await api.readTextFile(path)), name: fileName(path) });
   } catch (e) {
     toast("error", errorText(e));
   }

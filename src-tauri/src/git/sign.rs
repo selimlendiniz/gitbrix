@@ -120,6 +120,7 @@ impl Scratch {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
         // ssh-keygen may run on the host (Flatpak): a folder both sides see.
         let path = crate::host::shared_temp_dir().join(format!("gitbrix-sign-{}-{nanos}", std::process::id()));
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
         {

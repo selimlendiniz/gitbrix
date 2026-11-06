@@ -58,7 +58,7 @@ export function AppMenu({ onQuit, onCloseWindow }: { onQuit: () => void; onClose
                 { label: "Recent", disabled: true },
                 ...recent.map((r) => ({
                   label: r.name,
-                  hint: r.path.replace(/^\/home\/[^/]+/, "~"),
+                  hint: r.path.replace(/^(\/home\/[^/]+|[A-Za-z]:[\\/]Users[\\/][^\\/]+)/, "~"),
                   onSelect: () => void useStore.getState().openRepo(r.path),
                 })),
               ]

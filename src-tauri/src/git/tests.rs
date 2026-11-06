@@ -819,6 +819,7 @@ fn ignore_appends_once_and_hides_files() {
 }
 
 #[test]
+#[cfg(unix)]
 fn never_writes_through_committed_symlinks() {
     let t = TestRepo::new();
     let outside = t.path.parent().unwrap().join("bashrc");
@@ -1192,6 +1193,7 @@ fn bench_graph() {
 // --- libgit2 replacements for what the git CLI used to do -----------------
 
 /// A hooks directory for `t` with one executable hook.
+#[cfg(unix)]
 fn hook(t: &TestRepo, name: &str, script: &str) {
     use std::os::unix::fs::PermissionsExt;
     let dir = t.path.parent().unwrap().join("hooks");
@@ -1203,6 +1205,7 @@ fn hook(t: &TestRepo, name: &str, script: &str) {
 }
 
 #[test]
+#[cfg(unix)]
 fn commit_runs_hooks() {
     let t = TestRepo::new();
     t.commit("a.txt", "1\n", "first");
@@ -1378,6 +1381,7 @@ fn deleting_remote_branches_and_pushing_tags() {
 }
 
 #[test]
+#[cfg(unix)]
 fn ssh_remotes_go_through_the_ssh_command() {
     use std::os::unix::fs::PermissionsExt;
     let t = TestRepo::new();

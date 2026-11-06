@@ -83,17 +83,14 @@ pub fn command(host: String, port: Option<String>, remote: &str) -> Command {
     // helper (KDE: ksshaskpass) when one is configured.
     let envs: &[(&str, &std::ffi::OsStr)] =
         if std::env::var_os("SSH_ASKPASS").is_some() { &[("SSH_ASKPASS_REQUIRE", std::ffi::OsStr::new("force"))] } else { &[] };
-    let mut cmd = match configured {
-        // Like git: the command is shell text, the arguments follow.
-        Some(c) => {
-            let mut cmd = crate::host::command("sh", envs);
-            cmd.arg("-c").arg(format!("{c} \"$@\"")).arg(c);
+    match configured {
+        Some(c) => crate::host::shell_command(&c, &ssh_args, envs),
+        None => {
+            let mut cmd = crate::host::command(std::env::var_os("GIT_SSH").unwrap_or_else(|| "ssh".into()), envs);
+            cmd.args(&ssh_args);
             cmd
         }
-        None => crate::host::command(std::env::var_os("GIT_SSH").unwrap_or_else(|| "ssh".into()), envs),
-    };
-    cmd.args(&ssh_args);
-    cmd
+    }
 }
 
 pub fn quote(s: &str) -> String {

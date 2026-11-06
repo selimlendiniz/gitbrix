@@ -5,7 +5,6 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -41,12 +40,31 @@ fn size(cols: u16, rows: u16) -> PtySize {
 }
 
 /// The login shell from $SHELL, else bash, else sh.
+#[cfg(not(windows))]
 fn shell() -> String {
+    use std::path::Path;
     std::env::var("SHELL")
         .ok()
         .filter(|s| !s.is_empty() && Path::new(s).exists())
         .or_else(|| ["/bin/bash", "/usr/bin/bash", "/bin/sh"].iter().find(|s| Path::new(s).exists()).map(|s| s.to_string()))
         .unwrap_or_else(|| "sh".into())
+}
+
+#[cfg(windows)]
+fn shell() -> String {
+    windows_shell(&std::env::var_os("PATH").unwrap_or_default(), std::env::var("COMSPEC").ok())
+}
+
+/// PowerShell from `path` (the newer one first), else `comspec`, else cmd.
+#[cfg(any(windows, test))]
+fn windows_shell(path: &std::ffi::OsStr, comspec: Option<String>) -> String {
+    let dirs: Vec<std::path::PathBuf> = std::env::split_paths(path).filter(|d| d.is_absolute()).collect();
+    ["pwsh.exe", "powershell.exe"]
+        .iter()
+        .find_map(|exe| dirs.iter().map(|d| d.join(exe)).find(|f| f.is_file()))
+        .map(|f| f.to_string_lossy().into_owned())
+        .or(comspec.filter(|c| !c.is_empty()))
+        .unwrap_or_else(|| "cmd.exe".into())
 }
 
 fn pty_error(e: impl std::fmt::Display) -> Error {
@@ -129,4 +147,25 @@ pub fn close_window(state: &Terminals, window: &str) {
 /// Ends the shell; the reader thread then reports `terminal-exit`.
 pub fn close(state: &Terminals, id: u32) -> Result<()> {
     with(state, id, |s| s.child.kill().map_err(pty_error))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn windows_shell_prefers_powershell() {
+        let t = tempfile::tempdir().unwrap();
+        let (old, new) = (t.path().join("old"), t.path().join("new"));
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::create_dir_all(&new).unwrap();
+        let path = std::env::join_paths([&old, &new]).unwrap();
+        let comspec = Some(r"C:\Windows\system32\cmd.exe".to_owned());
+        assert_eq!(windows_shell(&path, comspec.clone()), r"C:\Windows\system32\cmd.exe");
+        std::fs::write(old.join("powershell.exe"), "").unwrap();
+        assert_eq!(windows_shell(&path, comspec.clone()), old.join("powershell.exe").to_string_lossy());
+        std::fs::write(new.join("pwsh.exe"), "").unwrap();
+        assert_eq!(windows_shell(&path, comspec), new.join("pwsh.exe").to_string_lossy());
+        assert_eq!(windows_shell(std::ffi::OsStr::new(""), None), "cmd.exe");
+    }
 }

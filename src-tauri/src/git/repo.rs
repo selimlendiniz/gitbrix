@@ -9,8 +9,10 @@ use crate::error::{Error, Result};
 pub fn expand_home(path: &Path) -> PathBuf {
     let Some(s) = path.to_str() else { return path.to_path_buf() };
     let rest = if s == "~" { Some("") } else { s.strip_prefix("~/") };
-    match (rest, std::env::var_os("HOME")) {
-        (Some(rest), Some(home)) => PathBuf::from(home).join(rest),
+    #[cfg(windows)]
+    let rest = rest.or_else(|| s.strip_prefix("~\\"));
+    match (rest, crate::host::home_dir()) {
+        (Some(rest), Some(home)) => home.join(rest),
         _ => path.to_path_buf(),
     }
 }
@@ -118,7 +120,7 @@ mod tests {
 
     #[test]
     fn expands_home() {
-        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let home = crate::host::home_dir().unwrap();
         assert_eq!(expand_home(Path::new("~/codes/x")), home.join("codes/x"));
         assert_eq!(expand_home(Path::new("~")), home);
         assert_eq!(expand_home(Path::new("/abs/~/x")), PathBuf::from("/abs/~/x"));
