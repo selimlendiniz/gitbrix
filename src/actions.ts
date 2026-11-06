@@ -3,7 +3,7 @@
 // the store so errors become toasts and the view refreshes afterwards.
 
 import { open as pickFile, save as pickSaveFile } from "@tauri-apps/plugin-dialog";
-import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 
 import { api, CommitRow, errorText, PullMode, PullRequest, RebaseStep, RefInfo, RemoteInfo, ResetMode, StashInfo, SubmoduleInfo, WIP_ID, Worktree } from "./api";
 import { fileName, shortId } from "./format";
@@ -772,8 +772,9 @@ export function fileItems(path: string, deleted = false): MenuItem[] {
       label: "Open file",
       disabled: deleted,
       onSelect: () => {
-        const p = absolute(path);
-        if (p) openPath(p).catch((e) => s().toast("error", String(e)));
+        // No command: the desktop's default app, through Rust.
+        const repo = s().repo?.path;
+        if (repo) api.openInEditor(repo, "", path, null).catch((e) => s().toast("error", errorText(e)));
       },
     },
     {

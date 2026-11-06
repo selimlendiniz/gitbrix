@@ -32,7 +32,7 @@ test("editor: chosen in Settings; files, diffs and the repository open in it", a
   // The default is the desktop's app, without a line.
   await page.locator(".wip-panel .file-row", { hasText: "main.rs" }).click({ button: "right" });
   await page.getByRole("menuitem", { name: "Open in editor" }).click();
-  await expect.poll(() => lastCall(page, "plugin:opener|open_path")).toMatchObject({ path: "/home/demo/codes/demo-app/src/main.rs" });
+  await expect.poll(() => lastCall(page, "open_in_editor")).toMatchObject({ command: "", path: "src/main.rs" });
 
   await page.getByRole("button", { name: "gitbrix menu" }).click();
   await page.getByRole("menuitem", { name: "Settings…" }).click();

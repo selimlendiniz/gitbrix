@@ -35,8 +35,10 @@ fn check_branch_name(name: &str) -> Result<()> {
 
 /// A path from the UI must stay inside the work tree.
 pub fn check_path(path: &str) -> Result<()> {
+    use std::path::Component::{ParentDir, Prefix, RootDir};
     let p = Path::new(path);
-    if path.is_empty() || p.is_absolute() || p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+    // On Windows `\x` and `C:x` aren't absolute, yet they leave the folder too.
+    if path.is_empty() || p.is_absolute() || p.components().any(|c| matches!(c, ParentDir | Prefix(_) | RootDir)) {
         return Err(Error::msg(format!("Invalid path: {path:?}")));
     }
     Ok(())

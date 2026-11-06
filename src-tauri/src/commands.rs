@@ -877,11 +877,19 @@ pub fn search_text(repo: String, query: String, regex: bool, case_sensitive: boo
 }
 
 /// Open a file of the work tree (at a line), or the repository's folder,
-/// with the editor command from Settings.
+/// with the editor command from Settings. No command means the desktop's
+/// default app; the webview has no permission to open paths itself.
 #[tauri::command(async)]
 pub fn open_in_editor(repo: String, command: String, path: Option<String>, line: Option<u32>) -> Result<()> {
     let dir = workdir(&repo)?;
+    if let Some(p) = &path {
+        ops::check_path(p)?;
+    }
     let file = path.map(|p| dir.join(p));
+    if command.trim().is_empty() {
+        let target = file.as_deref().unwrap_or(&dir);
+        return tauri_plugin_opener::open_path(target, None::<&str>).map_err(|e| Error::msg(e.to_string()));
+    }
     crate::editor::open(&command, &dir, file.as_deref(), line)
 }
 
@@ -916,4 +924,13 @@ pub fn repo_stats(repo: String) -> Result<stats::Stats> {
 #[tauri::command(async)]
 pub fn avatars(emails: Vec<String>) -> HashMap<String, Option<String>> {
     crate::avatars::avatars(&emails)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_webview_cannot_open_paths_itself() {
+        let capabilities = include_str!("../capabilities/default.json");
+        assert!(!capabilities.contains("allow-open-path"));
+    }
 }

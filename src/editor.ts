@@ -1,8 +1,6 @@
 // Opening files (at a line) and the repository's folder in the user's
 // editor, chosen in Settings.
 
-import { openPath } from "@tauri-apps/plugin-opener";
-
 import { api, errorText } from "./api";
 import { useSettings } from "./settings";
 import { useStore } from "./store";
@@ -42,8 +40,8 @@ export async function openInEditor(path?: string, line?: number) {
   const command = editorCommand(editor, custom, !!path);
   try {
     if (!command) {
-      // The desktop's default app for it; no line.
-      await openPath(path ? `${repo}/${path}` : repo);
+      // No command: the desktop's default app for it, through Rust; no line.
+      await api.openInEditor(repo, "", path ?? null, null);
       return;
     }
     // A custom command opens the folder as it would a file.

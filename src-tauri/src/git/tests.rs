@@ -2269,3 +2269,17 @@ fn searching_the_work_tree() {
     assert!(h.text.chars().count() <= 245 && h.text.starts_with('…') && h.text.ends_with('…'));
     assert_eq!(h.text.chars().skip(h.start).take(h.end - h.start).collect::<String>(), "needle");
 }
+
+#[test]
+fn paths_from_the_ui_stay_inside_the_work_tree() {
+    for ok in ["a.txt", "src/a b.rs", "."] {
+        assert!(ops::check_path(ok).is_ok(), "{ok}");
+    }
+    for bad in ["", "../x", "a/../../x", "/etc/passwd"] {
+        assert!(ops::check_path(bad).is_err(), "{bad}");
+    }
+    #[cfg(windows)]
+    for bad in [r"C:\x", r"C:x", r"\x", r"a\..\..\x", r"\\server\share"] {
+        assert!(ops::check_path(bad).is_err(), "{bad}");
+    }
+}
