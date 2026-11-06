@@ -12,3 +12,4 @@ playwright-report/
 
 # Built releases (scripts/release.sh)
 /release/
+.superpowers/
