@@ -9,6 +9,12 @@ use tempfile::TempDir;
 
 use super::{diff, grep, history, lfs, log, net, ops, overlap, patch, rebase, refs, repo, status, workspace};
 
+/// A checked-out file, with line endings as they are in the repository:
+/// Git for Windows turns on `core.autocrlf` by default.
+fn read_lf(path: impl AsRef<Path>) -> std::io::Result<String> {
+    fs::read_to_string(path).map(|text| text.replace("\r\n", "\n"))
+}
+
 struct TestRepo {
     _dir: TempDir,
     path: PathBuf,
@@ -195,7 +201,7 @@ fn discard_restores_and_removes() {
     t.write("a.txt", "changed\n");
     t.write("junk.txt", "junk\n");
     ops::discard(&t.path, &["a.txt".into()], &["junk.txt".into()]).unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "orig\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "orig\n");
     assert!(!t.path.join("junk.txt").exists());
 }
 
@@ -346,7 +352,7 @@ fn reset_revert_cherry_pick() {
     t.commit("a.txt", "2\n", "second");
 
     ops::revert(&t.path, "HEAD").unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "1\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "1\n");
 
     t.git(&["switch", "-q", "-c", "side", &first]);
     let side = t.commit("s.txt", "s\n", "side work");
@@ -452,7 +458,7 @@ fn stage_unstage_and_discard_single_hunks() {
     let first = "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n\
                  @@ -1,5 +1,5 @@\n line 1\n-line 2\n+LINE TWO\n line 3\n line 4\n line 5\n";
     ops::apply_patch(&t.path, first, false, true).unwrap();
-    let content = fs::read_to_string(t.path.join("f.txt")).unwrap();
+    let content = read_lf(t.path.join("f.txt")).unwrap();
     assert!(content.contains("line 2\n") && content.contains("LINE NINETEEN"));
 }
 
@@ -465,7 +471,7 @@ fn stage_selected_lines_only() {
     let patch = "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n";
     ops::apply_patch(&t.path, patch, true, false).unwrap();
     assert_eq!(t.git(&["show", ":f.txt"]), "a\nB\nc");
-    assert_eq!(fs::read_to_string(t.path.join("f.txt")).unwrap(), "a\nB\nC\nc\n");
+    assert_eq!(read_lf(t.path.join("f.txt")).unwrap(), "a\nB\nC\nc\n");
 }
 
 #[test]
@@ -532,14 +538,14 @@ fn resolve_conflict_with_content_then_continue() {
     assert!(st.conflicted.is_empty());
     ops::sequencer(&t.path, "merge", "continue").unwrap();
     assert_eq!(t.git(&["log", "-1", "--format=%p"]).split(' ').count(), 2, "merge commit created");
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "top\nours\ntheirs\nbottom\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "top\nours\ntheirs\nbottom\n");
 }
 
 #[test]
 fn resolve_conflict_by_side() {
     let t = conflicted_repo();
     ops::resolve_with_side(&t.path, "a.txt", "theirs", true).unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "top\ntheirs\nbottom\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "top\ntheirs\nbottom\n");
     assert!(status::status(&t.open()).unwrap().conflicted.is_empty());
 }
 
@@ -706,7 +712,7 @@ fn interactive_rebase_autostashes_local_changes() {
     let plan: Vec<_> = ids.iter().rev().map(|id| step("pick", id, None)).collect();
     rebase::run(&t.open(), &base, &plan).unwrap();
     assert_eq!(subjects(&t, &base), vec!["add d", "add c", "add b", "add a"]);
-    assert_eq!(fs::read_to_string(t.path.join("base.txt")).unwrap(), "dirty\n");
+    assert_eq!(read_lf(t.path.join("base.txt")).unwrap(), "dirty\n");
 }
 
 #[test]
@@ -721,7 +727,7 @@ fn undo_building_blocks_keep_reset_and_stash_store() {
     // ...but refuses to clobber a local edit of a file it would change.
     t.write("a.txt", "local edit\n");
     assert!(ops::reset(&t.path, &first, "keep").is_err());
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "local edit\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "local edit\n");
 
     // A dropped stash can be stored back.
     ops::stash_save(&t.path, Some("keep me"), false).unwrap();
@@ -810,7 +816,7 @@ fn ignore_appends_once_and_hides_files() {
     ops::ignore(&t.path, "*.log").unwrap();
     ops::ignore(&t.path, "build/").unwrap();
     ops::ignore(&t.path, "*.log").unwrap();
-    assert_eq!(fs::read_to_string(t.path.join(".gitignore")).unwrap(), "target/\n*.log\nbuild/\n");
+    assert_eq!(read_lf(t.path.join(".gitignore")).unwrap(), "target/\n*.log\nbuild/\n");
     let st = status::status(&t.open()).unwrap();
     let paths: Vec<&str> = st.unstaged.iter().map(|e| e.path.as_str()).collect();
     assert_eq!(paths, vec![".gitignore"]);
@@ -839,6 +845,26 @@ fn renaming_a_remote_keeps_the_config_readable() {
     assert!(list.iter().any(|r| r.name == "backup"));
 }
 
+#[test]
+fn a_refused_remote_rename_changes_nothing() {
+    let t = TestRepo::new();
+    t.git(&["remote", "add", "backup", r"C:\repos\backup.git"]);
+    t.git(&["config", "remote.backup.proxy", r"a\b"]);
+    assert!(ops::prepare_remote_rename(&t.open(), "backup", true).is_err());
+    assert_eq!(t.git(&["config", "remote.backup.url"]).trim(), r"C:\repos\backup.git");
+}
+
+#[test]
+fn several_windows_push_urls_stop_the_rename_with_a_reason() {
+    let t = TestRepo::new();
+    t.git(&["remote", "add", "backup", "https://example.com/backup.git"]);
+    t.git(&["config", "--add", "remote.backup.pushurl", r"C:\repos\one.git"]);
+    t.git(&["config", "--add", "remote.backup.pushurl", r"C:\repos\two.git"]);
+    let err = ops::prepare_remote_rename(&t.open(), "backup", true).unwrap_err();
+    assert!(err.to_string().contains("several values"), "{err}");
+    assert!(t.git(&["config", "--get-all", "remote.backup.pushurl"]).contains(r"C:\repos\one.git"));
+}
+
 #[cfg(windows)]
 #[test]
 fn renaming_a_remote_with_a_windows_path() {
@@ -848,6 +874,22 @@ fn renaming_a_remote_with_a_windows_path() {
     let list = refs::remotes(&t.open()).unwrap();
     let mirror = list.iter().find(|r| r.name == "mirror").unwrap();
     assert_eq!(mirror.url.as_deref(), Some("C:/repos/backup.git"));
+}
+
+// Windows file names can't hold `*`.
+#[cfg(unix)]
+#[test]
+fn a_star_in_a_path_is_literal() {
+    let t = TestRepo::new();
+    t.write("a*b.txt", "1\n");
+    t.write("axb.txt", "1\n");
+    t.git(&["add", "-A"]);
+    t.git(&["commit", "-q", "-m", "base"]);
+    t.write("a*b.txt", "changed\n");
+    t.write("axb.txt", "changed\n");
+    ops::discard(&t.path, &["a*b.txt".into()], &[]).unwrap();
+    assert_eq!(read_lf(t.path.join("a*b.txt")).unwrap(), "1\n");
+    assert_eq!(read_lf(t.path.join("axb.txt")).unwrap(), "changed\n", "glob must not match");
 }
 
 #[test]
@@ -862,8 +904,8 @@ fn paths_are_literal_not_globs() {
     t.write("notes[1].txt", "u\n");
     t.write("notes1.txt", "keep me\n");
     ops::discard(&t.path, &["a[x]b.txt".into()], &["notes[1].txt".into()]).unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a[x]b.txt")).unwrap(), "1\n");
-    assert_eq!(fs::read_to_string(t.path.join("axb.txt")).unwrap(), "changed\n", "glob must not match");
+    assert_eq!(read_lf(t.path.join("a[x]b.txt")).unwrap(), "1\n");
+    assert_eq!(read_lf(t.path.join("axb.txt")).unwrap(), "changed\n", "glob must not match");
     assert!(!t.path.join("notes[1].txt").exists());
     assert!(t.path.join("notes1.txt").exists(), "glob must not match");
     ops::stage(&t.path, &["a[x]b.txt".into(), "axb.txt".into()]).unwrap();
@@ -1310,7 +1352,7 @@ fn rebase_stops_on_conflict_then_continues_or_skips() {
     assert!(rebase::onto(&t.open(), "main").is_err());
     ops::sequencer(&t.path, "rebase", "skip").unwrap();
     assert_eq!(t.git(&["log", "--format=%s", "-2"]), "feature b\nmain edit");
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "main\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "main\n");
 }
 
 #[test]
@@ -1349,9 +1391,9 @@ fn aborting_a_merge_keeps_unrelated_local_changes() {
     assert!(ops::merge(&t.path, "other").is_err());
     assert!(t.path.join("new.txt").exists());
     ops::sequencer(&t.path, "merge", "abort").unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "main\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "main\n");
     assert!(!t.path.join("new.txt").exists(), "files the merge added are gone");
-    assert_eq!(fs::read_to_string(t.path.join("notes.txt")).unwrap(), "my local notes\n");
+    assert_eq!(read_lf(t.path.join("notes.txt")).unwrap(), "my local notes\n");
     assert_eq!(t.git(&["status", "--porcelain"]), "M notes.txt");
 }
 
@@ -1582,7 +1624,7 @@ fn live_push() {
 
     let parent = t.path.parent().unwrap();
     let clone = net::clone(parent, &url, "roundtrip", &mut |_| {}).unwrap();
-    assert_eq!(fs::read_to_string(clone.join("README.md")).unwrap(), "# gitbrix push test\n\nPushed by gitbrix through libgit2.\n");
+    assert_eq!(read_lf(clone.join("README.md")).unwrap(), "# gitbrix push test\n\nPushed by gitbrix through libgit2.\n");
     println!("clone ok: {}", clone.display());
 }
 
@@ -1838,7 +1880,7 @@ fn lfs_files_go_up_as_objects_and_come_back_as_content() {
     assert!(lfs::Pointer::parse(&fs::read(clone.join("art.bin")).unwrap()).is_some());
     assert_eq!(lfs::pending(&cr).unwrap().len(), 1);
     assert_eq!(lfs::pull(&clone, &mut |_| {}).unwrap(), 1);
-    assert_eq!(fs::read_to_string(clone.join("art.bin")).unwrap(), content);
+    assert_eq!(read_lf(clone.join("art.bin")).unwrap(), content);
     assert!(lfs::pending(&cr).unwrap().is_empty());
     let st = status::status(&repo::open(&clone).unwrap()).unwrap();
     assert!(st.unstaged.is_empty() && st.staged.is_empty(), "pulled files aren't changes");
@@ -1865,7 +1907,7 @@ fn lfs_pointers_and_tracking() {
     lfs::track(&t.path, "*.psd").unwrap();
     lfs::track(&t.path, "my file.zip").unwrap();
     assert_eq!(
-        fs::read_to_string(t.path.join(".gitattributes")).unwrap(),
+        read_lf(t.path.join(".gitattributes")).unwrap(),
         "*.psd filter=lfs diff=lfs merge=lfs -text\nmy[[:space:]]file.zip filter=lfs diff=lfs merge=lfs -text\n"
     );
     assert!(lfs::tracked(&t.open(), "deep/a.psd") && !lfs::tracked(&t.open(), "a.txt"));
@@ -1917,7 +1959,7 @@ fn patches_round_trip_through_git_and_back() {
     git_in(&third, &["reset", "-q", "--hard", &base]);
     let plain = t.git(&["diff", &base, "HEAD"]);
     assert_eq!(patch::apply(&third, &format!("{plain}\n"), false).unwrap(), 0);
-    assert_eq!(fs::read_to_string(third.join("a.txt")).unwrap(), "one\ntwo\n");
+    assert_eq!(read_lf(third.join("a.txt")).unwrap(), "one\ntwo\n");
     assert_eq!(git_in(&third, &["diff", "--cached", "--name-only"]), "");
     // It doesn't apply twice.
     assert!(patch::apply(&third, &format!("{plain}\n"), false).is_err());
@@ -2004,7 +2046,7 @@ fn bisect_finds_the_first_bad_commit_by_hand_and_by_command() {
         ids.push(t.commit("v.txt", &content, &format!("c{i}")));
     }
     t.git(&["switch", "-q", "-c", "work"]);
-    let is_bad = |t: &TestRepo| fs::read_to_string(t.path.join("v.txt")).unwrap().contains("bug");
+    let is_bad = |t: &TestRepo| read_lf(t.path.join("v.txt")).unwrap().contains("bug");
 
     let mut st = bisect::start(&t.path, "HEAD", &ids[0]).unwrap();
     assert!(st.active && st.remaining == 15 && st.steps == 4, "{st:?}");
@@ -2181,13 +2223,13 @@ fn suggestions_replace_lines_of_a_clean_file() {
     t.commit("a.txt", "one\ntwo\nthree\nfour\n", "first");
     let r = t.open();
     ops::apply_suggestion(&r, "a.txt", 2, 3, "TWO\nTWO AND A HALF\nTHREE").unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "one\nTWO\nTWO AND A HALF\nTHREE\nfour\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "one\nTWO\nTWO AND A HALF\nTHREE\nfour\n");
     // Changed now: a second suggestion would land on the wrong lines.
     assert!(ops::apply_suggestion(&r, "a.txt", 1, 1, "x").unwrap_err().to_string().contains("uncommitted"));
     t.git(&["checkout", "--", "a.txt"]);
     // An empty suggestion removes the lines; out of range is refused.
     ops::apply_suggestion(&r, "a.txt", 4, 4, "").unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "one\ntwo\nthree\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "one\ntwo\nthree\n");
     t.git(&["checkout", "--", "a.txt"]);
     assert!(ops::apply_suggestion(&r, "a.txt", 4, 9, "x").is_err());
     assert!(ops::apply_suggestion(&r, "missing.txt", 1, 1, "x").is_err());
@@ -2203,8 +2245,8 @@ fn stash_only_some_files() {
     t.write("new [1].txt", "new\n");
     ops::stash_paths(&t.path, &["a.txt".into(), "new [1].txt".into()], None).unwrap();
     // b.txt's change stays; a.txt and the untracked file went.
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "a\n");
-    assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b changed\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "a\n");
+    assert_eq!(read_lf(t.path.join("b.txt")).unwrap(), "b changed\n");
     assert!(!t.path.join("new [1].txt").exists());
     let list = t.git(&["stash", "list"]);
     assert_eq!(list, "stash@{0}: On main: a.txt, new [1].txt");
@@ -2222,15 +2264,15 @@ fn stash_only_some_files() {
     t.git(&["add", "b.txt"]);
     t.write("b.txt", "b changed twice\n");
     ops::stash_paths(&t.path, &["b.txt".into()], None).unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b\n");
+    assert_eq!(read_lf(t.path.join("b.txt")).unwrap(), "b\n");
     assert_eq!(t.git(&["status", "--porcelain", "--", "b.txt"]), "");
     t.git(&["stash", "pop", "-q", "--index"]);
     assert_eq!(t.git(&["diff", "--cached", "--", "b.txt"]).lines().last().unwrap(), "+b staged");
-    assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b changed twice\n");
+    assert_eq!(read_lf(t.path.join("b.txt")).unwrap(), "b changed twice\n");
     t.git(&["reset", "-q", "--", "b.txt"]);
     // Back in one piece.
     t.git(&["stash", "pop", "-q", "stash@{1}"]);
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "a changed\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "a changed\n");
     assert!(t.path.join("new [1].txt").exists());
 }
 
@@ -2247,9 +2289,9 @@ fn a_partial_stash_pops_back_in_the_app() {
     ops::stash_paths(&t.path, &["a.txt".into(), "n.txt".into()], Some("part")).unwrap();
     assert_eq!(t.git(&["status", "--porcelain"]), "M b.txt");
     ops::stash_apply(&t.path, 0, true).unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a.txt")).unwrap(), "a changed\n");
-    assert_eq!(fs::read_to_string(t.path.join("n.txt")).unwrap(), "new\n");
-    assert_eq!(fs::read_to_string(t.path.join("b.txt")).unwrap(), "b changed\n");
+    assert_eq!(read_lf(t.path.join("a.txt")).unwrap(), "a changed\n");
+    assert_eq!(read_lf(t.path.join("n.txt")).unwrap(), "new\n");
+    assert_eq!(read_lf(t.path.join("b.txt")).unwrap(), "b changed\n");
     assert_eq!(t.git(&["stash", "list"]), "");
 }
 

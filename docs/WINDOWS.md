@@ -1,6 +1,8 @@
 # Windows: Rust testleri
 
-Windows 11 ve Rust 1.99.1 üzerinde `cargo test` sonuçları.
+Windows 11 ve Rust 1.99.1 üzerinde `a5ddadb` commit'inde alınan `cargo test`
+sonuçları. Aşağıdaki `read_lf` ve remote düzeltmelerinden önceki durumu
+gösterir, bu düzeltmelerden sonra Windows'ta yeniden çalıştırılmadı.
 
 | Git ayarı | Sonuç |
 |---|---|
@@ -8,13 +10,6 @@ Windows 11 ve Rust 1.99.1 üzerinde `cargo test` sonuçları.
 | Git for Windows varsayılanı (`core.autocrlf=true`) | 145 geçti, 12 hata, 7 atlandı |
 
 ## Açık konular
-
-### Testler `core.autocrlf=true` ile düşüyor
-
-12 test `\n` bekleyip `\r\n` okuyor. Uygulama hatası değil, testler bu ayarı
-hesaba katmıyor. Düşmeden çalıştırmak için `core.autocrlf=false` yazılı bir
-`.gitconfig` içeren geçici bir klasörü `HOME` ve `USERPROFILE` yapın,
-`CARGO_HOME` ve `RUSTUP_HOME` değerlerini gerçek klasörlerde bırakın.
 
 ### Branch yeniden adlandırma
 
@@ -31,10 +26,20 @@ bölülü bir URL, `.git/config` dosyasını okunamaz hale getiriyordu
 (`invalid escape at ...`). `\b` gibi geçerli bir kaçış dizisi denk gelirse değer
 hata vermeden değişiyordu.
 
-`ops::rename_remote` artık önce değerleri kontrol ediyor. Windows'ta `url` ve
-`pushurl` içindeki ters bölüler `/` oluyor, yani yeniden adlandırılan remote'un
-adresi `C:\repos\x` yerine `C:/repos/x` görünüyor. Başka değerlerde ters bölü,
-tırnak ya da satır sonu varsa işlem hata mesajıyla duruyor ve config değişmiyor.
+libgit2 ayrıca bütün config seviyelerini geziyor, ama yalnızca repo seviyesinden
+silebiliyor. `~/.gitconfig` içinde `remote.<ad>.*` varsa işlem yarıda kalıyor
+(`could not find key ... to delete`) ve `.git/config` içinde yarım bir bölüm
+bırakıyor.
+
+`ops::rename_remote` artık önce bütün değerleri kontrol ediyor ve işlem
+yapılamayacaksa hiçbir şey yazmıyor. Windows'ta `url` ve `pushurl` içindeki ters
+bölüler `/` oluyor, yani yeniden adlandırılan remote'un adresi `C:\repos\x`
+yerine `C:/repos/x` görünüyor. İşlem şu durumlarda hata mesajıyla duruyor ve
+config değişmiyor:
+
+- Başka bir değerde ters bölü, tırnak ya da satır sonu var.
+- Ters bölülü bir `url` ya da `pushurl` birden çok değere sahip.
+- Bölümün bir değeri repo dışındaki bir config seviyesinden geliyor.
 
 ### Dosya yolu araması (`search_history_by_file_and_code`)
 
@@ -46,8 +51,12 @@ ayırmadan karşılaştırıyor. Windows'ta sorguya yazılan `\` önceden olduğ
 
 ### Test düzeltmeleri
 
+- `core.autocrlf=true`: 12 test `\n` bekleyip `\r\n` okuyordu. Testler artık
+  çalışma ağacındaki dosyaları `read_lf` ile okuyor, `HOME` değiştirmek gerekmiyor.
+  Linux'ta bu ayarla bütün testler geçiyor, Windows'ta henüz denenmedi.
 - `paths_are_literal_not_globs`: Windows dosya adında `*` kabul etmediği için
   test `a*b.txt` yerine `a[x]b.txt` kullanıyor. Bu ad da desen olarak `axb.txt`
-  ile eşleşir, yani test aynı şeyi kontrol ediyor.
+  ile eşleşir. `*` karakterini `a_star_in_a_path_is_literal` testi yalnızca
+  Unix'te deniyor.
 - `workspace_finds_repositories_in_a_folder`: beklenen yol
   `Path::new("group").join("b")` ile kuruluyor.

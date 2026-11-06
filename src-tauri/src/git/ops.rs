@@ -807,36 +807,56 @@ pub fn rename_remote(repo: &Path, old: &str, new: &str) -> Result<()> {
         return Err(Error::msg(format!("'{new}' is not a valid remote name")));
     }
     let r = open(repo)?;
-    prepare_remote_rename(&r, old)?;
+    prepare_remote_rename(&r, old, cfg!(windows))?;
     r.remote_rename(old, new)?;
     Ok(())
 }
 
 /// libgit2 moves a remote's config section without escaping the values, so a
 /// backslash or quote would come out changed or leave `.git/config` unreadable.
-/// Windows paths switch to forward slashes, which mean the same there; any
-/// other such value stops the rename.
-fn prepare_remote_rename(r: &Repository, name: &str) -> Result<()> {
-    let mut config = r.config()?;
+/// It also walks every config level but can only delete from the repository's,
+/// so a value from another level stops it halfway. Nothing is written unless
+/// the whole section can move.
+pub(super) fn prepare_remote_rename(r: &Repository, name: &str, windows: bool) -> Result<()> {
+    let config = r.config()?;
     let pattern = format!(r"^remote\.{}\..*$", regex::escape(name));
     let mut entries = Vec::new();
     config.entries(Some(&pattern))?.for_each(|e| {
         if let (Ok(key), Ok(value)) = (e.name(), e.value()) {
-            entries.push((key.to_owned(), value.to_owned()));
+            entries.push((key.to_owned(), value.to_owned(), e.level()));
         }
     })?;
-    for (key, value) in entries {
+    let rewrites = remote_url_rewrites(&entries, windows)?;
+    if !rewrites.is_empty() {
+        let mut local = config.open_level(git2::ConfigLevel::Local)?;
+        for (key, value) in rewrites {
+            local.set_str(&key, &value)?;
+        }
+    }
+    Ok(())
+}
+
+/// The values to rewrite before the rename, or why it can't happen. Windows
+/// paths switch to forward slashes, which mean the same there.
+fn remote_url_rewrites(entries: &[(String, String, git2::ConfigLevel)], windows: bool) -> Result<Vec<(String, String)>> {
+    let mut rewrites = Vec::new();
+    for (key, value, level) in entries {
+        if *level != git2::ConfigLevel::Local {
+            return Err(Error::msg(format!("Can't rename the remote: {key} is set outside this repository's config")));
+        }
         if !value.contains(['\\', '"', '\n']) {
             continue;
         }
         let is_url = key.ends_with(".url") || key.ends_with(".pushurl");
-        if cfg!(windows) && is_url && !value.contains(['"', '\n']) {
-            config.set_str(&key, &value.replace('\\', "/"))?;
-        } else {
+        if !windows || !is_url || value.contains(['"', '\n']) {
             return Err(Error::msg(format!("Can't rename the remote: {key} contains a backslash, quote or line break")));
         }
+        if entries.iter().filter(|(k, _, _)| k == key).count() > 1 {
+            return Err(Error::msg(format!("Can't rename the remote: {key} has several values, and one contains a backslash")));
+        }
+        rewrites.push((key.clone(), value.replace('\\', "/")));
     }
-    Ok(())
+    Ok(rewrites)
 }
 
 pub fn set_remote_url(repo: &Path, name: &str, url: &str) -> Result<()> {
@@ -1363,6 +1383,24 @@ pub fn sequencer(repo: &Path, op: &str, action: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_values_decide_whether_a_rename_can_happen() {
+        use git2::ConfigLevel::{Global, Local};
+        let entry = |key: &str, value: &str, level| (key.to_owned(), value.to_owned(), level);
+        let url = entry("remote.a.url", r"C:\x", Local);
+
+        assert!(remote_url_rewrites(&[entry("remote.a.url", "https://x", Local)], true).unwrap().is_empty());
+        assert_eq!(remote_url_rewrites(&[url.clone()], true).unwrap(), [("remote.a.url".to_owned(), "C:/x".to_owned())]);
+        // Elsewhere a backslash is part of the name.
+        assert!(remote_url_rewrites(&[url.clone()], false).is_err());
+        assert!(remote_url_rewrites(&[entry("remote.a.url", r#"C:\x"y"#, Local)], true).is_err());
+        // Any level but the repository's, even with a harmless value.
+        let err = remote_url_rewrites(&[entry("remote.a.proxy", "http://p", Global)], true).unwrap_err();
+        assert!(err.to_string().contains("outside this repository"), "{err}");
+        let err = remote_url_rewrites(&[url.clone(), entry("remote.a.url", "https://y", Local)], true).unwrap_err();
+        assert!(err.to_string().contains("several values"), "{err}");
+    }
 
     #[test]
     fn patches_are_recounted_and_reversed() {
