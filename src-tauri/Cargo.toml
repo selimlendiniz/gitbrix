@@ -1,6 +1,6 @@
 [package]
 name = "gitbrix"
-version = "0.1.0"
+version = "0.1.1"
 description = "A fast, graph-first Git client"
 authors = ["Selim Arda Çevik"]
 license = "MIT"
