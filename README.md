@@ -204,3 +204,7 @@ tests/               unit, ui (Playwright), e2e (WebDriver)
 ```
 
 See `PROGRESS.md` for the build log and `docs/PLAN.md` for the plan.
+
+## License
+
+[MIT](LICENSE)

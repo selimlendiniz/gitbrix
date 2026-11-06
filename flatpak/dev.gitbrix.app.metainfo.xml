@@ -4,7 +4,7 @@
   <name>gitbrix</name>
   <summary>A graph-first Git client</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary</project_license>
+  <project_license>MIT</project_license>
   <description>
     <p>
       Commit graph, staging by hunk and line, branches and stashes by drag and drop,

@@ -39,6 +39,8 @@
     "shortDescription": "A graph-first Git client",
     "longDescription": "gitbrix is a desktop Git client with a commit graph, staging down to single lines, conflict resolution, interactive rebase and undo.",
     "publisher": "Selim Arda \u00c7evik",
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
     "linux": {
       "rpm": {
         "release": "1"
