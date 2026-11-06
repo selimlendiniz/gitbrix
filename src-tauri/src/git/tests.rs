@@ -830,22 +830,43 @@ fn never_writes_through_committed_symlinks() {
 }
 
 #[test]
+fn renaming_a_remote_keeps_the_config_readable() {
+    let t = TestRepo::new();
+    t.git(&["remote", "add", "backup", "https://example.com/backup.git"]);
+    t.git(&["config", "remote.backup.proxy", r"a\b"]);
+    assert!(ops::rename_remote(&t.path, "backup", "mirror").is_err());
+    let list = refs::remotes(&t.open()).unwrap();
+    assert!(list.iter().any(|r| r.name == "backup"));
+}
+
+#[cfg(windows)]
+#[test]
+fn renaming_a_remote_with_a_windows_path() {
+    let t = TestRepo::new();
+    t.git(&["remote", "add", "backup", r"C:\repos\backup.git"]);
+    ops::rename_remote(&t.path, "backup", "mirror").unwrap();
+    let list = refs::remotes(&t.open()).unwrap();
+    let mirror = list.iter().find(|r| r.name == "mirror").unwrap();
+    assert_eq!(mirror.url.as_deref(), Some("C:/repos/backup.git"));
+}
+
+#[test]
 fn paths_are_literal_not_globs() {
     let t = TestRepo::new();
-    t.write("a*b.txt", "1\n");
+    t.write("a[x]b.txt", "1\n");
     t.write("axb.txt", "1\n");
     t.git(&["add", "-A"]);
     t.git(&["commit", "-q", "-m", "base"]);
-    t.write("a*b.txt", "changed\n");
+    t.write("a[x]b.txt", "changed\n");
     t.write("axb.txt", "changed\n");
     t.write("notes[1].txt", "u\n");
     t.write("notes1.txt", "keep me\n");
-    ops::discard(&t.path, &["a*b.txt".into()], &["notes[1].txt".into()]).unwrap();
-    assert_eq!(fs::read_to_string(t.path.join("a*b.txt")).unwrap(), "1\n");
+    ops::discard(&t.path, &["a[x]b.txt".into()], &["notes[1].txt".into()]).unwrap();
+    assert_eq!(fs::read_to_string(t.path.join("a[x]b.txt")).unwrap(), "1\n");
     assert_eq!(fs::read_to_string(t.path.join("axb.txt")).unwrap(), "changed\n", "glob must not match");
     assert!(!t.path.join("notes[1].txt").exists());
     assert!(t.path.join("notes1.txt").exists(), "glob must not match");
-    ops::stage(&t.path, &["a*b.txt".into(), "axb.txt".into()]).unwrap();
+    ops::stage(&t.path, &["a[x]b.txt".into(), "axb.txt".into()]).unwrap();
     ops::unstage_all(&t.path).unwrap();
     assert!(status::status(&t.open()).unwrap().staged.is_empty());
 }
@@ -1035,6 +1056,8 @@ fn search_history_by_file_and_code() {
     // Pickaxe: commits adding/removing the text.
     assert_eq!(history::search(&t.path, "code", "tokenize", 100).unwrap(), vec![c]);
     assert!(history::search(&t.path, "files", "*", 100).unwrap().is_empty(), "glob chars are literal");
+    #[cfg(windows)]
+    assert_eq!(history::search(&t.path, "files", r"src\parser_", 100).unwrap().len(), 1);
     assert!(history::search(&t.path, "code", "  ", 100).unwrap().is_empty());
     assert!(history::search(&t.path, "nope", "x", 100).is_err());
 }
@@ -1643,7 +1666,7 @@ fn workspace_finds_repositories_in_a_folder() {
         .iter()
         .map(|p| Path::new(p).strip_prefix(root.path()).unwrap().to_string_lossy().into_owned())
         .collect();
-    assert_eq!(rel, ["a", "group/b"]);
+    assert_eq!(rel, ["a".to_owned(), Path::new("group").join("b").to_string_lossy().into_owned()]);
 }
 
 #[test]

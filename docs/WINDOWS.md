@@ -1,71 +1,53 @@
-# Windows: açık Rust test hataları
+# Windows: Rust testleri
 
-Windows 11, Rust 1.99.1, `ae90137` üzerinde `cargo test --lib` sonucu.
-Hataların hiçbiri henüz düzeltilmedi.
+Windows 11 ve Rust 1.99.1 üzerinde `cargo test` sonuçları.
 
-## Çalıştırma
+| Git ayarı | Sonuç |
+|---|---|
+| `core.autocrlf=false` | 157 geçti, 0 hata, 7 atlandı |
+| Git for Windows varsayılanı (`core.autocrlf=true`) | 145 geçti, 12 hata, 7 atlandı |
 
-Git for Windows sistem ayarında `core.autocrlf=true` ile gelir. Bu ayar açıkken
-11 test daha düşer, çünkü `\n` bekleyip `\r\n` okurlar. Aşağıdaki 4 hatayı tek
-başına görmek için `core.autocrlf=false` yazılı bir `.gitconfig` içeren geçici
-bir klasörü `HOME` ve `USERPROFILE` yapın, `CARGO_HOME` ve `RUSTUP_HOME`
-değerlerini gerçek klasörlerde bırakın. Sonuç: 151 geçti, 4 hata, 7 atlandı.
+## Açık konular
 
-## Uygulama hatası olabilecekler
+### Testler `core.autocrlf=true` ile düşüyor
 
-### `remote_management_and_targeted_push`
+12 test `\n` bekleyip `\r\n` okuyor. Uygulama hatası değil, testler bu ayarı
+hesaba katmıyor. Düşmeden çalıştırmak için `core.autocrlf=false` yazılı bir
+`.gitconfig` içeren geçici bir klasörü `HOME` ve `USERPROFILE` yapın,
+`CARGO_HOME` ve `RUSTUP_HOME` değerlerini gerçek klasörlerde bırakın.
 
-```
-Git(Error { code: -1, klass: 7, message: "invalid escape at Users\\sarda\\AppData\\Local\\Temp\\...\\backup.git" })
-```
+### Branch yeniden adlandırma
 
-- Yer: `src-tauri/src/git/tests.rs:766`, `ops::rename_remote` çağrısı.
-- Test, remote'u `C:\...` biçiminde ters bölülü bir yolla ekliyor
-  (`tests.rs:752`). Bu remote'a push ve fetch çalışıyor, yeniden adlandırma
-  çalışmıyor.
-- `ops.rs:809` doğrudan libgit2'nin `remote_rename` işlevini çağırıyor. Hata
-  sınıfı config (7), yani ayar okunurken ya da yazılırken çıkıyor olabilir.
-- Doğrulanmadı: asıl neden ve başarısız denemenin `.git/config` dosyasında iz
-  bırakıp bırakmadığı.
+libgit2 config bölümünü taşırken değerleri kaçırmıyor (aşağıya bakın). Branch
+yeniden adlandırma da aynı kod yolunu kullanıyor, `branch.<ad>.*` değerlerinde
+ters bölü ya da tırnak varsa aynı bozulma olabilir. Denenmedi, düzeltilmedi.
 
-### `search_history_by_file_and_code`
+## Düzeltilen hatalar
 
-```
-glob chars are literal
-```
+### Remote yeniden adlandırma (`remote_management_and_targeted_push`)
 
-- Yer: `src-tauri/src/git/tests.rs:1037`.
-- Dosya yolu aramasında `*` düz karakter sayılmalı ve sonuç dönmemeli, ama
-  sonuç dönüyor.
-- Şüphe: `glob_escape` (`history.rs:81`) özel karakterleri ters bölüyle kaçırıyor
-  ve bu desen `pathspec` olarak veriliyor (`history.rs:127`). Windows'ta ters
-  bölü farklı yorumlanıyor olabilir.
-- Doğrulanmadı: asıl neden ve `?`, `[`, `]` karakterlerinin de etkilenip
-  etkilenmediği.
+libgit2 `git_config_rename_section` içinde değerleri kaçırmadan yazıyor. Ters
+bölülü bir URL, `.git/config` dosyasını okunamaz hale getiriyordu
+(`invalid escape at ...`). `\b` gibi geçerli bir kaçış dizisi denk gelirse değer
+hata vermeden değişiyordu.
 
-## Test sorunu olanlar
+`ops::rename_remote` artık önce değerleri kontrol ediyor. Windows'ta `url` ve
+`pushurl` içindeki ters bölüler `/` oluyor, yani yeniden adlandırılan remote'un
+adresi `C:\repos\x` yerine `C:/repos/x` görünüyor. Başka değerlerde ters bölü,
+tırnak ya da satır sonu varsa işlem hata mesajıyla duruyor ve config değişmiyor.
 
-### `paths_are_literal_not_globs`
+### Dosya yolu araması (`search_history_by_file_and_code`)
 
-```
-Os { code: 123, kind: InvalidFilename, message: "The filename, directory name, or volume label syntax is incorrect." }
-```
+git2, Windows'ta `pathspec` içindeki ters bölüleri `/` yapıyor (`util.rs`,
+`fixup_windows_path`). Bu yüzden `*\**` deseni `*/**` oluyor ve `*` düz karakter
+sayılmıyordu. `history::search` artık yolu desen olmadan, büyük/küçük harf
+ayırmadan karşılaştırıyor. Windows'ta sorguya yazılan `\` önceden olduğu gibi
+`/` sayılıyor.
 
-- Yer: `src-tauri/src/git/tests.rs:835`, panik `tests.rs:68`.
-- Test `a*b.txt` adlı bir dosya oluşturuyor. Windows dosya adında `*` kabul
-  etmez, bu yüzden test uygulama koduna ulaşmadan düşüyor.
-- `*` ile yapılan kontrol bu haliyle Windows'ta çalıştırılamaz. Test
-  `#[cfg(not(windows))]` ile kapatılabilir ya da Windows'ta geçerli olan `[` ve
-  `]` karakterleriyle yazılabilir.
+### Test düzeltmeleri
 
-### `workspace_finds_repositories_in_a_folder`
-
-```
-left: ["a", "group\\b"]
-right: ["a", "group/b"]
-```
-
-- Yer: `src-tauri/src/git/tests.rs:1646`.
-- Test göreli yolu `/` ile sabit bir metinle karşılaştırıyor, Windows ise `\`
-  döndürüyor. Bulunan repolar doğru.
-- Beklenen değer `Path::new("group").join("b")` ile kurulabilir.
+- `paths_are_literal_not_globs`: Windows dosya adında `*` kabul etmediği için
+  test `a*b.txt` yerine `a[x]b.txt` kullanıyor. Bu ad da desen olarak `axb.txt`
+  ile eşleşir, yani test aynı şeyi kontrol ediyor.
+- `workspace_finds_repositories_in_a_folder`: beklenen yol
+  `Path::new("group").join("b")` ile kuruluyor.

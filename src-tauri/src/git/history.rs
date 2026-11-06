@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use git2::{BlameOptions, DiffOptions, Oid, Repository, Tree};
+use git2::{BlameOptions, Oid, Repository, Tree};
 use serde::Serialize;
 
 use super::repo as repos;
@@ -78,12 +78,6 @@ pub fn file_history(repo: &Path, path: &str, limit: usize) -> Result<Vec<History
     Ok(out)
 }
 
-fn glob_escape(s: &str) -> String {
-    s.chars()
-        .flat_map(|c| if matches!(c, '*' | '?' | '[' | ']' | '\\') { vec!['\\', c] } else { vec![c] })
-        .collect()
-}
-
 fn count(hay: &[u8], needle: &str) -> usize {
     match std::str::from_utf8(hay) {
         Ok(text) => text.matches(needle).count(),
@@ -110,7 +104,8 @@ pub fn search(repo: &Path, mode: &str, query: &str, limit: usize) -> Result<Vec<
     walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
     // A search over a huge history returns what it found in this time.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    let pattern = format!("*{}*", glob_escape(query));
+    // Paths in a tree always use `/`, and a Windows file name can't hold `\`.
+    let needle = if cfg!(windows) { query.replace('\\', "/") } else { query.to_owned() }.to_lowercase();
     let mut out = Vec::new();
     for oid in walk {
         if out.len() >= limit || std::time::Instant::now() > deadline {
@@ -122,12 +117,11 @@ pub fn search(repo: &Path, mode: &str, query: &str, limit: usize) -> Result<Vec<
         }
         let tree = c.tree()?;
         let ptree = c.parent(0).ok().map(|p| p.tree()).transpose()?;
+        let diff = r.diff_tree_to_tree(ptree.as_ref(), Some(&tree), None)?;
         let hit = if mode == "files" {
-            let mut opts = DiffOptions::new();
-            opts.pathspec(&pattern).ignore_case(true);
-            r.diff_tree_to_tree(ptree.as_ref(), Some(&tree), Some(&mut opts))?.deltas().len() > 0
+            let matches = |p: Option<&[u8]>| p.is_some_and(|p| String::from_utf8_lossy(p).to_lowercase().contains(&needle));
+            diff.deltas().any(|d| matches(d.old_file().path_bytes()) || matches(d.new_file().path_bytes()))
         } else {
-            let diff = r.diff_tree_to_tree(ptree.as_ref(), Some(&tree), None)?;
             let blob = |id: Oid| -> usize {
                 if id.is_zero() {
                     return 0;
@@ -271,7 +265,6 @@ mod tests {
     fn counts_occurrences() {
         assert_eq!(count(b"a fn b fn", "fn"), 2);
         assert_eq!(count(b"\xff fn \xfe", "fn"), 1);
-        assert_eq!(glob_escape("a*b?[c]"), "a\\*b\\?\\[c\\]");
     }
 }
 

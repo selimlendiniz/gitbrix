@@ -806,7 +806,36 @@ pub fn rename_remote(repo: &Path, old: &str, new: &str) -> Result<()> {
     if !git2::Remote::is_valid_name(new) {
         return Err(Error::msg(format!("'{new}' is not a valid remote name")));
     }
-    open(repo)?.remote_rename(old, new)?;
+    let r = open(repo)?;
+    prepare_remote_rename(&r, old)?;
+    r.remote_rename(old, new)?;
+    Ok(())
+}
+
+/// libgit2 moves a remote's config section without escaping the values, so a
+/// backslash or quote would come out changed or leave `.git/config` unreadable.
+/// Windows paths switch to forward slashes, which mean the same there; any
+/// other such value stops the rename.
+fn prepare_remote_rename(r: &Repository, name: &str) -> Result<()> {
+    let mut config = r.config()?;
+    let pattern = format!(r"^remote\.{}\..*$", regex::escape(name));
+    let mut entries = Vec::new();
+    config.entries(Some(&pattern))?.for_each(|e| {
+        if let (Ok(key), Ok(value)) = (e.name(), e.value()) {
+            entries.push((key.to_owned(), value.to_owned()));
+        }
+    })?;
+    for (key, value) in entries {
+        if !value.contains(['\\', '"', '\n']) {
+            continue;
+        }
+        let is_url = key.ends_with(".url") || key.ends_with(".pushurl");
+        if cfg!(windows) && is_url && !value.contains(['"', '\n']) {
+            config.set_str(&key, &value.replace('\\', "/"))?;
+        } else {
+            return Err(Error::msg(format!("Can't rename the remote: {key} contains a backslash, quote or line break")));
+        }
+    }
     Ok(())
 }
 
