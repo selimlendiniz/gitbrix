@@ -1,13 +1,8 @@
 # Windows: Rust testleri
 
-Windows 11 ve Rust 1.99.1 üzerinde `a5ddadb` commit'inde alınan `cargo test`
-sonuçları. Aşağıdaki `read_lf` ve remote düzeltmelerinden önceki durumu
-gösterir, bu düzeltmelerden sonra Windows'ta yeniden çalıştırılmadı.
-
-| Git ayarı | Sonuç |
-|---|---|
-| `core.autocrlf=false` | 157 geçti, 0 hata, 7 atlandı |
-| Git for Windows varsayılanı (`core.autocrlf=true`) | 145 geçti, 12 hata, 7 atlandı |
+Windows 11 ve Rust 1.99.1 üzerinde `2e15f6f` commit'inde alınan `cargo test`
+sonucu: Git for Windows varsayılanı (`core.autocrlf=true`) ile 160 geçti, 0 hata,
+7 atlandı. `core.autocrlf=false` bu commit'te yeniden çalıştırılmadı.
 
 ## Açık konular
 
@@ -53,7 +48,7 @@ ayırmadan karşılaştırıyor. Windows'ta sorguya yazılan `\` önceden olduğ
 
 - `core.autocrlf=true`: 12 test `\n` bekleyip `\r\n` okuyordu. Testler artık
   çalışma ağacındaki dosyaları `read_lf` ile okuyor, `HOME` değiştirmek gerekmiyor.
-  Linux'ta bu ayarla bütün testler geçiyor, Windows'ta henüz denenmedi.
+  Bu ayarla bütün testler Linux'ta ve Windows'ta geçiyor.
 - `paths_are_literal_not_globs`: Windows dosya adında `*` kabul etmediği için
   test `a*b.txt` yerine `a[x]b.txt` kullanıyor. Bu ad da desen olarak `axb.txt`
   ile eşleşir. `*` karakterini `a_star_in_a_path_is_literal` testi yalnızca
